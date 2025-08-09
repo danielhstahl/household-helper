@@ -1,8 +1,8 @@
 from llama_index.llms.ollama import Ollama
 from llama_index.core.agent.workflow import FunctionAgent
 from llama_index.core.workflow import Context
-
-# import logging
+from llama_index.core.agent.workflow import AgentStream
+import logging
 from llama_index.embeddings.ollama import OllamaEmbedding
 from chat import get_response, get_tools
 from vector_store import (
@@ -11,6 +11,7 @@ from vector_store import (
     add_to_store,
 )
 from helper.prompt import helper_template
+from system_prompt import get_system_prompt
 import asyncio
 
 
@@ -36,20 +37,24 @@ async def main():
 
     # Enable logging
     # logging.basicConfig(level=logging.DEBUG)
-    tools = get_tools(llm, vector_index, helper_template)
-    agent = FunctionAgent(tools=tools, llm=llm)
-    ctx = Context(agent)
+    past_converation_tool = "vector_index_past_conversation"
+    tools = get_tools(llm, vector_index, helper_template, past_converation_tool)
+    agent = FunctionAgent(
+        tools=tools,
+        llm=llm,
+        system_prompt=get_system_prompt(past_converation_tool),
+        chat_history=True,
+    )
+    # ctx = Context(agent)
     while True:
         text_input = input("User: ")
         if text_input == "exit":
             break
-        print("text input", text_input)
-        await agent.run(text_input, ctx=ctx)
-        # get_response(llm, vector_index, text_input, helper_template)
+        handler = agent.run(text_input)
+        async for event in handler.stream_events():
+            if isinstance(event, AgentStream):
+                print(event.delta, end="", flush=True)
         add_to_store(vector_index, text_input)
-        # print(f"Agent: {response}")
-    # while True:
-    #    get_response(llm, vector_index, "", helper_template)
 
 
 if __name__ == "__main__":

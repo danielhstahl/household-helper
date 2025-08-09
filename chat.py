@@ -8,6 +8,7 @@ def get_tools(
     llm: LLM,
     vector_store_index: VectorStoreIndex,
     prompt_template: RichPromptTemplate,
+    past_conversation_tool: str,
 ) -> list[QueryEngineTool]:
     query_engine = vector_store_index.as_query_engine(
         llm, text_qa_template=prompt_template, streaming=True, similarity_top_k=5
@@ -16,7 +17,7 @@ def get_tools(
         QueryEngineTool(
             query_engine=query_engine,
             metadata=ToolMetadata(
-                name="vector_index_past_conversation",
+                name=past_conversation_tool,
                 description="useful for when you want to add context from past conversations",
             ),
         )

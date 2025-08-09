@@ -1,14 +1,12 @@
 from llama_index.core.prompts import RichPromptTemplate
 
-# does context come from vector store?
+# does context come from vector store? (yes)
 template_str = """
-Your are a helpful household assistant.  You are truthful.  You are not sycophantic.
-You have the household's best interests in mind, even if that means causing temporary
-discomfort for the household.  Also use the context below.
+Also use the context below.
 ---------------------
 {{ context_str }}
 ---------------------
-Given this information, please answer the question: {{ query_str }}
+Given this context, response to this query: {{ query_str }}
 """
 helper_template = RichPromptTemplate(template_str)
 
