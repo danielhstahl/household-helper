@@ -1,8 +1,8 @@
-from llama_index.core.embeddings.utils import EmbedType
+from llama_index.core.base.embeddings.base import BaseEmbedding
 from sqlalchemy import make_url
 from llama_index.core import VectorStoreIndex
 from llama_index.vector_stores.postgres import PGVectorStore
-from llama_index.core import Document
+from llama_index.core.vector_stores.types import BasePydanticVectorStore
 
 
 def get_connection_information() -> tuple[str, str]:
@@ -11,11 +11,13 @@ def get_connection_information() -> tuple[str, str]:
     return connection_string, db_name
 
 
-def get_vector_store_index(
-    connection_string: str, db_name: str, table_name: str, embedding_model: EmbedType
-) -> VectorStoreIndex:
+def get_vector_store(
+    connection_string: str,
+    db_name: str,
+    table_name: str,
+) -> BasePydanticVectorStore:
     url = make_url(connection_string)
-    pg_vector_store = PGVectorStore.from_params(
+    return PGVectorStore.from_params(
         database=db_name,
         host=url.host,
         password=url.password,
@@ -30,15 +32,11 @@ def get_vector_store_index(
             "hnsw_dist_method": "vector_cosine_ops",
         },
     )
-    return VectorStoreIndex.from_vector_store(pg_vector_store, embedding_model)
 
 
-def add_to_store(vector_store_index: VectorStoreIndex, text: str):
-    # do I need to tokenize first?
-    vector_store_index.insert(Document(text_resource={"text": text}))
-
-
-# UNUSED
-def retrieve_from_store(vector_store_index: VectorStoreIndex, text: str) -> list[str]:
-    base_retriever = vector_store_index.as_retriever(similarity_top_k=5)
-    return [node.get_content() for node in base_retriever.retrieve(text)]
+# unused for now
+def get_vector_store_index(
+    vector_store: BasePydanticVectorStore,
+    embedding_model: BaseEmbedding,
+) -> VectorStoreIndex:
+    return VectorStoreIndex.from_vector_store(vector_store, embedding_model)
