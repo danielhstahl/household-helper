@@ -1,8 +1,12 @@
-from llama_index.llms.ollama import Ollama
+# from llama_index.llms.ollama import Ollama
+# from llama_index.llms.lmstudio import LMStudio
+from llama_index.llms.openai import OpenAI
 from llama_index.core.agent.workflow import FunctionAgent
 from llama_index.core.agent.workflow import AgentStream, AgentInput
 import logging
 from llama_index.embeddings.ollama import OllamaEmbedding
+import nest_asyncio
+
 
 from chat import get_memory
 from vector_store import (
@@ -20,13 +24,20 @@ ollama_embedding = OllamaEmbedding(
     base_url="http://localhost:11434",
     ollama_additional_kwargs={"mirostat": 0},  # what is this??
 )
-llm = Ollama(
-    base_url="http://localhost:11434",
-    model="qwen3:8b",
-    request_timeout=120.0,
-    thinking=True,
-    stream=True,
+llm = OpenAI(
+    model_name="qwen3-8b",
+    api_base="http://localhost:1234/v1",
+    is_function_calling_model=True,
+    context_window=4096,
 )
+
+# Ollama(
+#    base_url="http://localhost:11434",
+#    model="qwen3:8b",
+#    request_timeout=120.0,
+#    thinking=True,
+#    stream=True,
+# )
 
 
 async def main():
@@ -61,5 +72,6 @@ async def main():
 
 
 if __name__ == "__main__":
+    nest_asyncio.apply()
     loop = asyncio.get_event_loop()
     loop.run_until_complete(main())
