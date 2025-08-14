@@ -34,9 +34,7 @@ const AgentSelectionOptions = () => {
           agentDescription="This is a general purpose friendly household helper. It remembers past
         conversations. Think of it as an R2D2: a steady personality that can
         help navigate the minutae that come up during your day."
-          setDefault={(isChecked) =>
-            isChecked && setSelectedAgent(HELPER_INDEX)
-          }
+          setDefault={() => setSelectedAgent(HELPER_INDEX)}
         />
       </Grid>
       <Grid size={{ xs: 6, md: 4 }}>
@@ -45,7 +43,7 @@ const AgentSelectionOptions = () => {
           agentType="Tutor"
           agentDescription="This is specifically intended to offer helpful assistance and
         tutoring for grade-school homework.  Won't give the answers though!"
-          setDefault={(isChecked) => isChecked && setSelectedAgent(TUTOR_INDEX)}
+          setDefault={() => setSelectedAgent(TUTOR_INDEX)}
         />
       </Grid>
     </Grid>

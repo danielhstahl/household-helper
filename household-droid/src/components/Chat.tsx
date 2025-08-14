@@ -1,6 +1,6 @@
 import TextField from "@mui/material/TextField";
 import Grid from "@mui/material/Grid";
-import type { KeyboardEvent } from "react";
+import { type KeyboardEvent } from "react";
 interface ChatProps {
   agentType: string;
   onEnter: (_: string) => void;
@@ -11,6 +11,8 @@ const Chat = ({ agentType, onEnter }: ChatProps) => {
       //@ts-expect-error target.value exists in reality, even though it isn't on KeyboardEvent
       onEnter(e.target.value);
       e.preventDefault();
+      //@ts-expect-error target.value exists in reality, even though it isn't on KeyboardEvent
+      e.target.value = "";
     }
   };
   return (

@@ -1,24 +1,31 @@
 import Grid from "@mui/material/Grid";
-import Typography from "@mui/material/Typography";
 import Paper from "@mui/material/Paper";
-import Chip from "@mui/material/Chip";
 import Box from "@mui/material/Box";
 import { useTheme } from "@mui/material";
-const DialogEnum = {
+import LinearProgress from "@mui/material/LinearProgress";
+export const DialogEnum = {
   Me: "me",
   It: "it",
 } as const;
-type Dialog = (typeof DialogEnum)[keyof typeof DialogEnum];
-interface Message {
+export type Dialog = (typeof DialogEnum)[keyof typeof DialogEnum];
+export interface Message {
   persona: Dialog; //me or it
   text: string;
+  id: number;
 }
 interface OutputProps {
   agentType: string;
   messages: Message[];
+  isWaiting: boolean;
+  latestText: string;
 }
 
-const Output = ({ agentType, messages }: OutputProps) => {
+const Output = ({
+  agentType,
+  messages,
+  isWaiting,
+  latestText,
+}: OutputProps) => {
   const theme = useTheme();
   return (
     <Grid
@@ -38,8 +45,9 @@ const Output = ({ agentType, messages }: OutputProps) => {
             overflow: "auto",
           }}
         >
-          {messages.map(({ persona, text }) => (
+          {messages.map(({ persona, text, id }) => (
             <Box
+              key={id}
               style={{
                 alignSelf:
                   persona === DialogEnum.Me ? "flex-end" : "flex-start",
@@ -61,6 +69,23 @@ const Output = ({ agentType, messages }: OutputProps) => {
               {text}
             </Box>
           ))}
+          {latestText !== "" && (
+            <Box
+              style={{
+                alignSelf: "flex-start",
+                maxWidth: "70%",
+                borderRadius: 16,
+                backgroundColor: theme.palette.grey[300],
+                color: theme.palette.text.primary,
+                padding: theme.spacing(1, 2),
+                margin: theme.spacing(1),
+                wordBreak: "break-word",
+              }}
+            >
+              {latestText}
+            </Box>
+          )}
+          {isWaiting && <LinearProgress />}
         </Paper>
       </Grid>
     </Grid>

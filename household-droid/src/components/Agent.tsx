@@ -1,15 +1,17 @@
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
 import CardActions from "@mui/material/CardActions";
+import CardActionArea from "@mui/material/CardActionArea";
 import Button from "@mui/material/Button";
 import Typography from "@mui/material/Typography";
-import Switch from "@mui/material/Switch";
-import FormControlLabel from "@mui/material/FormControlLabel";
+import { useTheme } from "@mui/material";
+//import Switch from "@mui/material/Switch";
+//import FormControlLabel from "@mui/material/FormControlLabel";
 interface AgentProps {
   agentType: string;
   agentDescription: string;
   isDefault: boolean;
-  setDefault: (_: boolean) => void;
+  setDefault: () => void;
 }
 const AgentSelection = ({
   agentType,
@@ -17,26 +19,33 @@ const AgentSelection = ({
   isDefault,
   setDefault,
 }: AgentProps) => {
+  const theme = useTheme();
   return (
-    <Card sx={{ minWidth: 275 }}>
-      <CardContent>
-        <Typography variant="h5" component="div">
-          {agentType}
-        </Typography>
-        <Typography variant="body2">{agentDescription}</Typography>
-      </CardContent>
-      <CardActions>
-        <Button size="small">Use {agentType}</Button>
-        <FormControlLabel
-          control={
-            <Switch
-              checked={isDefault}
-              onChange={(_, isChecked) => setDefault(isChecked)}
-            />
-          }
-          label="Default agent"
-        />
-      </CardActions>
+    <Card sx={{ minWidth: 275, height: "100%" }} variant="outlined">
+      <CardActionArea
+        onClick={() => setDefault()}
+        data-active={isDefault ? "" : undefined}
+        sx={{
+          alignItems: "start",
+          height: "100%",
+          "&[data-active]": {
+            border: `1px solid`,
+            //backgroundColor: "action.selected",
+            borderColor: theme.palette.primary.main,
+            borderyStyle: "solid",
+            "&:hover": {
+              backgroundColor: "action.selectedHover",
+            },
+          },
+        }}
+      >
+        <CardContent style={{ verticalAlign: "top" }}>
+          <Typography variant="h5" component="div">
+            {agentType}
+          </Typography>
+          <Typography variant="body2">{agentDescription}</Typography>
+        </CardContent>
+      </CardActionArea>
     </Card>
   );
 };
