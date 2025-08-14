@@ -38,7 +38,7 @@ function App() {
         <Output
           messages={messages}
           latestText={latestText}
-          agentType="helper"
+          //agentType="helper"
           isWaiting={isWaiting}
         />
         <Chat

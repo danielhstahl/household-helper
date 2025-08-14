@@ -14,18 +14,13 @@ export interface Message {
   id: number;
 }
 interface OutputProps {
-  agentType: string;
+  // agentType: string;
   messages: Message[];
   isWaiting: boolean;
   latestText: string;
 }
 
-const Output = ({
-  agentType,
-  messages,
-  isWaiting,
-  latestText,
-}: OutputProps) => {
+const Output = ({ messages, isWaiting, latestText }: OutputProps) => {
   const theme = useTheme();
   return (
     <Grid

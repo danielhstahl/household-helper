@@ -11,3 +11,17 @@ export const sendQuery = (text: string) => {
       })
   );
 };
+
+export const sendTutor = (text: string) => {
+  return (
+    fetch("/tutor", {
+      method: "POST",
+      body: JSON.stringify({ text }),
+      headers: { "Content-Type": "application/json" },
+    })
+      // Retrieve its body as ReadableStream
+      .then((response) => {
+        return response.body!.getReader();
+      })
+  );
+};

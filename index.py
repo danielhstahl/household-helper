@@ -10,15 +10,19 @@ from fastapi.responses import StreamingResponse
 from contextlib import asynccontextmanager
 from pydantic import BaseModel
 import logging
+from uuid import uuid4
 from chat import get_memory
 from vector_store import (
     get_connection_information,
     get_vector_store,
 )
+from llama_index.observability.otel import LlamaIndexOpenTelemetry
+
 
 # from helper.prompt import helper_template
 from system_prompt import get_system_prompt
 
+instrumentor = LlamaIndexOpenTelemetry()
 
 ollama_embedding = OllamaEmbedding(
     model_name="bge-m3:567m",
@@ -43,7 +47,7 @@ llm = OpenAI(
 
 # this seems hacky, see if there is a better method
 agent_wrapper = {}
-
+session_memory = {}
 
 logger = logging.getLogger("uvicorn.error")
 logger.setLevel(logging.DEBUG)
@@ -51,6 +55,8 @@ logger.setLevel(logging.DEBUG)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    instrumentor.start_registering()
+
     conn_str, db_name = get_connection_information()
     vector_store = get_vector_store(
         conn_str,
@@ -61,15 +67,13 @@ async def lifespan(app: FastAPI):
 
     # Enable logging
     # logging.basicConfig(level=logging.DEBUG)
-    agent = FunctionAgent(
+    helper_agent = FunctionAgent(
         name="HelperAgent",
         description="Household helper.  Can hand off to TutorAgent.",
         # tools=tools,
         llm=llm,
-        system_prompt=get_system_prompt()
-        + "  You can hand off to the TutorAgent if a question appears to be related to grade-school homework.",
+        system_prompt=get_system_prompt(),
         chat_history=True,
-        can_handoff_to=["TutorAgent"],
     )
 
     tutor_agent = FunctionAgent(
@@ -79,18 +83,19 @@ async def lifespan(app: FastAPI):
         llm=llm,
         chat_history=True,
     )
-    agent_workflow = AgentWorkflow(
-        agents=[agent, tutor_agent],
-        root_agent=agent.name,
-    )
 
-    agent_wrapper["agent"] = agent_workflow
+    agent_wrapper["helper_agent"] = helper_agent
+    agent_wrapper["tutor_agent"] = tutor_agent
+
+    # todo, remove once sessions are fully working
     agent_wrapper["memory"] = memory
+    agent_wrapper["vector_store"] = vector_store
 
-    logger.debug("got past lifespan")
+    logger.debug("loaded agents")
 
     yield
     agent_wrapper.clear()
+    session_memory.clear()
 
 
 class Chat(BaseModel):
@@ -113,18 +118,26 @@ async def yield_streams(stream_events):
             yield event.delta
 
 
+@app.post("/session")
+async def session(chat: Chat) -> str:
+    session_id = str(uuid4())
+    vector_store = agent_wrapper["vector_store"]
+    # TODO: define session ID
+    session_memory[session_id] = get_memory(ollama_embedding, vector_store)
+    return session_id
+
+
 @app.post("/query")
 async def query(chat: Chat):
-    # print(agent_wrapper)
-    logger.debug(agent_wrapper)
-    agent = agent_wrapper["agent"]
+    agent = agent_wrapper["helper_agent"]
     memory = agent_wrapper["memory"]
     handler = agent.run(chat.text, memory=memory)
-
     return StreamingResponse(yield_streams(handler.stream_events()))
 
 
-# if __name__ == "__main__":
-#    nest_asyncio.apply()
-#    loop = asyncio.get_event_loop()
-#    loop.run_until_complete(main())
+@app.post("/tutor")
+async def tutor(chat: Chat):
+    agent = agent_wrapper["tutor_agent"]
+    memory = agent_wrapper["memory"]
+    handler = agent.run(chat.text, memory=memory)
+    return StreamingResponse(yield_streams(handler.stream_events()))

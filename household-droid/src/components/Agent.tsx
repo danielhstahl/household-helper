@@ -1,8 +1,6 @@
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
-import CardActions from "@mui/material/CardActions";
 import CardActionArea from "@mui/material/CardActionArea";
-import Button from "@mui/material/Button";
 import Typography from "@mui/material/Typography";
 import { useTheme } from "@mui/material";
 //import Switch from "@mui/material/Switch";
@@ -39,7 +37,7 @@ const AgentSelection = ({
           },
         }}
       >
-        <CardContent style={{ verticalAlign: "top" }}>
+        <CardContent style={{ display: "inline-block", verticalAlign: "top" }}>
           <Typography variant="h5" component="div">
             {agentType}
           </Typography>
