@@ -12,3 +12,6 @@ dependencies = [
     "llama-index-observability-otel>=0.2.0",
     "llama-index-vector-stores-postgres>=0.6.2",
 ]
+
+[dependency-groups]
+dev = ["pytest>=8.4.1", "ruff>=0.12.9"]
