@@ -14,11 +14,14 @@ from vector_store import (
     get_connection_information,
     get_vector_store,
 )
-from llama_index.observability.otel import LlamaIndexOpenTelemetry
 
+# from llama_index.observability.otel import LlamaIndexOpenTelemetry
+# import mlflow
 from system_prompt import get_system_prompt
 
-instrumentor = LlamaIndexOpenTelemetry()
+# mlflow.llama_index.autolog()
+
+# instrumentor = LlamaIndexOpenTelemetry()
 
 ollama_embedding = OllamaEmbedding(
     model_name="bge-m3:567m",
@@ -43,7 +46,7 @@ logger.setLevel(logging.DEBUG)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    instrumentor.start_registering()
+    # instrumentor.start_registering()
 
     conn_str, db_name = get_connection_information()
     vector_store = get_vector_store(

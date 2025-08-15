@@ -27,7 +27,7 @@ const AgentSelectionOptions = ({
           agentType="Helper"
           agentDescription="This is a general purpose friendly household helper. It remembers past
         conversations. Think of it as an R2D2: a steady personality that can
-        help navigate the minutae that come up during your day."
+        help navigate the minutiae that come up during your day."
           setDefault={() => setSelectedAgent(HELPER_INDEX)}
         />
       </Grid>
