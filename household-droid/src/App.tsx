@@ -1,14 +1,17 @@
 import "./App.css";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import AppBarDroid from "./components/AppBar";
-import AgentSelection from "./components/AgentSelection";
+import AgentSelection, {
+  AgentSelectionsEnum,
+  type AgentSelections,
+} from "./components/AgentSelection";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 import Toolbar from "@mui/material/Toolbar";
 import CssBaseline from "@mui/material/CssBaseline";
 import Container from "@mui/material/Container";
 import Chat from "./components/Chat";
 import Output, { DialogEnum, type Message } from "./components/Output";
-import { sendQuery } from "./services/Api";
+import { sendQuery, sendTutor } from "./services/Api";
 const INIT_MESSAGE = {
   persona: DialogEnum.It,
   text: "Please start chatting!",
@@ -27,6 +30,21 @@ function App() {
   const [{ messages, latestText }, setMessages] =
     useState<MessagesAndText>(initMessageAndText);
   const [isWaiting, setIsWaiting] = useState(false);
+  const [selectedAgent, setSelectedAgent] = useState<AgentSelections>(
+    AgentSelectionsEnum.HELPER_INDEX,
+  );
+
+  const queryLlm = useCallback(
+    (query: string) => {
+      switch (selectedAgent) {
+        case AgentSelectionsEnum.HELPER_INDEX:
+          return sendQuery(query);
+        case AgentSelectionsEnum.TUTOR_INDEX:
+          return sendTutor(query);
+      }
+    },
+    [selectedAgent],
+  );
   return (
     <ThemeProvider theme={theme}>
       <Container maxWidth={false} style={{ minHeight: "100%" }}>
@@ -34,7 +52,10 @@ function App() {
         <Toolbar />
         <CssBaseline />
         <AppBarDroid />
-        <AgentSelection />
+        <AgentSelection
+          selectedAgent={selectedAgent}
+          setSelectedAgent={setSelectedAgent}
+        />
         <Output
           messages={messages}
           latestText={latestText}
@@ -51,7 +72,7 @@ function App() {
                 { persona: DialogEnum.Me, text: v, id: state.messages.length },
               ],
             }));
-            sendQuery(v).then(async (r) => {
+            queryLlm(v).then(async (r) => {
               let done = false;
               let value;
               const dec = new TextDecoder();

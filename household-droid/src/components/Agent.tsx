@@ -24,7 +24,7 @@ const AgentSelection = ({
         onClick={() => setDefault()}
         data-active={isDefault ? "" : undefined}
         sx={{
-          alignItems: "start",
+          //alignItems: "start",
           height: "100%",
           "&[data-active]": {
             border: `1px solid`,
@@ -37,8 +37,8 @@ const AgentSelection = ({
           },
         }}
       >
-        <CardContent style={{ display: "inline-block", verticalAlign: "top" }}>
-          <Typography variant="h5" component="div">
+        <CardContent style={{ height: "100%" }}>
+          <Typography gutterBottom variant="h5" component="div">
             {agentType}
           </Typography>
           <Typography variant="body2">{agentDescription}</Typography>

@@ -3,6 +3,12 @@ import Paper from "@mui/material/Paper";
 import Box from "@mui/material/Box";
 import { useTheme } from "@mui/material";
 import LinearProgress from "@mui/material/LinearProgress";
+import ReactMarkdown from "react-markdown";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
+import "katex/dist/katex.min.css";
+import remarkGfm from "remark-gfm"; // For GitHub-flavored Markdown (tables, strikethrough, etc.)
+import { memo } from "react";
 export const DialogEnum = {
   Me: "me",
   It: "it",
@@ -19,6 +25,17 @@ interface OutputProps {
   isWaiting: boolean;
   latestText: string;
 }
+interface FormattedTextProps {
+  text: string;
+}
+const FormattedText = memo(({ text }: FormattedTextProps) => (
+  <ReactMarkdown
+    remarkPlugins={[remarkGfm, remarkMath]}
+    rehypePlugins={[rehypeKatex]}
+  >
+    {text}
+  </ReactMarkdown>
+));
 
 const Output = ({ messages, isWaiting, latestText }: OutputProps) => {
   const theme = useTheme();
@@ -61,7 +78,7 @@ const Output = ({ messages, isWaiting, latestText }: OutputProps) => {
                 wordBreak: "break-word",
               }}
             >
-              {text}
+              <FormattedText text={text} />
             </Box>
           ))}
           {latestText !== "" && (
@@ -77,7 +94,7 @@ const Output = ({ messages, isWaiting, latestText }: OutputProps) => {
                 wordBreak: "break-word",
               }}
             >
-              {latestText}
+              <FormattedText text={latestText} />
             </Box>
           )}
           {isWaiting && <LinearProgress />}
