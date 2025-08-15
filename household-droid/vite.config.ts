@@ -1,3 +1,4 @@
+/// <reference types="vitest" />
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
@@ -16,6 +17,15 @@ export default defineConfig({
         changeOrigin: true, // Ensure the request appears to come from the frontend server
         //rewrite: (path) => path, //path.replace(/^\/api/, ''), // Optional: Remove '/api' prefix
       },
+    },
+  },
+  test: {
+    browser: {
+      provider: "playwright", // or 'webdriverio'
+      enabled: true,
+      // at least one instance is required
+      instances: [{ browser: "chromium" }],
+      headless: true,
     },
   },
 });

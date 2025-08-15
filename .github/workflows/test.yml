@@ -18,7 +18,7 @@ jobs:
           uv run ruff format --check
       - name: Run tests
         run: |
-          pytest .
+          uv run pytest .
 
   run_ui_tests:
     name: Run UI tests

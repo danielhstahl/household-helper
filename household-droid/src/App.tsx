@@ -83,7 +83,6 @@ function App() {
                   latestText: state.latestText + strVal,
                   messages: state.messages,
                 }));
-                //setLatestText((v) => v + strVal);
               }
               setMessages((state) => ({
                 latestText: "",
