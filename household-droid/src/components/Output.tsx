@@ -20,7 +20,6 @@ export interface Message {
   id: number;
 }
 interface OutputProps {
-  // agentType: string;
   messages: Message[];
   isWaiting: boolean;
   latestText: string;

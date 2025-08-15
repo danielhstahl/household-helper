@@ -1,7 +1,5 @@
-# from llama_index.llms.ollama import Ollama
-# from llama_index.llms.lmstudio import LMStudio
 from llama_index.llms.openai import OpenAI
-from llama_index.core.agent.workflow import AgentWorkflow, FunctionAgent
+from llama_index.core.agent.workflow import FunctionAgent
 from llama_index.core.agent.workflow import AgentStream
 from llama_index.embeddings.ollama import OllamaEmbedding
 from tutor.prompt import get_tutor_prompt
@@ -18,8 +16,6 @@ from vector_store import (
 )
 from llama_index.observability.otel import LlamaIndexOpenTelemetry
 
-
-# from helper.prompt import helper_template
 from system_prompt import get_system_prompt
 
 instrumentor = LlamaIndexOpenTelemetry()
@@ -35,14 +31,6 @@ llm = OpenAI(
     is_function_calling_model=True,
     context_window=4096,
 )
-
-# Ollama(
-#    base_url="http://localhost:11434",
-#    model="qwen3:8b",
-#    request_timeout=120.0,
-#    thinking=True,
-#    stream=True,
-# )
 
 
 # this seems hacky, see if there is a better method

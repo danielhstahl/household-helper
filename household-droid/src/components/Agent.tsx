@@ -3,8 +3,6 @@ import CardContent from "@mui/material/CardContent";
 import CardActionArea from "@mui/material/CardActionArea";
 import Typography from "@mui/material/Typography";
 import { useTheme } from "@mui/material";
-//import Switch from "@mui/material/Switch";
-//import FormControlLabel from "@mui/material/FormControlLabel";
 interface AgentProps {
   agentType: string;
   agentDescription: string;
