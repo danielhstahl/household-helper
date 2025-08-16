@@ -52,8 +52,6 @@ const Output = ({ messages, isWaiting, latestText }: OutputProps) => {
           style={{
             display: "flex",
             flexDirection: "column",
-            maxHeight: 600,
-            overflow: "auto",
           }}
         >
           {messages.map(({ persona, text, id }) => (

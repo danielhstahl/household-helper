@@ -25,3 +25,20 @@ export const sendTutor = (text: string) => {
       })
   );
 };
+
+export const streamText = (
+  onNewText: (_: string) => void,
+  onDone: () => void,
+) => {
+  return async (r: ReadableStreamDefaultReader) => {
+    let done = false;
+    let value;
+    const dec = new TextDecoder();
+    while (!done) {
+      ({ value, done } = await r.read());
+      const strVal = dec.decode(value, { stream: true });
+      onNewText(strVal);
+    }
+    onDone();
+  };
+};
