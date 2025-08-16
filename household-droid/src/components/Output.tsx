@@ -65,7 +65,7 @@ const Output = ({ messages, isWaiting, latestText }: OutputProps) => {
                 backgroundColor:
                   persona === DialogEnum.Me
                     ? theme.palette.primary.main
-                    : theme.palette.grey[300],
+                    : theme.palette.text.disabled, //theme.palette.grey[300],
                 color:
                   persona === DialogEnum.Me
                     ? theme.palette.primary.contrastText
@@ -84,7 +84,7 @@ const Output = ({ messages, isWaiting, latestText }: OutputProps) => {
                 alignSelf: "flex-start",
                 maxWidth: "70%",
                 borderRadius: 16,
-                backgroundColor: theme.palette.grey[300],
+                backgroundColor: theme.palette.primary.main,
                 color: theme.palette.text.primary,
                 padding: theme.spacing(1, 2),
                 margin: theme.spacing(1),

@@ -3,16 +3,27 @@ import Toolbar from "@mui/material/Toolbar";
 import Typography from "@mui/material/Typography";
 import MenuItem from "@mui/material/MenuItem";
 import Select from "@mui/material/Select";
+import LightMode from "@mui/icons-material/LightMode";
+import DarkMode from "@mui/icons-material/DarkMode";
+import IconButton from "@mui/material/IconButton";
+import NativeSelect from "@mui/material/NativeSelect";
 import { useAgentParams } from "../state/AgentProvider";
-import { AgentSelectionsEnum, getAgentName } from "../state/selectAgent";
-import { NativeSelect, useTheme } from "@mui/material";
+import {
+  AgentSelectionsEnum,
+  getAgentName,
+  type AgentSelections,
+} from "../state/selectAgent";
+import { useTheme } from "@mui/material";
 import useScrollTrigger from "@mui/material/useScrollTrigger";
 import useMediaQuery from "@mui/material/useMediaQuery";
+import { useColorScheme } from "@mui/material/styles";
+
 const AppBarDroid = ({ threshold }: { threshold: number }) => {
   const { state: selectedAgent, dispatch: setSelectedAgent } = useAgentParams();
   const theme = useTheme();
   const trigger = useScrollTrigger({ threshold, disableHysteresis: true });
   const isLargerThanXS = useMediaQuery(theme.breakpoints.up("sm"));
+  const { mode, setMode } = useColorScheme();
   return (
     <AppBar>
       <Toolbar>
@@ -56,8 +67,7 @@ const AppBarDroid = ({ threshold }: { threshold: number }) => {
             id="menu-appbar"
             value={selectedAgent}
             onChange={(event) => {
-              console.log(event);
-              //setSelectedAgent(event.target.value);
+              setSelectedAgent(parseInt(event.target.value) as AgentSelections);
             }}
             variant="standard"
             sx={{
@@ -78,6 +88,13 @@ const AppBarDroid = ({ threshold }: { threshold: number }) => {
             </option>
           </NativeSelect>
         )}
+        <IconButton
+          aria-label="switch-mode"
+          color="inherit"
+          onClick={() => setMode(mode === "light" ? "dark" : "light")}
+        >
+          {mode === "light" ? <DarkMode /> : <LightMode />}
+        </IconButton>
       </Toolbar>
     </AppBar>
   );

@@ -22,9 +22,14 @@ const initMessageAndText = {
   messages: [INIT_MESSAGE],
   latestText: "",
 };
-
+const theme = createTheme({
+  colorSchemes: {
+    dark: true,
+  },
+});
 function App() {
-  const theme = createTheme();
+  //const theme = createTheme();
+
   const [{ messages, latestText }, setMessages] =
     useState<MessagesAndText>(initMessageAndText);
   const [isWaiting, setIsWaiting] = useState(false);
@@ -37,7 +42,7 @@ function App() {
     }
   }, []);
   return (
-    <ThemeProvider theme={theme}>
+    <ThemeProvider theme={theme} defaultMode="light">
       <Container maxWidth={false} style={{ minHeight: "100%" }}>
         {/*Toolbar only here to push down below app bar*/}
         <Toolbar />
