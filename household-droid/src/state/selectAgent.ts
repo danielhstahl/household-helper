@@ -1,4 +1,4 @@
-import { sendQuery, sendTutor } from "../services/Api";
+import { sendQuery, sendTutor } from "../services/api";
 
 const HELPER_INDEX = 0;
 const TUTOR_INDEX = 1;

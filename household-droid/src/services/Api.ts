@@ -26,6 +26,21 @@ export const sendTutor = (text: string) => {
   );
 };
 
+export const getToken = (formData: FormData) => {
+  //https://github.com/microsoft/TypeScript/issues/30584#issuecomment-1865354582
+  const data = new URLSearchParams(
+    formData as unknown as Record<string, string>,
+  );
+
+  return fetch("/token", {
+    method: "POST",
+    body: data,
+    //headers: { "Content-Type": "application/json" },
+  }).then((response) => {
+    return response.json();
+  });
+};
+
 export const streamText = (
   onNewText: (_: string) => void,
   onDone: () => void,

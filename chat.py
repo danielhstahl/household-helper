@@ -1,3 +1,4 @@
+from llama_index.core.base.llms.types import ChatMessage
 from llama_index.core.llms import LLM
 from llama_index.core.prompts import RichPromptTemplate
 from llama_index.core import VectorStoreIndex
@@ -40,6 +41,7 @@ def get_memory(
     embedding_model: BaseEmbedding,
     vector_store: BasePydanticVectorStore,
     session_id: str,
+    messages: list[str] = [],
 ) -> Memory:
     blocks: list[BaseMemoryBlock] = [
         VectorMemoryBlock(
@@ -54,5 +56,8 @@ def get_memory(
     # does this store context/messages in the default table
     # (llama_index_memory) or in the table from the vector_store?
     return Memory.from_defaults(
-        session_id=session_id, memory_blocks=blocks, insert_method=InsertMethod.SYSTEM
+        session_id=session_id,
+        memory_blocks=blocks,
+        insert_method=InsertMethod.SYSTEM,
+        chat_history=[ChatMessage(content=message) for message in messages],
     )

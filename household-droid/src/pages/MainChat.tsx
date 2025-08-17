@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import AgentSelection from "../components/AgentSelection";
 import Output, { DialogEnum, type Message } from "../components/Output";
 import { AgentProvider } from "../state/AgentProvider";
+import { useActionData } from "react-router";
 const INIT_MESSAGE = {
   persona: DialogEnum.It,
   text: "Please start chatting!",
@@ -18,6 +19,8 @@ const initMessageAndText = {
   latestText: "",
 };
 const MainPage = () => {
+  const accessToken = useActionData();
+  console.log(accessToken);
   const [{ messages, latestText }, setMessages] =
     useState<MessagesAndText>(initMessageAndText);
   const [isWaiting, setIsWaiting] = useState(false);

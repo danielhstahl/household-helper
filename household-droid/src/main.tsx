@@ -10,17 +10,36 @@ import MainChat from "./pages/MainChat.tsx";
 import Auth from "./pages/Auth.tsx";
 import { createBrowserRouter } from "react-router";
 import { RouterProvider } from "react-router/dom";
+import {
+  getLoggedInJwt,
+  loginAction,
+  logoutAction,
+  protectedLoader,
+} from "./services/auth.ts";
 
 const router = createBrowserRouter([
   {
     path: "/",
     Component: App,
+    loader() {
+      // Root loader can fetch global data or simply pass user
+      return { user: getLoggedInJwt() };
+    },
     children: [
-      { index: true, Component: MainChat },
+      {
+        index: true,
+        Component: MainChat,
+        loader: protectedLoader, // Prevent un-authenticated from seeing main page
+        action: loginAction, // Handles login form submission
+      },
       //{ path: "settings", Component: Settings },
       {
-        path: "/auth",
+        path: "auth",
         Component: Auth,
+      },
+      {
+        path: "logout",
+        action: logoutAction,
       },
     ],
   },

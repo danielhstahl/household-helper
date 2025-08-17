@@ -1,29 +1,10 @@
 from pydantic import BaseModel, Field
 from typing import Optional
-from sqlalchemy.orm import sessionmaker, declarative_base, mapped_column, relationship
-from sqlalchemy import (
-    create_engine,
-    Column,
-    Integer,
-    String,
-    Boolean,
-    UniqueConstraint,
-    ForeignKey,
-)
-from passlib.context import CryptContext
-from sqlalchemy.orm import Session
-from datetime import datetime, timedelta
-from jose import JWTError, jwt
-import secrets
+from sqlalchemy.orm import declarative_base, mapped_column, relationship
+from sqlalchemy import Integer, String, Boolean, UniqueConstraint, ForeignKey, DateTime
+from datetime import datetime, timezone
 
-SECRET_KEY = secrets.token_hex(
-    32
-)  # if server restarts this will be awkward, pass in as an env variable instead
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30  # Token valid for 30 minutes
 Base = declarative_base()
-# Password hashing context
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 class User(Base):
@@ -33,7 +14,7 @@ class User(Base):
     username = mapped_column(String, primary_key=True, index=True)
     hashed_password = mapped_column(String, nullable=False)
     disabled = mapped_column(Boolean, default=False)
-    roles = relationship("Roles", back_populates="role")
+    roles = relationship("Roles", back_populates="user")
 
 
 class Roles(Base):
@@ -42,9 +23,32 @@ class Roles(Base):
     __tablename__ = "roles"
 
     id = mapped_column(Integer, primary_key=True, index=True)
-    username = mapped_column(ForeignKey("users.username"))
+    username = mapped_column(String, ForeignKey("users.username"), nullable=False)
     role = mapped_column(String, nullable=False)
+    user = relationship("User", back_populates="roles")
     __table_args__ = (UniqueConstraint("username", "role", name="_username_role"),)
+
+
+class Sessions(Base):
+    """SQLAlchemy model for individual chat messages."""
+
+    __tablename__ = "sessions"
+    id = mapped_column(String, primary_key=True, index=True)
+    username = mapped_column(String, ForeignKey("users.username"), nullable=False)
+
+
+class Message(Base):
+    """SQLAlchemy model for individual chat messages."""
+
+    __tablename__ = "chat_messages"
+
+    id = mapped_column(Integer, primary_key=True, index=True)
+    session_id = mapped_column(String, ForeignKey("sessions.id"), nullable=False)
+    username = mapped_column(String, ForeignKey("users.username"), nullable=False)
+    content = mapped_column(String, nullable=False)
+    timestamp = mapped_column(
+        DateTime, default=datetime.now(timezone.utc), nullable=False
+    )
 
 
 # --- Pydantic Models ---
@@ -98,3 +102,9 @@ class CurrentUser(BaseModel):
     username: str
     disabled: Optional[bool] = None
     roles: list[str]
+
+
+# Add this to your User model if you want a bidirectional relationship
+# class User(...):
+#    ...
+#    chat_messages = relationship("ChatMessage", back_populates="user", order_by=ChatMessage.timestamp)

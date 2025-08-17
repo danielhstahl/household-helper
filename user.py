@@ -2,11 +2,14 @@ from fastapi import HTTPException, Depends, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from typing import Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from passlib.context import CryptContext
 from jose import JWTError, jwt
 import secrets
-from models import User, UserInDB, CurrentUser, TokenData, UserCreate
+from models import User, UserInDB, CurrentUser, TokenData, UserCreate, Roles
+from typing import Iterator
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
 SECRET_KEY = secrets.token_hex(
     32
@@ -18,6 +21,21 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # --- OAuth2PasswordBearer is used to extract the token from the Authorization header ---
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+
+DATABASE_URL = "postgresql://postgres:yourpassword@localhost:5432/fastapi_db"
+engine = create_engine(DATABASE_URL)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+
+# --- Database Session Dependency ---
+def get_db() -> Iterator[Session]:
+    """Dependency to provide a database session."""
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        print("closing database")  # testing, make sure this gets called
+        db.close()
 
 
 async def authenticate_user(
@@ -33,7 +51,7 @@ async def authenticate_user(
 
 
 async def get_current_user(
-    db: Session, token: str = Depends(oauth2_scheme)
+    db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)
 ) -> CurrentUser:
     """Dependency to get the currently authenticated user based on a JWT token."""
     credentials_exception = HTTPException(
@@ -109,7 +127,7 @@ def create_user_in_db_func(db: Session, user: UserCreate) -> UserInDB:
     db_user = User(
         username=user.username,
         hashed_password=hashed_password,
-        roles=user.roles,
+        roles=[Roles(username=user.username, role=role) for role in user.roles],
     )
     db.add(db_user)
     db.commit()
@@ -123,7 +141,7 @@ def update_user_in_db_func(db: Session, user: UserCreate) -> UserInDB:
     db_user = User(
         username=user.username,
         hashed_password=hashed_password,
-        roles=user.roles,
+        roles=[Roles(username=user.username, role=role) for role in user.roles],
     )
     db.merge(db_user)
     db.commit()
@@ -135,9 +153,9 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     """Creates a JWT access token."""
     to_encode = data.copy()
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = datetime.now(timezone.utc) + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=15)
+        expire = datetime.now(timezone.utc) + timedelta(minutes=15)
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt

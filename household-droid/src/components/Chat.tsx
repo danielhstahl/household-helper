@@ -3,7 +3,7 @@ import Grid from "@mui/material/Grid";
 import { type KeyboardEvent } from "react";
 import { getAgentName, invokeAgent } from "../state/selectAgent";
 import { useAgentParams } from "../state/AgentProvider";
-import { streamText } from "../services/Api";
+import { streamText } from "../services/api";
 interface ChatProps {
   onNewText: (_: string) => void;
   onStart: (_: string) => void;
