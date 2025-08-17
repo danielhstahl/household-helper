@@ -4,7 +4,8 @@ import { useState, useRef, useEffect } from "react";
 import AgentSelection from "../components/AgentSelection";
 import Output, { DialogEnum, type Message } from "../components/Output";
 import { AgentProvider } from "../state/AgentProvider";
-import { useActionData } from "react-router";
+import { useLoaderData } from "react-router";
+
 const INIT_MESSAGE = {
   persona: DialogEnum.It,
   text: "Please start chatting!",
@@ -19,8 +20,9 @@ const initMessageAndText = {
   latestText: "",
 };
 const MainPage = () => {
-  const accessToken = useActionData();
-  console.log(accessToken);
+  const { jwt, session } = useLoaderData();
+  const { sessions, user } = session;
+  console.log(sessions);
   const [{ messages, latestText }, setMessages] =
     useState<MessagesAndText>(initMessageAndText);
   const [isWaiting, setIsWaiting] = useState(false);
@@ -34,7 +36,10 @@ const MainPage = () => {
   }, []);
   return (
     <AgentProvider>
-      <AppBarDroid threshold={agentSelectionHeight} />
+      <AppBarDroid
+        threshold={agentSelectionHeight}
+        isAdmin={user.roles.find((v: string) => v === "admin") ? true : false}
+      />
       <AgentSelection ref={agentSelectionRef} />
       <Output
         messages={messages}
@@ -42,6 +47,8 @@ const MainPage = () => {
         isWaiting={isWaiting}
       />
       <Chat
+        jwt={jwt}
+        sessionId={undefined}
         onStart={(v: string) => {
           setMessages((state) => ({
             latestText: state.latestText,

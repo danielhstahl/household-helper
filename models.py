@@ -54,6 +54,12 @@ class Message(Base):
 # --- Pydantic Models ---
 
 
+class RoleInDB(BaseModel):
+    id: int
+    username: str
+    role: str
+
+
 class UserInDB(BaseModel):
     """Internal model for a user retrieved from the database."""
 
@@ -61,7 +67,7 @@ class UserInDB(BaseModel):
     username: str
     hashed_password: str
     disabled: Optional[bool] = None
-    roles: list[str]
+    roles: list[RoleInDB]
 
     class Config:
         from_attributes = True  # Updated from orm_mode = True for Pydantic v2
@@ -102,6 +108,11 @@ class CurrentUser(BaseModel):
     username: str
     disabled: Optional[bool] = None
     roles: list[str]
+
+
+class SessionAndUser(BaseModel):
+    sessions: list[str]
+    user: CurrentUser
 
 
 # Add this to your User model if you want a bidirectional relationship

@@ -3,13 +3,13 @@ from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from typing import Optional
 from datetime import datetime, timedelta, timezone
-from passlib.context import CryptContext
 from jose import JWTError, jwt
 import secrets
 from models import User, UserInDB, CurrentUser, TokenData, UserCreate, Roles
 from typing import Iterator
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+import bcrypt
 
 SECRET_KEY = secrets.token_hex(
     32
@@ -17,7 +17,21 @@ SECRET_KEY = secrets.token_hex(
 ALGORITHM = "HS256"
 
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Hash a password using bcrypt
+def hash_password(password: str) -> str:
+    pwd_bytes = password.encode("utf-8")
+    salt = bcrypt.gensalt()
+    hashed_password = bcrypt.hashpw(password=pwd_bytes, salt=salt)
+    return hashed_password.decode("utf-8")
+
+
+# Check if the provided password matches the stored password (hashed)
+def verify_password(plain_password: str, hashed_password: str):
+    password_byte_enc = plain_password.encode("utf-8")
+    return bcrypt.checkpw(
+        password=password_byte_enc, hashed_password=hashed_password.encode("utf-8")
+    )
+
 
 # --- OAuth2PasswordBearer is used to extract the token from the Authorization header ---
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
@@ -75,7 +89,7 @@ async def get_current_user(
     return CurrentUser(
         username=user.username,
         disabled=user.disabled,
-        roles=user.roles,
+        roles=[role.role for role in user.roles],
     )
 
 
@@ -104,16 +118,6 @@ def get_current_user_by_roles(required_role: str):
         return current_user
 
     return get_current_user_by_roles
-
-
-def hash_password(password: str) -> str:
-    """Hashes a plain-text password."""
-    return pwd_context.hash(password)
-
-
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verifies a plain-text password against a hashed password."""
-    return pwd_context.verify(plain_password, hashed_password)
 
 
 def get_user_from_db(db: Session, username: str) -> Optional[UserInDB]:

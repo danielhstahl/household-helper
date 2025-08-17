@@ -8,8 +8,10 @@ interface ChatProps {
   onNewText: (_: string) => void;
   onStart: (_: string) => void;
   onDone: () => void;
+  jwt: string;
+  sessionId: string | undefined;
 }
-const Chat = ({ onStart, onNewText, onDone }: ChatProps) => {
+const Chat = ({ onStart, onNewText, onDone, jwt, sessionId }: ChatProps) => {
   const { state: selectedAgent } = useAgentParams();
   const agentName = getAgentName(selectedAgent);
   const pressEnter = (e: KeyboardEvent<HTMLDivElement>) => {
@@ -17,7 +19,7 @@ const Chat = ({ onStart, onNewText, onDone }: ChatProps) => {
       //@ts-expect-error target.value exists in reality, even though it isn't on KeyboardEvent
       onStart(e.target.value);
       //@ts-expect-error target.value exists in reality, even though it isn't on KeyboardEvent
-      invokeAgent(selectedAgent, e.target.value).then(
+      invokeAgent(selectedAgent, e.target.value, jwt, sessionId).then(
         streamText(onNewText, onDone),
       );
       e.preventDefault();

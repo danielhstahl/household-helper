@@ -7,6 +7,7 @@ import LightMode from "@mui/icons-material/LightMode";
 import DarkMode from "@mui/icons-material/DarkMode";
 import IconButton from "@mui/material/IconButton";
 import NativeSelect from "@mui/material/NativeSelect";
+import SettingsIcon from "@mui/icons-material/Settings";
 import { useAgentParams } from "../state/AgentProvider";
 import {
   AgentSelectionsEnum,
@@ -17,8 +18,14 @@ import { useTheme } from "@mui/material";
 import useScrollTrigger from "@mui/material/useScrollTrigger";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import { useColorScheme } from "@mui/material/styles";
-
-const AppBarDroid = ({ threshold }: { threshold: number }) => {
+import { Link as RouterLink } from "react-router";
+const AppBarDroid = ({
+  threshold,
+  isAdmin,
+}: {
+  threshold: number;
+  isAdmin: boolean;
+}) => {
   const { state: selectedAgent, dispatch: setSelectedAgent } = useAgentParams();
   const theme = useTheme();
   const trigger = useScrollTrigger({ threshold, disableHysteresis: true });
@@ -95,6 +102,16 @@ const AppBarDroid = ({ threshold }: { threshold: number }) => {
         >
           {mode === "light" ? <DarkMode /> : <LightMode />}
         </IconButton>
+        {isAdmin && (
+          <IconButton
+            aria-label="settings"
+            color="inherit"
+            component={RouterLink}
+            to="/settings"
+          >
+            <SettingsIcon />
+          </IconButton>
+        )}
       </Toolbar>
     </AppBar>
   );

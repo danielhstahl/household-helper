@@ -1,5 +1,5 @@
 import { redirect, type ActionFunctionArgs } from "react-router";
-import { getToken } from "./api";
+import { getToken, getSession, getUsers } from "./api";
 
 const USER_JWT_KEY = "user-jwt";
 
@@ -19,16 +19,20 @@ export const setLoggedInJwt = (jwt: string | null) => {
 //import { getLoggedInUser, logoutUser, loginUser } from "./auth";
 
 // --- Route Loaders ---
-export const protectedLoader = () => {
+export const protectedLoader = async () => {
   const jwt = getLoggedInJwt();
   if (!jwt) {
     // Redirect unauthenticated users to the login page
-    // You can also add a `?message=login_required` to the URL for context
-    //const params = new URLSearchParams();
-    //params.set("from", new URL(request.url).pathname);
     return redirect("/login");
   }
-  return jwt; // Pass user data to the route component via useLoaderData
+  try {
+    const session = await getSession(jwt);
+    console.log(session);
+    return { jwt, session }; // Pass user data to the route component via useLoaderData
+  } catch (error) {
+    setLoggedInJwt(null);
+    return redirect("/login");
+  }
 };
 
 export const logoutAction = () => {
@@ -40,17 +44,34 @@ interface AccessToken {
 }
 export const loginAction = async ({ request }: ActionFunctionArgs) => {
   const formData = await request.formData();
-  //const username = formData.get("username") as string;
-  // const password = formData.get("password") as string;
 
   try {
     const { access_token: accessToken } = (await getToken(
       formData,
     )) as AccessToken;
-    // Redirect to the 'from' path or dashboard on successful login
-    return accessToken;
+    setLoggedInJwt(accessToken);
+    return redirect("/");
   } catch (error) {
+    console.log(error);
     // Return an error object to the component
     return { error };
+  }
+};
+
+export const loadUsers = async () => {
+  const jwt = getLoggedInJwt();
+  console.log(jwt);
+  if (!jwt) {
+    // Redirect unauthenticated users to the login page
+    return redirect("/login");
+  }
+  try {
+    const users = await getUsers(jwt);
+    console.log(users);
+    return users;
+  } catch (error) {
+    console.log(error);
+    setLoggedInJwt(null);
+    return redirect("/login");
   }
 };

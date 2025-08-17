@@ -1,9 +1,25 @@
-export const sendQuery = (text: string) => {
+const buildUrl = (base: string, sessionId: string | undefined) => {
+  return sessionId
+    ? `${base}?` +
+        new URLSearchParams({
+          session_id: sessionId,
+        })
+    : base;
+};
+const getHeaders = (jwt: string) => ({
+  "Content-Type": "application/json",
+  Authorization: `Bearer ${jwt}`,
+});
+export const sendQuery = (
+  text: string,
+  jwt: string,
+  sessionId: string | undefined,
+) => {
   return (
-    fetch("/query", {
+    fetch(buildUrl("/query", sessionId), {
       method: "POST",
       body: JSON.stringify({ text }),
-      headers: { "Content-Type": "application/json" },
+      headers: getHeaders(jwt),
     })
       // Retrieve its body as ReadableStream
       .then((response) => {
@@ -12,18 +28,48 @@ export const sendQuery = (text: string) => {
   );
 };
 
-export const sendTutor = (text: string) => {
+export const sendTutor = (
+  text: string,
+  jwt: string,
+  sessionId: string | undefined,
+) => {
   return (
-    fetch("/tutor", {
+    fetch(buildUrl("/tutor", sessionId), {
       method: "POST",
       body: JSON.stringify({ text }),
-      headers: { "Content-Type": "application/json" },
+      headers: getHeaders(jwt),
     })
       // Retrieve its body as ReadableStream
       .then((response) => {
         return response.body!.getReader();
       })
   );
+};
+
+export const getSession = (jwt: string) => {
+  return fetch("/session", {
+    headers: getHeaders(jwt),
+  }).then((response) => {
+    return response.json().then((result) => {
+      if (response.ok) {
+        return result;
+      }
+      throw new Error(result.detail);
+    });
+  });
+};
+
+export const getUsers = (jwt: string) => {
+  return fetch("/users", {
+    headers: getHeaders(jwt),
+  }).then((response) => {
+    return response.json().then((result) => {
+      if (response.ok) {
+        return result;
+      }
+      throw new Error(result.detail);
+    });
+  });
 };
 
 export const getToken = (formData: FormData) => {
@@ -35,9 +81,13 @@ export const getToken = (formData: FormData) => {
   return fetch("/token", {
     method: "POST",
     body: data,
-    //headers: { "Content-Type": "application/json" },
   }).then((response) => {
-    return response.json();
+    return response.json().then((result) => {
+      if (response.ok) {
+        return result;
+      }
+      throw new Error(result.detail);
+    });
   });
 };
 

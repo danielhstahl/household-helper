@@ -23,7 +23,16 @@ from llama_index.observability.otel import LlamaIndexOpenTelemetry
 
 from system_prompt import get_system_prompt
 import os
-from models import Message, Sessions, User, UserCreate, Token, CurrentUser, Base
+from models import (
+    Message,
+    Sessions,
+    User,
+    UserCreate,
+    Token,
+    CurrentUser,
+    Base,
+    SessionAndUser,
+)
 from user import (
     authenticate_user,
     get_current_admin_user,
@@ -179,13 +188,16 @@ async def yield_streams(stream_events):
 @app.get("/session")
 async def session(
     db: Session = Depends(get_db), current_user: CurrentUser = Depends(get_current_user)
-) -> list[str]:
-    return [
-        msg.content
-        for msg in db.query(Sessions)
-        .filter(Sessions.username == current_user.username)
-        .all()
-    ]
+) -> SessionAndUser:
+    return SessionAndUser(
+        sessions=[
+            msg.content
+            for msg in db.query(Sessions)
+            .filter(Sessions.username == current_user.username)
+            .all()
+        ],
+        user=current_user,
+    )
 
 
 @app.post("/query")
@@ -259,7 +271,7 @@ async def create_user(
     return CurrentUser(
         username=new_user.username,
         disabled=new_user.disabled,
-        roles=new_user.roles,
+        roles=[role.role for role in new_user.roles],
     )
 
 
@@ -282,7 +294,7 @@ async def update_user(
     return CurrentUser(
         username=user.username,
         disabled=user.disabled,
-        roles=user.roles,
+        roles=[role.role for role in user.roles],
     )
 
 
@@ -293,6 +305,24 @@ async def read_users_me(current_user: CurrentUser = Depends(get_current_user)):
     Requires any authenticated user.
     """
     return current_user
+
+
+@app.get("/users", response_model=list[CurrentUser])
+async def read_users(
+    current_user: CurrentUser = Depends(get_current_admin_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Endpoint to get all users information
+    """
+    return [
+        CurrentUser(
+            username=user.username,
+            disabled=user.disabled,
+            roles=[role.role for role in user.roles],
+        )
+        for user in db.query(User).all()
+    ]
 
 
 @app.get("/users/admin_info", response_model=CurrentUser)

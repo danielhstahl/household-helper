@@ -10,12 +10,17 @@ export const AgentSelectionsEnum = {
 export type AgentSelections =
   (typeof AgentSelectionsEnum)[keyof typeof AgentSelectionsEnum];
 
-export const invokeAgent = (selectedAgent: AgentSelections, query: string) => {
+export const invokeAgent = (
+  selectedAgent: AgentSelections,
+  query: string,
+  jwt: string,
+  sessionId: string | undefined,
+) => {
   switch (selectedAgent) {
     case AgentSelectionsEnum.HELPER_INDEX:
-      return sendQuery(query);
+      return sendQuery(query, jwt, sessionId);
     case AgentSelectionsEnum.TUTOR_INDEX:
-      return sendTutor(query);
+      return sendTutor(query, jwt, sessionId);
   }
 };
 
