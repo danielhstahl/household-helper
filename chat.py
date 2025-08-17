@@ -39,6 +39,7 @@ def get_tools(
 def get_memory(
     embedding_model: BaseEmbedding,
     vector_store: BasePydanticVectorStore,
+    session_id: str,
 ) -> Memory:
     blocks: list[BaseMemoryBlock] = [
         VectorMemoryBlock(
@@ -53,5 +54,5 @@ def get_memory(
     # does this store context/messages in the default table
     # (llama_index_memory) or in the table from the vector_store?
     return Memory.from_defaults(
-        session_id="my_session", memory_blocks=blocks, insert_method=InsertMethod.SYSTEM
+        session_id=session_id, memory_blocks=blocks, insert_method=InsertMethod.SYSTEM
     )

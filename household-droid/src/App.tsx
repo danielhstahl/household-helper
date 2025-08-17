@@ -1,14 +1,14 @@
 import "./App.css";
 import { useState, useRef, useEffect } from "react";
-import AppBarDroid from "./components/AppBar";
-import AgentSelection from "./components/AgentSelection";
+//import AppBarDroid from "./components/AppBar";
+//import AgentSelection from "./components/AgentSelection";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 import Toolbar from "@mui/material/Toolbar";
 import CssBaseline from "@mui/material/CssBaseline";
 import Container from "@mui/material/Container";
-import Chat from "./components/Chat";
-import Output, { DialogEnum, type Message } from "./components/Output";
-import { AgentProvider } from "./state/AgentProvider";
+//import Chat from "./components/Chat";
+//import Output, { DialogEnum, type Message } from "./components/Output";
+//import { AgentProvider } from "./state/AgentProvider";
 const INIT_MESSAGE = {
   persona: DialogEnum.It,
   text: "Please start chatting!",
@@ -28,8 +28,6 @@ const theme = createTheme({
   },
 });
 function App() {
-  //const theme = createTheme();
-
   const [{ messages, latestText }, setMessages] =
     useState<MessagesAndText>(initMessageAndText);
   const [isWaiting, setIsWaiting] = useState(false);
@@ -47,51 +45,7 @@ function App() {
         {/*Toolbar only here to push down below app bar*/}
         <Toolbar />
         <CssBaseline />
-        <AgentProvider>
-          <AppBarDroid threshold={agentSelectionHeight} />
-          <AgentSelection ref={agentSelectionRef} />
-          <Output
-            messages={messages}
-            latestText={latestText}
-            isWaiting={isWaiting}
-          />
-          <Chat
-            onStart={(v: string) => {
-              setMessages((state) => ({
-                latestText: state.latestText,
-                messages: [
-                  ...state.messages,
-                  {
-                    persona: DialogEnum.Me,
-                    text: v,
-                    id: state.messages.length,
-                  },
-                ],
-              }));
-              setIsWaiting(true);
-            }}
-            onNewText={(v: string) => {
-              setMessages((state) => ({
-                latestText: state.latestText + v,
-                messages: state.messages,
-              }));
-            }}
-            onDone={() => {
-              setMessages((state) => ({
-                latestText: "",
-                messages: [
-                  ...state.messages,
-                  {
-                    persona: DialogEnum.It,
-                    text: state.latestText,
-                    id: state.messages.length,
-                  },
-                ],
-              }));
-              setIsWaiting(false);
-            }}
-          />
-        </AgentProvider>
+        <Outlet />
       </Container>
     </ThemeProvider>
   );
