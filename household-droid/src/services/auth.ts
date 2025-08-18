@@ -30,6 +30,7 @@ export const protectedLoader = async () => {
     console.log(session);
     return { jwt, session }; // Pass user data to the route component via useLoaderData
   } catch (error) {
+    console.log(error);
     setLoggedInJwt(null);
     return redirect("/login");
   }
