@@ -29,13 +29,8 @@ import {
 } from "@mui/x-data-grid";
 import { useGridApiContext } from "@mui/x-data-grid";
 import type { GridRenderEditCellParams } from "@mui/x-data-grid";
-
-interface User {
-  id: number;
-  username: string;
-  roles: string[];
-  isNew?: boolean;
-}
+import { generate } from "random-words";
+import type { GridValidRowModel } from "@mui/x-data-grid";
 
 const ITEM_HEIGHT = 48;
 const ITEM_PADDING_TOP = 8;
@@ -69,45 +64,7 @@ const all_roles = [
     label: "Helper",
   },
 ];
-/*
-const initialRows: GridRowsProp = [
-  {
-    id: randomId(),
-    name: randomTraderName(),
-    age: 25,
-    joinDate: randomCreatedDate(),
-    role: randomRole(),
-  },
-  {
-    id: randomId(),
-    name: randomTraderName(),
-    age: 36,
-    joinDate: randomCreatedDate(),
-    role: randomRole(),
-  },
-  {
-    id: randomId(),
-    name: randomTraderName(),
-    age: 19,
-    joinDate: randomCreatedDate(),
-    role: randomRole(),
-  },
-  {
-    id: randomId(),
-    name: randomTraderName(),
-    age: 28,
-    joinDate: randomCreatedDate(),
-    role: randomRole(),
-  },
-  {
-    id: randomId(),
-    name: randomTraderName(),
-    age: 23,
-    joinDate: randomCreatedDate(),
-    role: randomRole(),
-  },
-];
-*/
+
 declare module "@mui/x-data-grid" {
   interface ToolbarPropsOverrides {
     setRows: (newRows: (oldRows: GridRowsProp) => GridRowsProp) => void;
@@ -119,7 +76,6 @@ declare module "@mui/x-data-grid" {
 }
 
 const MultiSelect = (props: GridRenderEditCellParams) => {
-  console.log(props);
   const { id, value, field } = props;
   const theme = useTheme();
   const apiRef = useGridApiContext();
@@ -155,14 +111,23 @@ const MultiSelect = (props: GridRenderEditCellParams) => {
     </Select>
   );
 };
-
-function EditToolbar(props: GridSlotProps["toolbar"]) {
-  const { rows, setRows, setRowModesModel } = props;
+const generatePassword = () => generate(3);
+function EditToolbar({
+  rows,
+  setRows,
+  setRowModesModel,
+}: GridSlotProps["toolbar"]) {
   const handleClick = () => {
     const id = rows.length;
     setRows((oldRows) => [
       ...oldRows,
-      { id, username: "", role: [], isNew: true },
+      {
+        id,
+        username: "",
+        password: generatePassword(),
+        roles: [],
+        isNew: true,
+      },
     ]);
     setRowModesModel((oldModel) => ({
       ...oldModel,
@@ -181,10 +146,35 @@ function EditToolbar(props: GridSlotProps["toolbar"]) {
   );
 }
 
+const PasswordGenerate = ({ id, field }: GridRenderEditCellParams) => {
+  const apiRef = useGridApiContext();
+  const handleValueChange = () => {
+    const newValue = generatePassword();
+    apiRef.current.setEditCellValue({
+      id,
+      field,
+      value: newValue,
+    });
+  };
+  return (
+    <Button variant="text" onClick={handleValueChange}>
+      Regenerate Password
+    </Button>
+  );
+};
+
 export default function FullFeaturedCrudGrid({
   users,
+  onChange,
 }: {
   users: GridRowsProp;
+  onChange: (
+    type: string,
+    id: GridRowId,
+    username: string,
+    password: string,
+    roles: string[],
+  ) => void;
 }) {
   const [rows, setRows] = useState(users);
   const [rowModesModel, setRowModesModel] = useState<GridRowModesModel>({});
@@ -197,18 +187,6 @@ export default function FullFeaturedCrudGrid({
       event.defaultMuiPrevented = true;
     }
   };
-  /*const handleRoleChange = (
-    event: SelectChangeEvent<string[]>,
-    selectedUsername: string,
-  ) => {
-    setLocalUsers((localUsers) =>
-      localUsers.map(({ username, roles }) => {
-        return username === selectedUsername
-          ? { username, roles: newRoles }
-          : { username, roles };
-      }),
-    );
-  };*/
 
   const handleEditClick = (id: GridRowId) => () => {
     setRowModesModel({ ...rowModesModel, [id]: { mode: GridRowModes.Edit } });
@@ -216,10 +194,40 @@ export default function FullFeaturedCrudGrid({
 
   const handleSaveClick = (id: GridRowId) => () => {
     setRowModesModel({ ...rowModesModel, [id]: { mode: GridRowModes.View } });
+    const rowToSave = rows.find((row) => row.id === id);
+    if (rowToSave) {
+      if (rowToSave.isNew) {
+        onChange(
+          "create",
+          id,
+          rowToSave.username,
+          rowToSave.password,
+          rowToSave.roles,
+        );
+      } else {
+        onChange(
+          "update",
+          id,
+          rowToSave.username,
+          rowToSave.password,
+          rowToSave.roles,
+        );
+      }
+    }
   };
 
   const handleDeleteClick = (id: GridRowId) => () => {
+    const deletedRow = rows.find((row) => row.id === id);
     setRows(rows.filter((row) => row.id !== id));
+    if (deletedRow) {
+      onChange(
+        "delete",
+        id,
+        deletedRow.username,
+        deletedRow.password,
+        deletedRow.roles,
+      );
+    }
   };
 
   const handleCancelClick = (id: GridRowId) => () => {
@@ -245,34 +253,52 @@ export default function FullFeaturedCrudGrid({
   };
 
   const columns: GridColDef[] = [
-    { field: "username", headerName: "Username", width: 180, editable: true },
+    {
+      field: "username",
+      headerName: "Username",
+      flex: 1,
+      editable: true,
+    },
     {
       field: "roles",
       headerName: "Roles",
       type: "custom",
-      width: 180,
+      flex: 2,
       editable: true,
       renderEditCell: (rowValue) => {
-        console.log(rowValue);
         return <MultiSelect {...rowValue} />;
       },
       renderCell: (value) => {
-        return value.row.roles.join(",");
+        return (
+          <Box>
+            {value.row.roles.map((value: string) => (
+              <Chip key={value} label={value} />
+            ))}
+          </Box>
+        );
       },
     },
     {
       field: "password",
       headerName: "Password",
-      width: 220,
+      flex: 2,
       editable: true,
       type: "custom",
-      renderEditCell: () => <Button>Hello</Button>,
+      renderEditCell: (rowValue) => {
+        if (rowValue.row.isNew) {
+          return rowValue.row.password;
+        }
+        return <PasswordGenerate {...rowValue} />;
+      },
+      renderCell: (value) => {
+        return value.row.password || "*******";
+      },
     },
     {
       field: "actions",
       type: "actions",
       headerName: "Actions",
-      width: 100,
+      flex: 0.5,
       cellClassName: "actions",
       getActions: ({ id }) => {
         const isInEditMode = rowModesModel[id]?.mode === GridRowModes.Edit;
@@ -319,18 +345,7 @@ export default function FullFeaturedCrudGrid({
   ];
 
   return (
-    <Box
-      sx={{
-        height: 500,
-        width: "100%",
-        "& .actions": {
-          color: "text.secondary",
-        },
-        "& .textPrimary": {
-          color: "text.primary",
-        },
-      }}
-    >
+    <div style={{ display: "flex", flexDirection: "column" }}>
       <DataGrid
         rows={rows}
         columns={columns}
@@ -341,10 +356,10 @@ export default function FullFeaturedCrudGrid({
         processRowUpdate={processRowUpdate}
         slots={{ toolbar: EditToolbar }}
         slotProps={{
-          toolbar: { setRows, setRowModesModel },
+          toolbar: { rows, setRows, setRowModesModel },
         }}
         showToolbar
       />
-    </Box>
+    </div>
   );
 }

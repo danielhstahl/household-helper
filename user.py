@@ -5,7 +5,7 @@ from typing import Optional
 from datetime import datetime, timedelta, timezone
 from jose import JWTError, jwt
 import secrets
-from models import User, UserInDB, CurrentUser, TokenData, UserCreate, Roles
+from models import User, UserInDB, CurrentUser, TokenData, UserCreate, UserUpdate, Roles
 from typing import Iterator
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -139,13 +139,33 @@ def create_user_in_db_func(db: Session, user: UserCreate) -> UserInDB:
     return db_user
 
 
-def update_user_in_db_func(db: Session, user: UserCreate) -> UserInDB:
+def delete_user_in_db_func(db: Session, user: UserCreate) -> UserInDB:
     """Creates a new user and adds them to the database."""
     hashed_password = hash_password(user.password)
     db_user = User(
         username=user.username,
         hashed_password=hashed_password,
         roles=[Roles(username=user.username, role=role) for role in user.roles],
+    )
+    db.delete(db_user)
+    db.commit()
+    # db.refresh(db_user)  # Refresh to get the generated ID
+    return db_user
+
+
+def update_user_in_db_func(
+    db: Session, user: UserInDB, user_data: UserUpdate
+) -> UserInDB:
+    # hashed_password = hash_password(user.password)
+
+    db_user = User(
+        username=user_data.username,
+        hashed_password=user_data.hashed_password
+        if user_data.hashed_password
+        else user.hashed_password,
+        roles=[
+            Roles(username=user_data.username, role=role) for role in user_data.roles
+        ],
     )
     db.merge(db_user)
     db.commit()

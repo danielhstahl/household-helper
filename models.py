@@ -11,7 +11,8 @@ class User(Base):
     """SQLAlchemy model for the 'users' table."""
 
     __tablename__ = "users"
-    username = mapped_column(String, primary_key=True, index=True)
+    id = mapped_column(Integer, primary_key=True, index=True)
+    username = mapped_column(String, unique=True, index=True)
     hashed_password = mapped_column(String, nullable=False)
     disabled = mapped_column(Boolean, default=False)
     roles = relationship("Roles", back_populates="user")
@@ -23,10 +24,10 @@ class Roles(Base):
     __tablename__ = "roles"
 
     id = mapped_column(Integer, primary_key=True, index=True)
-    username = mapped_column(String, ForeignKey("users.username"), nullable=False)
+    username_id = mapped_column(Integer, ForeignKey("users.id"), nullable=False)
     role = mapped_column(String, nullable=False)
     user = relationship("User", back_populates="roles")
-    __table_args__ = (UniqueConstraint("username", "role", name="_username_role"),)
+    __table_args__ = (UniqueConstraint("username_id", "role", name="_username_role"),)
 
 
 class Sessions(Base):
@@ -82,6 +83,14 @@ class UserCreate(BaseModel):
     # is_admin: bool = False  # Allow setting admin status on creation (admin-only)
 
 
+class UserUpdate(BaseModel):
+    """Model for updating a new user (request body)."""
+
+    username: str = Field(..., min_length=3, max_length=50)
+    password: str = Field(..., min_length=6)
+    roles: list[str]
+
+
 class UserLogin(BaseModel):
     """Model for user login requests."""
 
@@ -94,6 +103,12 @@ class Token(BaseModel):
 
     access_token: str
     token_type: str = "bearer"
+
+
+class GenericSuccess(BaseModel):
+    """Model for generic response."""
+
+    status: str
 
 
 class TokenData(BaseModel):

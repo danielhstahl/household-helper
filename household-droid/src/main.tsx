@@ -16,6 +16,7 @@ import {
   loginAction,
   logoutAction,
   protectedLoader,
+  setUserAction,
   loadUsers,
 } from "./services/auth.ts";
 
@@ -48,7 +49,7 @@ const router = createBrowserRouter([
         path: "settings",
         Component: Settings,
         loader: loadUsers,
-        //action: logoutAction,
+        action: setUserAction,
       },
     ],
   },

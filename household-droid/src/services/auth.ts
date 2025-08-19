@@ -1,6 +1,12 @@
 import { redirect, type ActionFunctionArgs } from "react-router";
-import { getToken, getSession, getUsers } from "./api";
-
+import {
+  getToken,
+  getSession,
+  getUsers,
+  createUser,
+  updateUser,
+  deleteUser,
+} from "./api";
 const USER_JWT_KEY = "user-jwt";
 
 export const getLoggedInJwt = () => {
@@ -56,6 +62,25 @@ export const loginAction = async ({ request }: ActionFunctionArgs) => {
     console.log(error);
     // Return an error object to the component
     return { error };
+  }
+};
+
+export const setUserAction = async ({ request }: ActionFunctionArgs) => {
+  console.log(request);
+  const formData = await request.formData();
+  console.log(formData);
+  const jwt = getLoggedInJwt();
+  console.log(jwt);
+  if (!jwt) {
+    // Redirect unauthenticated users to the login page
+    return redirect("/login");
+  }
+  try {
+    //request.body;
+  } catch (error) {
+    console.log(error);
+    setLoggedInJwt(null);
+    return redirect("/login");
   }
 };
 

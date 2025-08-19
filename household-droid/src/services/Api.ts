@@ -72,6 +72,66 @@ export const getUsers = (jwt: string) => {
   });
 };
 
+export const createUser = (
+  username: string,
+  password: string,
+  roles: string[],
+  jwt: string,
+) => {
+  return fetch("/users", {
+    method: "POST",
+    body: JSON.stringify({ username, password, roles }),
+    headers: getHeaders(jwt),
+  }).then((response) => {
+    return response.json().then((result) => {
+      if (response.ok) {
+        return result;
+      }
+      throw new Error(result.detail);
+    });
+  });
+};
+
+export const updateUser = (
+  username: string,
+  password: string,
+  roles: string[],
+  jwt: string,
+) => {
+  return fetch("/users", {
+    method: "PATCH",
+    body: JSON.stringify({ username, password, roles }),
+    headers: getHeaders(jwt),
+  }).then((response) => {
+    return response.json().then((result) => {
+      if (response.ok) {
+        return result;
+      }
+      throw new Error(result.detail);
+    });
+  });
+};
+
+export const deleteUser = (
+  username: string,
+  password: string,
+  roles: string[],
+  jwt: string,
+) => {
+  return fetch("/users", {
+    method: "DELETE",
+    body: JSON.stringify({ username, password, roles }),
+    headers: getHeaders(jwt),
+  }).then((response) => {
+    return response.json().then((result) => {
+      if (response.ok) {
+        return result;
+      }
+      throw new Error(result.detail);
+    });
+  });
+};
+
 export const getToken = (formData: FormData) => {
   //https://github.com/microsoft/TypeScript/issues/30584#issuecomment-1865354582
   const data = new URLSearchParams(
