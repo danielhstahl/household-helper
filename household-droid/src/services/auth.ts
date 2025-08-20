@@ -84,7 +84,7 @@ export const setUserAction = async ({ request }: ActionFunctionArgs) => {
       case ActionEnum.Update:
         return updateUser(id, username, password, roles, jwt);
       case ActionEnum.Delete:
-        return deleteUser(id, username, password, roles, jwt);
+        return deleteUser(id, username, password, jwt);
     }
     //request.body;
   } catch (error) {

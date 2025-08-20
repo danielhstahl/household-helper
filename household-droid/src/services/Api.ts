@@ -120,12 +120,11 @@ export const deleteUser = (
   id: number,
   username: string,
   password: string | undefined,
-  roles: string[],
   jwt: string,
 ) => {
   return fetch("/users", {
     method: "DELETE",
-    body: JSON.stringify({ id, username, password, roles }),
+    body: JSON.stringify({ id, username, password, roles: [] }),
     headers: getHeaders(jwt),
   }).then((response) => {
     return response.json().then((result) => {

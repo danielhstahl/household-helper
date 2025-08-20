@@ -103,7 +103,7 @@ session_cache = {}
 
 
 def get_session_memory(
-    db: Session, username: str, session_id: Optional[str] = None
+    db: Session, username_id: int, session_id: Optional[str] = None
 ) -> Memory:
     if session_id:
         if session_id in session_cache:
@@ -113,7 +113,7 @@ def get_session_memory(
                 db.query(Message)
                 .filter(Message.session_id == session_id)
                 .filter(
-                    Message.username == username
+                    Message.username_id == username_id
                 )  # technically unnecessary, but does prevent bad actors for "stealing" a session id
                 .order_by(Message.timestamp)
                 .limit(100)
@@ -122,19 +122,23 @@ def get_session_memory(
             memory = get_memory(
                 ollama_embedding,
                 vector_store,
-                username,  # long term memory queries ANY interction with user...to keep entire context available per user
+                str(
+                    username_id
+                ),  # long term memory queries ANY interction with user...to keep entire context available per user
                 [msg.content for msg in db_messages],
             )
             session_cache[session_id] = memory
 
     else:
-        session = Sessions(id=uuid.uuid4(), username=username)
+        session = Sessions(id=uuid.uuid4(), username_id=username_id)
         db.add(session)
         db.commit()  # Commit changes to the database
         memory = get_memory(
             ollama_embedding,
             vector_store,
-            username,  # long term memory queries ANY interction with user...to keep entire context available per user
+            str(
+                username_id
+            ),  # long term memory queries ANY interction with user...to keep entire context available per user
         )
         session_cache[session_id] = memory
 
@@ -198,7 +202,7 @@ async def session(
         sessions=[
             msg.content
             for msg in db.query(Sessions)
-            .filter(Sessions.username == current_user.username)
+            .filter(Sessions.username_id == current_user.id)
             .all()
         ],
         user=current_user,
@@ -212,7 +216,7 @@ async def query(
     db: Session = Depends(get_db),
     current_user: CurrentUser = Depends(get_current_user_by_roles("helper")),
 ):
-    memory = get_session_memory(db, current_user.username, session_id)
+    memory = get_session_memory(db, current_user.id, session_id)
     handler = helper_agent.run(chat.text, memory=memory)
     return StreamingResponse(yield_streams(handler.stream_events()))
 
@@ -225,7 +229,7 @@ async def tutor(
     current_user: CurrentUser = Depends(get_current_user_by_roles("tutor")),
     # agent: FunctionAgent = Depends(get_tutor_agent),
 ):
-    memory = get_session_memory(db, current_user.username, session_id)
+    memory = get_session_memory(db, current_user.id, session_id)
     handler = tutor_agent.run(chat.text, memory=memory)
     return StreamingResponse(yield_streams(handler.stream_events()))
 

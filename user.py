@@ -169,7 +169,7 @@ def update_user_in_db_func(
         else db_user.hashed_password,
         roles=[
             Roles(username_id=db_user.id, role=role, user=db_user)
-            for role in db_user.roles
+            for role in user.roles
         ],
     )
     db.merge(db_user)

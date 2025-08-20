@@ -15,7 +15,10 @@ class User(Base):
     username = mapped_column(String, unique=True, index=True)
     hashed_password = mapped_column(String, nullable=False)
     disabled = mapped_column(Boolean, default=False)
-    roles = relationship("Roles", back_populates="user")
+    roles = relationship("Roles", back_populates="user", cascade="all, delete")
+    # cascade = (
+    #    "all, delete-orphan"  # delete everything that FKs to ID when deleting a user
+    # )
 
 
 class Roles(Base):
@@ -24,7 +27,9 @@ class Roles(Base):
     __tablename__ = "roles"
 
     id = mapped_column(Integer, primary_key=True, index=True)
-    username_id = mapped_column(Integer, ForeignKey("users.id"), nullable=False)
+    username_id = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
     role = mapped_column(String, nullable=False)
     user = relationship("User", back_populates="roles")
     __table_args__ = (UniqueConstraint("username_id", "role", name="_username_role"),)
@@ -35,7 +40,12 @@ class Sessions(Base):
 
     __tablename__ = "sessions"
     id = mapped_column(String, primary_key=True, index=True)
-    username = mapped_column(String, ForeignKey("users.username"), nullable=False)
+    username_id = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    # cascade = (
+    #    "all, delete-orphan"  # delete everything that FKs to ID when deleting a session
+    # )
 
 
 class Message(Base):
@@ -44,8 +54,12 @@ class Message(Base):
     __tablename__ = "chat_messages"
 
     id = mapped_column(Integer, primary_key=True, index=True)
-    session_id = mapped_column(String, ForeignKey("sessions.id"), nullable=False)
-    username = mapped_column(String, ForeignKey("users.username"), nullable=False)
+    session_id = mapped_column(
+        String, ForeignKey("sessions.id", ondelete="CASCADE"), nullable=False
+    )
+    username_id = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
     content = mapped_column(String, nullable=False)
     timestamp = mapped_column(
         DateTime, default=datetime.now(timezone.utc), nullable=False
@@ -61,6 +75,7 @@ class RoleInDB(BaseModel):
     role: str
 
 
+# Is this actually necesary??
 class UserInDB(BaseModel):
     """Internal model for a user retrieved from the database."""
 
