@@ -7,6 +7,7 @@ import {
   updateUser,
   deleteUser,
 } from "./api";
+import { ActionEnum, type Action } from "../components/TableX";
 const USER_JWT_KEY = "user-jwt";
 
 export const getLoggedInJwt = () => {
@@ -66,16 +67,25 @@ export const loginAction = async ({ request }: ActionFunctionArgs) => {
 };
 
 export const setUserAction = async ({ request }: ActionFunctionArgs) => {
-  console.log(request);
   const formData = await request.formData();
-  console.log(formData);
   const jwt = getLoggedInJwt();
+  const actionData = formData.get("actionData") as string;
+  const actionType = formData.get("actionType") as Action;
   console.log(jwt);
   if (!jwt) {
     // Redirect unauthenticated users to the login page
     return redirect("/login");
   }
   try {
+    const { id, username, password, roles } = JSON.parse(actionData);
+    switch (actionType) {
+      case ActionEnum.Create:
+        return createUser(username, password, roles, jwt);
+      case ActionEnum.Update:
+        return updateUser(id, username, password, roles, jwt);
+      case ActionEnum.Delete:
+        return deleteUser(id, username, password, roles, jwt);
+    }
     //request.body;
   } catch (error) {
     console.log(error);

@@ -86,9 +86,16 @@ class UserCreate(BaseModel):
 class UserUpdate(BaseModel):
     """Model for updating a new user (request body)."""
 
+    id: int
     username: str = Field(..., min_length=3, max_length=50)
-    password: str = Field(..., min_length=6)
+    password: Optional[str] = Field(..., min_length=6)
     roles: list[str]
+
+
+class UserDelete(BaseModel):
+    """Model for updating a new user (request body)."""
+
+    id: int
 
 
 class UserLogin(BaseModel):
@@ -120,6 +127,7 @@ class TokenData(BaseModel):
 class CurrentUser(BaseModel):
     """Model for the currently authenticated user (for response)."""
 
+    id: int
     username: str
     disabled: Optional[bool] = None
     roles: list[str]

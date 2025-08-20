@@ -28,6 +28,7 @@ from models import (
     Sessions,
     User,
     UserCreate,
+    UserDelete,
     Token,
     CurrentUser,
     Base,
@@ -45,6 +46,7 @@ from user import (
     delete_user_in_db_func,
     get_current_user_by_roles,
     update_user_in_db_func,
+    get_user_from_db_by_id,
     get_db,
     engine,
 )
@@ -255,7 +257,7 @@ async def login_for_access_token(
 
 @app.post("/users", response_model=CurrentUser, status_code=status.HTTP_201_CREATED)
 async def create_user(
-    user_data: UserCreate,
+    user: UserCreate,
     current_admin: CurrentUser = Depends(get_current_admin_user),  # Requires admin role
     db: Session = Depends(get_db),
 ):
@@ -263,18 +265,19 @@ async def create_user(
     Endpoint for administrators to create new users.
     Requires an authenticated admin user.
     """
-    if get_user_from_db(db, user_data.username):
+    if get_user_from_db(db, user.username):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Username already registered",
         )
 
-    new_user = create_user_in_db_func(db, user_data)
+    db_user = create_user_in_db_func(db, user)
 
     return CurrentUser(
-        username=new_user.username,
-        disabled=new_user.disabled,
-        roles=[role.role for role in new_user.roles],
+        id=db_user.id,
+        username=db_user.username,
+        disabled=db_user.disabled,
+        roles=[role.role for role in db_user.roles],
     )
 
 
@@ -282,7 +285,7 @@ async def create_user(
     "/users", response_model=GenericSuccess, status_code=status.HTTP_201_CREATED
 )
 async def delete_user(
-    user_data: UserCreate,
+    user: UserDelete,
     current_admin: CurrentUser = Depends(get_current_admin_user),  # Requires admin role
     db: Session = Depends(get_db),
 ):
@@ -290,20 +293,20 @@ async def delete_user(
     Endpoint for administrators to create new users.
     Requires an authenticated admin user.
     """
-    if not get_user_from_db(db, user_data.username):
+    db_user = get_user_from_db_by_id(db, user.id)
+    if not db_user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Username does not exist",
         )
-
-    delete_user_in_db_func(db, user_data)
+    delete_user_in_db_func(db, db_user)
 
     return {"status": "success"}
 
 
 @app.patch("/users", response_model=CurrentUser, status_code=status.HTTP_201_CREATED)
 async def update_user(
-    user_data: UserUpdate,
+    user: UserUpdate,
     current_admin: CurrentUser = Depends(get_current_admin_user),  # Requires admin role
     db: Session = Depends(get_db),
 ):
@@ -311,17 +314,18 @@ async def update_user(
     Endpoint for administrators to update new users.
     Requires an authenticated admin user.
     """
-    user = get_user_from_db(db, user_data.username)
-    if not user:
+    db_user = get_user_from_db_by_id(db, user.id)
+    if not db_user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Username does not exist",
         )
-    user = update_user_in_db_func(db, user, user_data)
+    updated_user = update_user_in_db_func(db, db_user, user)
     return CurrentUser(
-        username=user.username,
-        disabled=user.disabled,
-        roles=[role.role for role in user.roles],
+        id=updated_user.id,
+        username=updated_user.username,
+        disabled=updated_user.disabled,
+        roles=[role.role for role in updated_user.roles],
     )
 
 
@@ -344,6 +348,7 @@ async def read_users(
     """
     return [
         CurrentUser(
+            id=user.id,
             username=user.username,
             disabled=user.disabled,
             roles=[role.role for role in user.roles],

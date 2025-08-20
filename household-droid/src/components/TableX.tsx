@@ -30,7 +30,6 @@ import {
 import { useGridApiContext } from "@mui/x-data-grid";
 import type { GridRenderEditCellParams } from "@mui/x-data-grid";
 import { generate } from "random-words";
-import type { GridValidRowModel } from "@mui/x-data-grid";
 
 const ITEM_HEIGHT = 48;
 const ITEM_PADDING_TOP = 8;
@@ -64,6 +63,13 @@ const all_roles = [
     label: "Helper",
   },
 ];
+
+export const ActionEnum = {
+  Update: "update",
+  Create: "create",
+  Delete: "delete",
+} as const;
+export type Action = (typeof ActionEnum)[keyof typeof ActionEnum];
 
 declare module "@mui/x-data-grid" {
   interface ToolbarPropsOverrides {
@@ -111,14 +117,14 @@ const MultiSelect = (props: GridRenderEditCellParams) => {
     </Select>
   );
 };
-const generatePassword = () => generate(3);
+const generatePassword = () => (generate(3) as string[]).join("");
 function EditToolbar({
   rows,
   setRows,
   setRowModesModel,
 }: GridSlotProps["toolbar"]) {
   const handleClick = () => {
-    const id = rows.length;
+    const id = rows.length + 1;
     setRows((oldRows) => [
       ...oldRows,
       {
@@ -169,7 +175,7 @@ export default function FullFeaturedCrudGrid({
 }: {
   users: GridRowsProp;
   onChange: (
-    type: string,
+    type: Action,
     id: GridRowId,
     username: string,
     password: string,
@@ -194,26 +200,6 @@ export default function FullFeaturedCrudGrid({
 
   const handleSaveClick = (id: GridRowId) => () => {
     setRowModesModel({ ...rowModesModel, [id]: { mode: GridRowModes.View } });
-    const rowToSave = rows.find((row) => row.id === id);
-    if (rowToSave) {
-      if (rowToSave.isNew) {
-        onChange(
-          "create",
-          id,
-          rowToSave.username,
-          rowToSave.password,
-          rowToSave.roles,
-        );
-      } else {
-        onChange(
-          "update",
-          id,
-          rowToSave.username,
-          rowToSave.password,
-          rowToSave.roles,
-        );
-      }
-    }
   };
 
   const handleDeleteClick = (id: GridRowId) => () => {
@@ -221,7 +207,7 @@ export default function FullFeaturedCrudGrid({
     setRows(rows.filter((row) => row.id !== id));
     if (deletedRow) {
       onChange(
-        "delete",
+        ActionEnum.Delete,
         id,
         deletedRow.username,
         deletedRow.password,
@@ -245,6 +231,25 @@ export default function FullFeaturedCrudGrid({
   const processRowUpdate = (newRow: GridRowModel) => {
     const updatedRow = { ...newRow, isNew: false };
     setRows(rows.map((row) => (row.id === newRow.id ? updatedRow : row)));
+
+    if (newRow.isNew) {
+      onChange(
+        ActionEnum.Create,
+        newRow.id,
+        newRow.username,
+        newRow.password,
+        newRow.roles,
+      );
+    } else {
+      onChange(
+        ActionEnum.Update,
+        newRow.id,
+        newRow.username,
+        newRow.password,
+        newRow.roles,
+      );
+    }
+
     return updatedRow;
   };
 

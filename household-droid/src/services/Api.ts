@@ -93,14 +93,18 @@ export const createUser = (
 };
 
 export const updateUser = (
+  id: number,
   username: string,
-  password: string,
+  password: string | undefined,
   roles: string[],
   jwt: string,
 ) => {
+  const payload = password
+    ? { id, username, password, roles }
+    : { id, username, roles };
   return fetch("/users", {
     method: "PATCH",
-    body: JSON.stringify({ username, password, roles }),
+    body: JSON.stringify(payload),
     headers: getHeaders(jwt),
   }).then((response) => {
     return response.json().then((result) => {
@@ -113,14 +117,15 @@ export const updateUser = (
 };
 
 export const deleteUser = (
+  id: number,
   username: string,
-  password: string,
+  password: string | undefined,
   roles: string[],
   jwt: string,
 ) => {
   return fetch("/users", {
     method: "DELETE",
-    body: JSON.stringify({ username, password, roles }),
+    body: JSON.stringify({ id, username, password, roles }),
     headers: getHeaders(jwt),
   }).then((response) => {
     return response.json().then((result) => {

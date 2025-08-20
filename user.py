@@ -87,6 +87,7 @@ async def get_current_user(
         raise credentials_exception  # User not found in DB
 
     return CurrentUser(
+        id=user.id,
         username=user.username,
         disabled=user.disabled,
         roles=[role.role for role in user.roles],
@@ -125,50 +126,59 @@ def get_user_from_db(db: Session, username: str) -> Optional[UserInDB]:
     return db.query(User).filter(User.username == username).first()
 
 
-def create_user_in_db_func(db: Session, user: UserCreate) -> UserInDB:
+def get_user_from_db_by_id(db: Session, id: int) -> Optional[UserInDB]:
+    """Retrieves a user from the database by id."""
+    return db.get(User, id)
+
+
+def create_user_in_db_func(db: Session, user: UserCreate) -> User:
     """Creates a new user and adds them to the database."""
     hashed_password = hash_password(user.password)
     db_user = User(
         username=user.username,
         hashed_password=hashed_password,
-        roles=[Roles(username=user.username, role=role) for role in user.roles],
     )
     db.add(db_user)
+    for role in user.roles:
+        db_role = Roles(username_id=db_user.id, role=role, user=db_user)
+        db.add(db_role)
     db.commit()
-    # db.refresh(db_user)  # Refresh to get the generated ID
+    db.refresh(db_user)  # Refresh to get the generated ID
     return db_user
 
 
-def delete_user_in_db_func(db: Session, user: UserCreate) -> UserInDB:
+def delete_user_in_db_func(db: Session, db_user: UserInDB) -> UserInDB:
     """Creates a new user and adds them to the database."""
-    hashed_password = hash_password(user.password)
-    db_user = User(
-        username=user.username,
-        hashed_password=hashed_password,
-        roles=[Roles(username=user.username, role=role) for role in user.roles],
-    )
+
     db.delete(db_user)
     db.commit()
-    # db.refresh(db_user)  # Refresh to get the generated ID
+    db.refresh(db_user)  # Refresh remove roles
     return db_user
 
 
 def update_user_in_db_func(
-    db: Session, user: UserInDB, user_data: UserUpdate
+    db: Session, db_user: UserInDB, user: UserUpdate
 ) -> UserInDB:
-    # hashed_password = hash_password(user.password)
-
+    # for role in db_user.roles:
+    #    db.delete(role)
     db_user = User(
-        username=user_data.username,
-        hashed_password=user_data.hashed_password
-        if user_data.hashed_password
-        else user.hashed_password,
+        id=db_user.id,
+        username=user.username,
+        hashed_password=hash_password(user.password)
+        if user.password
+        else db_user.hashed_password,
         roles=[
-            Roles(username=user_data.username, role=role) for role in user_data.roles
+            Roles(username_id=db_user.id, role=role, user=db_user)
+            for role in db_user.roles
         ],
     )
     db.merge(db_user)
+
+    # for role in user.roles:
+    #    db_role =
+    #    db.add(db_role)
     db.commit()
+    db.refresh(db_user)  # Refresh roles
     return db_user
 
 

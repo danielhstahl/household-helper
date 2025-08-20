@@ -1,5 +1,6 @@
 import { useLoaderData, useSubmit } from "react-router";
-import { setUserAction } from "../services/auth";
+//import { setUserAction } from "../services/auth";
+import { type Action } from "../components/TableX";
 import Table from "../components/TableX";
 
 interface User {
@@ -10,11 +11,10 @@ interface User {
 
 const Settings = () => {
   const users = useLoaderData() as User[];
-  //const usersWithId = users.map((user, index) => ({ ...user, id: index }));
   const submit = useSubmit();
-
+  console.log(users);
   const onChange = (
-    type: string,
+    type: Action,
     id: string | number,
     username: string,
     password: string | undefined,
