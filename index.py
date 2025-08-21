@@ -200,7 +200,7 @@ async def session(
 ) -> SessionAndUser:
     return SessionAndUser(
         sessions=[
-            msg.content
+            msg.id
             for msg in db.query(Sessions)
             .filter(Sessions.username_id == current_user.id)
             .all()
