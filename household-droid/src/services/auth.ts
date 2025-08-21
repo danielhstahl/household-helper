@@ -23,8 +23,6 @@ export const setLoggedInJwt = (jwt: string | null) => {
   }
 };
 
-//import { getLoggedInUser, logoutUser, loginUser } from "./auth";
-
 // --- Route Loaders ---
 export const protectedLoader = async () => {
   const jwt = getLoggedInJwt();

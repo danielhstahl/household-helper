@@ -7,7 +7,7 @@ from jose import JWTError, jwt
 import secrets
 from models import User, UserInDB, CurrentUser, TokenData, UserCreate, UserUpdate, Roles
 from typing import Iterator
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, delete
 from sqlalchemy.orm import sessionmaker
 import bcrypt
 
@@ -137,11 +137,12 @@ def create_user_in_db_func(db: Session, user: UserCreate) -> User:
     db_user = User(
         username=user.username,
         hashed_password=hashed_password,
+        roles=[Roles(role=role) for role in user.roles],
     )
     db.add(db_user)
-    for role in user.roles:
-        db_role = Roles(username_id=db_user.id, role=role, user=db_user)
-        db.add(db_role)
+    # for role in user.roles:
+    #    db_role = Roles(username_id=db_user.id, role=role, user=db_user)
+    #    db.add(db_role)
     db.commit()
     db.refresh(db_user)  # Refresh to get the generated ID
     return db_user
@@ -149,34 +150,21 @@ def create_user_in_db_func(db: Session, user: UserCreate) -> User:
 
 def delete_user_in_db_func(db: Session, db_user: UserInDB) -> UserInDB:
     """Creates a new user and adds them to the database."""
-
     db.delete(db_user)
     db.commit()
-    db.refresh(db_user)  # Refresh remove roles
     return db_user
 
 
 def update_user_in_db_func(
     db: Session, db_user: UserInDB, user: UserUpdate
 ) -> UserInDB:
-    # for role in db_user.roles:
-    #    db.delete(role)
-    db_user = User(
-        id=db_user.id,
-        username=user.username,
-        hashed_password=hash_password(user.password)
-        if user.password
-        else db_user.hashed_password,
-        roles=[
-            Roles(username_id=db_user.id, role=role, user=db_user)
-            for role in user.roles
-        ],
+    delete_stmt = delete(Roles).where(Roles.username_id == db_user.id)
+    db.execute(delete_stmt)
+    db_user.hashed_password = (
+        hash_password(user.password) if user.password else db_user.hashed_password
     )
+    db_user.roles = [Roles(role=role, username_id=db_user.id) for role in user.roles]
     db.merge(db_user)
-
-    # for role in user.roles:
-    #    db_role =
-    #    db.add(db_role)
     db.commit()
     db.refresh(db_user)  # Refresh roles
     return db_user

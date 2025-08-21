@@ -322,7 +322,7 @@ async def update_user(
     if not db_user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Username does not exist",
+            detail="User does not exist",
         )
     updated_user = update_user_in_db_func(db, db_user, user)
     return CurrentUser(

@@ -103,7 +103,7 @@ class UserUpdate(BaseModel):
 
     id: int
     username: str = Field(..., min_length=3, max_length=50)
-    password: Optional[str] = Field(..., min_length=6)
+    password: Optional[str] = Field(None, min_length=6)
     roles: list[str]
 
 
