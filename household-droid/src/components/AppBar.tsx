@@ -9,7 +9,11 @@ import IconButton from "@mui/material/IconButton";
 import NativeSelect from "@mui/material/NativeSelect";
 import SettingsIcon from "@mui/icons-material/Settings";
 import { useParams } from "react-router";
-import { AgentSelectionsEnum, getAgentName } from "../state/selectAgent";
+import {
+  AgentSelectionsEnum,
+  getAgentName,
+  type AgentSelections,
+} from "../state/selectAgent";
 import { useTheme } from "@mui/material";
 import useScrollTrigger from "@mui/material/useScrollTrigger";
 import useMediaQuery from "@mui/material/useMediaQuery";
@@ -43,7 +47,7 @@ const AppBarDroid = ({
         {trigger && isLargerThanXS && (
           <Select
             id="menu-appbar"
-            value={agent}
+            value={agent as AgentSelections}
             variant="standard"
             renderValue={getAgentName}
             sx={{
