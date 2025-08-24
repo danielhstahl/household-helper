@@ -3,6 +3,7 @@ import Paper from "@mui/material/Paper";
 import Box from "@mui/material/Box";
 import { useTheme } from "@mui/material";
 import LinearProgress from "@mui/material/LinearProgress";
+import CircularProgress from "@mui/material/CircularProgress";
 import ReactMarkdown from "react-markdown";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
@@ -18,11 +19,13 @@ export interface Message {
   role: Dialog; //me or it
   content: string;
   id: number;
+  timestamp: string;
 }
 interface OutputProps {
   messages: Message[];
   isWaiting: boolean;
   latestText: string;
+  loading: boolean;
 }
 interface FormattedTextProps {
   text: string;
@@ -36,7 +39,7 @@ const FormattedText = memo(({ text }: FormattedTextProps) => (
   </ReactMarkdown>
 ));
 
-const Output = ({ messages, isWaiting, latestText }: OutputProps) => {
+const Output = ({ messages, isWaiting, latestText, loading }: OutputProps) => {
   const theme = useTheme();
   return (
     <Grid
@@ -54,6 +57,7 @@ const Output = ({ messages, isWaiting, latestText }: OutputProps) => {
             flexDirection: "column",
           }}
         >
+          {loading && <CircularProgress />}
           {messages.map(({ role, content }, id) => (
             <Box
               key={id}

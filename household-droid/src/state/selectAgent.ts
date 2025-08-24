@@ -14,7 +14,7 @@ export const invokeAgent = (
   selectedAgent: AgentSelections,
   query: string,
   jwt: string,
-  sessionId: string | undefined,
+  sessionId: string,
 ) => {
   switch (selectedAgent) {
     case AgentSelectionsEnum.HELPER:

@@ -9,21 +9,22 @@ interface AgentProps {
   agentDescription: string;
   isDefault: boolean;
   agent: string;
+  sessionId: string;
 }
 const AgentSelection = ({
   agentType,
   agentDescription,
   isDefault,
   agent,
+  sessionId,
 }: AgentProps) => {
   const theme = useTheme();
   return (
-    <Card sx={{ minWidth: 275, height: "100%" }} variant="outlined">
+    <Card sx={{ height: "100%" }} variant="outlined">
       <CardActionArea
-        //onClick={() => setDefault()}
         data-active={isDefault ? "" : undefined}
         component={NavLink}
-        to={`/${agent}`}
+        to={`/${agent}/${sessionId}`}
         sx={{
           //alignItems: "start",
           height: "100%",

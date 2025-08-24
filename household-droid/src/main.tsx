@@ -22,8 +22,6 @@ import {
   loadUser,
   loadSession,
 } from "./services/auth.ts";
-import { redirect } from "react-router";
-import type { LoaderFunctionArgs } from "react-router";
 
 const router = createBrowserRouter([
   {
@@ -37,18 +35,12 @@ const router = createBrowserRouter([
         children: [
           {
             path: "/",
-            //loader: loadSession, //and redirects to :agent/:sessionId
             id: "sessionLoader",
             children: [
               {
                 path: "/",
-                loader: loadSession,
+                loader: loadSession, //redirects to :agent/:sessionId
               },
-              /*{
-                path: ":agent",
-                Component: MainChat,
-                action: sessionAction, // create new session
-              },*/
               {
                 path: ":agent/:sessionId",
                 Component: MainChat,

@@ -1,5 +1,5 @@
 import Chat from "../components/Chat";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import AgentSelection from "../components/AgentSelection";
 import Output, { DialogEnum, type Message } from "../components/Output";
 import { streamText } from "../services/api";
@@ -10,14 +10,11 @@ import {
   useNavigation,
   useOutletContext,
   useParams,
+  useLoaderData,
 } from "react-router";
-import CircularProgress from "@mui/material/CircularProgress";
-import { useLoaderData, useRouteLoaderData } from "react-router";
-const INIT_MESSAGE = {
-  persona: DialogEnum.It,
-  text: "Please start chatting!",
-  id: 0,
-};
+import Grid from "@mui/material/Grid";
+import SessionSelection from "../components/SessionSelection";
+
 interface MessagesAndText {
   messages: Message[];
   latestText: string;
@@ -32,10 +29,7 @@ interface OutletContext {
 }
 
 const MainChat = () => {
-  const allParams = useParams();
-  console.log(allParams);
-  const { agent, sessionId } = allParams;
-  //const {sessions} = useRouteLoaderData("sessionLoader");
+  const { agent, sessionId } = useParams();
   const { sessions, messages: historicalMessages } = useLoaderData();
   console.log(historicalMessages);
   console.log(sessions);
@@ -45,10 +39,14 @@ const MainChat = () => {
   const areMessagesInitialLoading = navigation.state === "loading"; // && navigation.location.pathname === "/";
   const [isWaiting, setIsWaiting] = useState(false);
   const [{ messages, latestText }, setMessages] = useState<MessagesAndText>(
-    historicalMessages
-      ? initMessageState(historicalMessages)
-      : initMessageState([INIT_MESSAGE]),
+    initMessageState(historicalMessages),
   );
+  useEffect(() => {
+    setMessages((state) => ({
+      latestText: state.latestText,
+      messages: historicalMessages,
+    }));
+  }, [historicalMessages]);
 
   const onStart = (value: string) => {
     setMessages((state) => ({
@@ -59,6 +57,7 @@ const MainChat = () => {
           role: DialogEnum.Me,
           content: value,
           id: state.messages.length,
+          timestamp: Date.now().toString(),
         },
       ],
     }));
@@ -78,6 +77,7 @@ const MainChat = () => {
           role: DialogEnum.It,
           content: state.latestText,
           id: state.messages.length,
+          timestamp: Date.now().toString(),
         },
       ],
     }));
@@ -88,26 +88,34 @@ const MainChat = () => {
   const onSubmit = (selectedAgent: AgentSelections, value: string) => {
     const jwt = getLoggedInJwt();
     onStart(value);
-    invokeAgent(selectedAgent, value, jwt as string, sessionId)
+    invokeAgent(selectedAgent, value, jwt as string, sessionId as string)
       .then(streamText(onNew, onDone))
       .catch(() => navigate("/login"));
   };
 
-  return areMessagesInitialLoading ? (
-    <CircularProgress />
-  ) : (
-    <>
-      <AgentSelection
-        ref={agentSelectionRef}
-        selectedAgent={agent as AgentSelections}
-      />
-      <Output
-        messages={messages}
-        latestText={latestText}
-        isWaiting={isWaiting}
-      />
-      <Chat onSubmit={onSubmit} selectedAgent={agent as AgentSelections} />
-    </>
+  return (
+    <Grid container spacing={2}>
+      <Grid size={{ xs: 12, md: 3 }}>
+        <SessionSelection
+          sessions={sessions}
+          selectedSessionId={sessionId as string}
+        />
+      </Grid>
+      <Grid size={{ xs: 12, md: 9 }}>
+        <AgentSelection
+          ref={agentSelectionRef}
+          selectedAgent={agent as AgentSelections}
+          selectedSessionId={sessionId as string}
+        />
+        <Output
+          loading={areMessagesInitialLoading}
+          messages={messages}
+          latestText={latestText}
+          isWaiting={isWaiting}
+        />
+        <Chat onSubmit={onSubmit} selectedAgent={agent as AgentSelections} />
+      </Grid>
+    </Grid>
   );
 };
 

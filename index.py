@@ -105,44 +105,28 @@ tutor_agent = FunctionAgent(
 session_cache = {}
 
 
-def get_session_memory(
-    db: Session, username_id: int, session_id: Optional[str] = None
-) -> Memory:
-    if session_id:
-        if session_id in session_cache:
-            return session_cache[session_id]
-        else:
-            db_messages = (
-                db.query(Message)
-                .filter(Message.session_id == session_id)
-                .filter(
-                    Message.username_id == username_id
-                )  # technically unnecessary, but does prevent bad actors for "stealing" a session id
-                .filter(Message.role == "me")
-                .order_by(Message.timestamp.desc())
-                .limit(100)
-                .all()
-            )
-            memory = get_memory(
-                ollama_embedding,
-                vector_store,
-                str(
-                    username_id
-                ),  # long term memory queries ANY interction with user...to keep entire context available per user
-                [msg.content for msg in db_messages],
-            )
-            session_cache[session_id] = memory
-
+def get_session_memory(db: Session, username_id: int, session_id: str) -> Memory:
+    if session_id in session_cache:
+        return session_cache[session_id]
     else:
-        session = Sessions(id=uuid.uuid4(), username_id=username_id)
-        db.add(session)
-        db.commit()  # Commit changes to the database
+        db_messages = (
+            db.query(Message)
+            .filter(Message.session_id == session_id)
+            .filter(
+                Message.username_id == username_id
+            )  # technically unnecessary, but does prevent bad actors for "stealing" a session id
+            .filter(Message.role == "me")
+            .order_by(Message.timestamp.desc())
+            .limit(100)
+            .all()
+        )
         memory = get_memory(
             ollama_embedding,
             vector_store,
             str(
                 username_id
             ),  # long term memory queries ANY interction with user...to keep entire context available per user
+            [msg.content for msg in db_messages],
         )
         session_cache[session_id] = memory
 
@@ -226,10 +210,9 @@ async def session(
 async def create_session(
     db: Session = Depends(get_db), current_user: CurrentUser = Depends(get_current_user)
 ) -> SessionInDB:
-    db_session = Sessions(username_id=current_user.id)
+    db_session = Sessions(id=uuid.uuid4(), username_id=current_user.id)
     db.add(db_session)
     db.commit()
-    db.refresh(db_session)
     return SessionInDB(id=db_session.id, session_start=db_session.session_start)
 
 

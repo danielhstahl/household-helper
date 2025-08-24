@@ -9,16 +9,13 @@ import IconButton from "@mui/material/IconButton";
 import NativeSelect from "@mui/material/NativeSelect";
 import SettingsIcon from "@mui/icons-material/Settings";
 import { useParams } from "react-router";
-import {
-  AgentSelectionsEnum,
-  getAgentName,
-  type AgentSelections,
-} from "../state/selectAgent";
+import { AgentSelectionsEnum, getAgentName } from "../state/selectAgent";
 import { useTheme } from "@mui/material";
 import useScrollTrigger from "@mui/material/useScrollTrigger";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import { useColorScheme } from "@mui/material/styles";
 import { NavLink } from "react-router";
+
 const AppBarDroid = ({
   threshold,
   isAdmin,
@@ -26,8 +23,7 @@ const AppBarDroid = ({
   threshold: number;
   isAdmin: boolean;
 }) => {
-  const { agent } = useParams();
-  //const { state: selectedAgent, dispatch: setSelectedAgent } = useAgentParams();
+  const { agent, sessionId } = useParams();
   const theme = useTheme();
   const trigger = useScrollTrigger({ threshold, disableHysteresis: true });
   const isLargerThanXS = useMediaQuery(theme.breakpoints.up("sm"));
@@ -48,10 +44,8 @@ const AppBarDroid = ({
           <Select
             id="menu-appbar"
             value={agent}
-            /*onChange={(event) => {
-              setSelectedAgent(event.target.value);
-              }}*/
             variant="standard"
+            renderValue={getAgentName}
             sx={{
               borderRadius: theme.shape.borderRadius,
               "& .MuiSelect-select": {
@@ -62,20 +56,22 @@ const AppBarDroid = ({
               },
             }}
           >
-            <MenuItem
-              component={NavLink}
-              to={`/${AgentSelectionsEnum.HELPER}`}
-              value={AgentSelectionsEnum.HELPER}
+            <NavLink
+              to={`/${AgentSelectionsEnum.HELPER}/${sessionId}`}
+              style={{ textDecoration: "none", color: "inherit" }}
             >
-              {getAgentName(AgentSelectionsEnum.HELPER)}
-            </MenuItem>
-            <MenuItem
-              component={NavLink}
-              to={`/${AgentSelectionsEnum.TUTOR}`}
-              value={AgentSelectionsEnum.TUTOR}
+              <MenuItem value={AgentSelectionsEnum.HELPER}>
+                {getAgentName(AgentSelectionsEnum.HELPER)}
+              </MenuItem>
+            </NavLink>
+            <NavLink
+              to={`/${AgentSelectionsEnum.TUTOR}/${sessionId}`}
+              style={{ textDecoration: "none", color: "inherit" }}
             >
-              {getAgentName(AgentSelectionsEnum.TUTOR)}
-            </MenuItem>
+              <MenuItem value={AgentSelectionsEnum.TUTOR}>
+                {getAgentName(AgentSelectionsEnum.TUTOR)}
+              </MenuItem>
+            </NavLink>
           </Select>
         )}
         {!isLargerThanXS && (

@@ -7,8 +7,13 @@ import { type AgentSelections } from "../state/selectAgent";
 interface AgentSelectionProps {
   ref: React.Ref<HTMLDivElement>;
   selectedAgent: AgentSelections;
+  selectedSessionId: string;
 }
-const AgentSelectionOptions = ({ ref, selectedAgent }: AgentSelectionProps) => {
+const AgentSelectionOptions = ({
+  ref,
+  selectedAgent,
+  selectedSessionId,
+}: AgentSelectionProps) => {
   //const { state: selectedAgent, dispatch: setSelectedAgent } = useAgentParams();
   return (
     <Grid ref={ref} container spacing={2} style={{ paddingTop: 20 }}>
@@ -24,6 +29,7 @@ const AgentSelectionOptions = ({ ref, selectedAgent }: AgentSelectionProps) => {
         help navigate the minutiae that come up during your day."
           //setDefault={() => setSelectedAgent(AgentSelectionsEnum.HELPER_INDEX)}
           agent={AgentSelectionsEnum.HELPER}
+          sessionId={selectedSessionId}
         />
       </Grid>
       <Grid
@@ -37,6 +43,7 @@ const AgentSelectionOptions = ({ ref, selectedAgent }: AgentSelectionProps) => {
         tutoring for grade-school homework.  Won't give the answers though!"
           //setDefault={() => setSelectedAgent(AgentSelectionsEnum.TUTOR_INDEX)}
           agent={AgentSelectionsEnum.TUTOR}
+          sessionId={selectedSessionId}
         />
       </Grid>
     </Grid>

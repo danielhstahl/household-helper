@@ -16,6 +16,7 @@ import {
 } from "./api";
 import { AgentSelectionsEnum } from "../state/selectAgent";
 import { ActionEnum, type Action } from "../components/TableX";
+import { type Message } from "../components/Output";
 const USER_JWT_KEY = "user-jwt";
 
 export const getLoggedInJwt = () => {
@@ -31,10 +32,6 @@ export const setLoggedInJwt = (jwt: string | null) => {
   }
 };
 
-interface Session {
-  id: string;
-  session_start: string;
-}
 //exported for testing
 export const getRedirectRoute = (
   agent: string | undefined,
@@ -54,6 +51,7 @@ export const loadSession = async ({ params }: LoaderFunctionArgs) => {
     return redirect("/login");
   }
   try {
+    //consider getting a singleton to reduce payload size
     const sessions = await getSessions(jwt);
     const sessionId =
       sessions.length === 0 ? (await createSession(jwt)).id : sessions[0].id;
@@ -73,8 +71,6 @@ export const loadSessionsAndMessages = async ({
   params,
 }: LoaderFunctionArgs) => {
   const jwt = getLoggedInJwt();
-  console.log(params);
-
   if (!jwt) {
     // Redirect unauthenticated users to the login page
     return redirect("/login");
@@ -82,7 +78,13 @@ export const loadSessionsAndMessages = async ({
   try {
     const [sessions, messages] = await Promise.all([
       getSessions(jwt),
-      getMessages(params.sessionId, jwt).then((v) => v.messages),
+      getMessages(params.sessionId as string, jwt).then((v) => {
+        const messages = v.messages;
+        messages.sort((a: Message, b: Message) =>
+          a.timestamp < b.timestamp ? -1 : 1,
+        );
+        return messages;
+      }),
     ]);
 
     return { sessions, messages };
@@ -112,9 +114,9 @@ export const loadUser = async () => {
   }
 };
 
-export const sessionAction = async ({ request }: ActionFunctionArgs) => {
+export const sessionAction = async ({ params }: ActionFunctionArgs) => {
   const jwt = getLoggedInJwt();
-  console.log(jwt);
+  console.log(params);
   if (!jwt) {
     // Redirect unauthenticated users to the login page
     return redirect("/login");
@@ -122,8 +124,9 @@ export const sessionAction = async ({ request }: ActionFunctionArgs) => {
   try {
     const session = await createSession(jwt);
     console.log(session);
-    return session;
-    //return redirect(`/${AgentSelectionsEnum.HELPER}`); //{ jwt, session }; // Pass user data to the route component via useLoaderData
+    //redirect to new session
+    const redirectRoute = getRedirectRoute(params.agent, session.id);
+    return redirect(redirectRoute);
   } catch (error) {
     console.log(error);
     setLoggedInJwt(null);
@@ -200,27 +203,6 @@ export const loadUsers = async () => {
   }
 };
 /*
-export const sendChat = async ({ request }: ActionFunctionArgs) => {
-  const formData = await request.formData();
-  const jwt = getLoggedInJwt();
-
-  const text = formData.get("chat") as string;
-  if (!jwt) {
-    // Redirect unauthenticated users to the login page
-    return redirect("/login");
-  }
-  try {
-    const start = Date.now();
-    const response = await sendQuery(text, jwt, undefined); //for now don't use sessionID
-    console.log(`Response took ${Date.now() - start}ms`);
-    return response;
-  } catch (error) {
-    console.log(error);
-    setLoggedInJwt(null);
-    return redirect("/login");
-  }
-};
-*/
 export const loadMessages = async ({ params }: LoaderFunctionArgs) => {
   //const formData = await request.formData();
   console.log(params);
@@ -243,4 +225,4 @@ export const loadMessages = async ({ params }: LoaderFunctionArgs) => {
     setLoggedInJwt(null);
     return redirect("/login");
   }
-};
+};*/
