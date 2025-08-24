@@ -15,8 +15,8 @@ export const DialogEnum = {
 } as const;
 export type Dialog = (typeof DialogEnum)[keyof typeof DialogEnum];
 export interface Message {
-  persona: Dialog; //me or it
-  text: string;
+  role: Dialog; //me or it
+  content: string;
   id: number;
 }
 interface OutputProps {
@@ -54,20 +54,19 @@ const Output = ({ messages, isWaiting, latestText }: OutputProps) => {
             flexDirection: "column",
           }}
         >
-          {messages.map(({ persona, text, id }) => (
+          {messages.map(({ role, content }, id) => (
             <Box
               key={id}
               style={{
-                alignSelf:
-                  persona === DialogEnum.Me ? "flex-end" : "flex-start",
+                alignSelf: role === DialogEnum.Me ? "flex-end" : "flex-start",
                 maxWidth: "70%",
                 borderRadius: 16,
                 backgroundColor:
-                  persona === DialogEnum.Me
+                  role === DialogEnum.Me
                     ? theme.palette.primary.main
                     : theme.palette.text.disabled, //theme.palette.grey[300],
                 color:
-                  persona === DialogEnum.Me
+                  role === DialogEnum.Me
                     ? theme.palette.primary.contrastText
                     : theme.palette.text.primary,
                 padding: theme.spacing(1, 2),
@@ -75,7 +74,7 @@ const Output = ({ messages, isWaiting, latestText }: OutputProps) => {
                 wordBreak: "break-word",
               }}
             >
-              <FormattedText text={text} />
+              <FormattedText text={content} />
             </Box>
           ))}
           {latestText !== "" && (
@@ -84,7 +83,7 @@ const Output = ({ messages, isWaiting, latestText }: OutputProps) => {
                 alignSelf: "flex-start",
                 maxWidth: "70%",
                 borderRadius: 16,
-                backgroundColor: theme.palette.primary.main,
+                backgroundColor: theme.palette.text.disabled,
                 color: theme.palette.text.primary,
                 padding: theme.spacing(1, 2),
                 margin: theme.spacing(1),

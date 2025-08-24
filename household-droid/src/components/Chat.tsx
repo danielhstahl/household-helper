@@ -1,28 +1,20 @@
 import TextField from "@mui/material/TextField";
 import Grid from "@mui/material/Grid";
 import { type KeyboardEvent } from "react";
-import { getAgentName, invokeAgent } from "../state/selectAgent";
-import { useAgentParams } from "../state/AgentProvider";
-import { streamText } from "../services/api";
+import { getAgentName, type AgentSelections } from "../state/selectAgent";
+
 interface ChatProps {
-  onNewText: (_: string) => void;
-  onStart: (_: string) => void;
-  onDone: () => void;
-  jwt: string;
-  sessionId: string | undefined;
+  onSubmit: (agent: AgentSelections, _: string) => void;
+  selectedAgent: AgentSelections;
 }
-const Chat = ({ onStart, onNewText, onDone, jwt, sessionId }: ChatProps) => {
-  const { state: selectedAgent } = useAgentParams();
+const Chat = ({ onSubmit, selectedAgent }: ChatProps) => {
   const agentName = getAgentName(selectedAgent);
   const pressEnter = (e: KeyboardEvent<HTMLDivElement>) => {
-    if (e.key == "Enter") {
-      //@ts-expect-error target.value exists in reality, even though it isn't on KeyboardEvent
-      onStart(e.target.value);
-      //@ts-expect-error target.value exists in reality, even though it isn't on KeyboardEvent
-      invokeAgent(selectedAgent, e.target.value, jwt, sessionId).then(
-        streamText(onNewText, onDone),
-      );
+    if (e.key == "Enter" && !e.shiftKey) {
       e.preventDefault();
+      //@ts-expect-error target.value exists in reality, even though it isn't on KeyboardEvent
+      onSubmit(selectedAgent, e.target.value);
+
       //@ts-expect-error target.value exists in reality, even though it isn't on KeyboardEvent
       e.target.value = "";
     }
@@ -33,6 +25,7 @@ const Chat = ({ onStart, onNewText, onDone, jwt, sessionId }: ChatProps) => {
         <TextField
           label={`Chat or instruct your ${agentName}`}
           style={{ width: "100%" }}
+          name="chat"
           multiline
           rows={4}
           variant="filled"

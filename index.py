@@ -25,6 +25,7 @@ from system_prompt import get_system_prompt
 import os
 from models import (
     Message,
+    MessageInDB,
     Sessions,
     User,
     UserCreate,
@@ -35,6 +36,8 @@ from models import (
     SessionAndUser,
     GenericSuccess,
     UserUpdate,
+    Messages,
+    SessionInDB,
 )
 from user import (
     authenticate_user,
@@ -115,7 +118,8 @@ def get_session_memory(
                 .filter(
                     Message.username_id == username_id
                 )  # technically unnecessary, but does prevent bad actors for "stealing" a session id
-                .order_by(Message.timestamp)
+                .filter(Message.role == "me")
+                .order_by(Message.timestamp.desc())
                 .limit(100)
                 .all()
             )
@@ -188,50 +192,111 @@ class Chat(BaseModel):
 app = FastAPI(lifespan=lifespan)
 
 
-async def yield_streams(stream_events):
+async def yield_streams(stream_events, db: Session, session_id: str, username_id: int):
+    full_response = []  # Store the full response in psql
     async for event in stream_events:
         if isinstance(event, AgentStream):
+            full_response.append(event.delta)
             yield event.delta
+    db_message = Message(
+        session_id=session_id,
+        username_id=username_id,
+        role="it",
+        content="".join(full_response),
+    )
+    db.add(db_message)
+    db.commit()
 
 
 @app.get("/session")
 async def session(
     db: Session = Depends(get_db), current_user: CurrentUser = Depends(get_current_user)
-) -> SessionAndUser:
-    return SessionAndUser(
-        sessions=[
-            msg.id
-            for msg in db.query(Sessions)
-            .filter(Sessions.username_id == current_user.id)
+) -> list[SessionInDB]:
+    return [
+        SessionInDB(id=session.id, session_start=session.session_start)
+        for session in db.query(Sessions)
+        .filter(Sessions.username_id == current_user.id)
+        .order_by(Sessions.session_start.desc())
+        .limit(100)
+        .all()
+    ]
+
+
+@app.post("/session")
+async def create_session(
+    db: Session = Depends(get_db), current_user: CurrentUser = Depends(get_current_user)
+) -> SessionInDB:
+    db_session = Sessions(username_id=current_user.id)
+    db.add(db_session)
+    db.commit()
+    db.refresh(db_session)
+    return SessionInDB(id=db_session.id, session_start=db_session.session_start)
+
+
+# consider pagination
+@app.get("/messages/{session_id}")
+async def messages(
+    session_id: str,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+) -> Messages:
+    return Messages(
+        messages=[
+            MessageInDB(content=msg.content, role=msg.role, timestamp=msg.timestamp)
+            for msg in db.query(Message)
+            .filter(Message.username_id == current_user.id)
+            .filter(Message.session_id == session_id)
+            .order_by(Message.timestamp.desc())  # get most recent
+            .limit(100)
+            # .order_by(Message.timestamp.asc())  # most recnet needs to be add end
             .all()
-        ],
-        user=current_user,
+        ]
     )
 
 
 @app.post("/query")
 async def query(
     chat: Chat,
-    session_id: str | None = None,
+    session_id: str,
     db: Session = Depends(get_db),
     current_user: CurrentUser = Depends(get_current_user_by_roles("helper")),
 ):
     memory = get_session_memory(db, current_user.id, session_id)
     handler = helper_agent.run(chat.text, memory=memory)
-    return StreamingResponse(yield_streams(handler.stream_events()))
+    db_message = Message(
+        session_id=session_id,
+        username_id=current_user.id,
+        role="me",
+        content="".join(chat.text),
+    )
+    db.add(db_message)
+    db.commit()
+    return StreamingResponse(
+        yield_streams(handler.stream_events(), db, session_id, current_user.id)
+    )
 
 
 @app.post("/tutor")
 async def tutor(
     chat: Chat,
-    session_id: str | None = None,
+    session_id: str,
     db: Session = Depends(get_db),
     current_user: CurrentUser = Depends(get_current_user_by_roles("tutor")),
     # agent: FunctionAgent = Depends(get_tutor_agent),
 ):
     memory = get_session_memory(db, current_user.id, session_id)
     handler = tutor_agent.run(chat.text, memory=memory)
-    return StreamingResponse(yield_streams(handler.stream_events()))
+    db_message = Message(
+        session_id=session_id,
+        username_id=current_user.id,
+        role="me",
+        content="".join(chat.text),
+    )
+    db.add(db_message)
+    db.commit()
+    return StreamingResponse(
+        yield_streams(handler.stream_events(), db, session_id, current_user.id)
+    )
 
 
 @app.post("/token", response_model=Token)

@@ -8,7 +8,7 @@ import DarkMode from "@mui/icons-material/DarkMode";
 import IconButton from "@mui/material/IconButton";
 import NativeSelect from "@mui/material/NativeSelect";
 import SettingsIcon from "@mui/icons-material/Settings";
-import { useAgentParams } from "../state/AgentProvider";
+import { useParams } from "react-router";
 import {
   AgentSelectionsEnum,
   getAgentName,
@@ -18,7 +18,7 @@ import { useTheme } from "@mui/material";
 import useScrollTrigger from "@mui/material/useScrollTrigger";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import { useColorScheme } from "@mui/material/styles";
-import { Link as RouterLink } from "react-router";
+import { NavLink } from "react-router";
 const AppBarDroid = ({
   threshold,
   isAdmin,
@@ -26,7 +26,8 @@ const AppBarDroid = ({
   threshold: number;
   isAdmin: boolean;
 }) => {
-  const { state: selectedAgent, dispatch: setSelectedAgent } = useAgentParams();
+  const { agent } = useParams();
+  //const { state: selectedAgent, dispatch: setSelectedAgent } = useAgentParams();
   const theme = useTheme();
   const trigger = useScrollTrigger({ threshold, disableHysteresis: true });
   const isLargerThanXS = useMediaQuery(theme.breakpoints.up("sm"));
@@ -46,10 +47,10 @@ const AppBarDroid = ({
         {trigger && isLargerThanXS && (
           <Select
             id="menu-appbar"
-            value={selectedAgent}
-            onChange={(event) => {
+            value={agent}
+            /*onChange={(event) => {
               setSelectedAgent(event.target.value);
-            }}
+              }}*/
             variant="standard"
             sx={{
               borderRadius: theme.shape.borderRadius,
@@ -61,21 +62,26 @@ const AppBarDroid = ({
               },
             }}
           >
-            <MenuItem value={AgentSelectionsEnum.HELPER_INDEX}>
-              {getAgentName(AgentSelectionsEnum.HELPER_INDEX)}
+            <MenuItem
+              component={NavLink}
+              to={`/${AgentSelectionsEnum.HELPER}`}
+              value={AgentSelectionsEnum.HELPER}
+            >
+              {getAgentName(AgentSelectionsEnum.HELPER)}
             </MenuItem>
-            <MenuItem value={AgentSelectionsEnum.TUTOR_INDEX}>
-              {getAgentName(AgentSelectionsEnum.TUTOR_INDEX)}
+            <MenuItem
+              component={NavLink}
+              to={`/${AgentSelectionsEnum.TUTOR}`}
+              value={AgentSelectionsEnum.TUTOR}
+            >
+              {getAgentName(AgentSelectionsEnum.TUTOR)}
             </MenuItem>
           </Select>
         )}
         {!isLargerThanXS && (
           <NativeSelect
             id="menu-appbar"
-            value={selectedAgent}
-            onChange={(event) => {
-              setSelectedAgent(parseInt(event.target.value) as AgentSelections);
-            }}
+            value={agent}
             variant="standard"
             sx={{
               borderRadius: theme.shape.borderRadius,
@@ -87,11 +93,11 @@ const AppBarDroid = ({
               },
             }}
           >
-            <option value={AgentSelectionsEnum.HELPER_INDEX}>
-              {getAgentName(AgentSelectionsEnum.HELPER_INDEX)}
+            <option value={AgentSelectionsEnum.HELPER}>
+              {getAgentName(AgentSelectionsEnum.HELPER)}
             </option>
-            <option value={AgentSelectionsEnum.TUTOR_INDEX}>
-              {getAgentName(AgentSelectionsEnum.TUTOR_INDEX)}
+            <option value={AgentSelectionsEnum.TUTOR}>
+              {getAgentName(AgentSelectionsEnum.TUTOR)}
             </option>
           </NativeSelect>
         )}
@@ -106,7 +112,7 @@ const AppBarDroid = ({
           <IconButton
             aria-label="settings"
             color="inherit"
-            component={RouterLink}
+            component={NavLink}
             to="/settings"
           >
             <SettingsIcon />

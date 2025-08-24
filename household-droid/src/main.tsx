@@ -6,50 +6,73 @@ import "@fontsource/roboto/400.css";
 import "@fontsource/roboto/500.css";
 import "@fontsource/roboto/700.css";
 import App from "./App.tsx";
+import MainPage from "./pages/MainPage.tsx";
 import MainChat from "./pages/MainChat.tsx";
-import Auth from "./pages/Auth.tsx";
+import Login from "./pages/Login.tsx";
 import Settings from "./pages/Settings";
 import { createBrowserRouter } from "react-router";
 import { RouterProvider } from "react-router/dom";
 import {
-  getLoggedInJwt,
   loginAction,
   logoutAction,
-  protectedLoader,
   setUserAction,
   loadUsers,
+  loadSessionsAndMessages,
+  sessionAction,
+  loadUser,
+  loadSession,
 } from "./services/auth.ts";
+import { redirect } from "react-router";
+import type { LoaderFunctionArgs } from "react-router";
 
 const router = createBrowserRouter([
   {
     path: "/",
     Component: App,
-    loader() {
-      // Root loader can fetch global data or simply pass user
-      return { user: getLoggedInJwt() };
-    },
-
     children: [
       {
-        index: true,
-        Component: MainChat,
-        loader: protectedLoader, // Prevent un-authenticated from seeing main page
+        path: "/",
+        Component: MainPage,
+        loader: loadUser,
+        children: [
+          {
+            path: "/",
+            //loader: loadSession, //and redirects to :agent/:sessionId
+            id: "sessionLoader",
+            children: [
+              {
+                path: "/",
+                loader: loadSession,
+              },
+              /*{
+                path: ":agent",
+                Component: MainChat,
+                action: sessionAction, // create new session
+              },*/
+              {
+                path: ":agent/:sessionId",
+                Component: MainChat,
+                loader: loadSessionsAndMessages, // messages for the session...do I also really want sessions here?  I could put it up a level
+                action: sessionAction, // create new session
+              },
+            ],
+          },
+          {
+            path: "settings",
+            Component: Settings,
+            loader: loadUsers,
+            action: setUserAction,
+          },
+        ],
       },
-      //{ path: "settings", Component: Settings },
       {
         path: "login",
-        Component: Auth,
+        Component: Login,
         action: loginAction, // Handles login form submission
       },
       {
         path: "logout",
         action: logoutAction,
-      },
-      {
-        path: "settings",
-        Component: Settings,
-        loader: loadUsers,
-        action: setUserAction,
       },
     ],
   },

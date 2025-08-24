@@ -40,6 +40,9 @@ class Sessions(Base):
 
     __tablename__ = "sessions"
     id = mapped_column(String, primary_key=True, index=True)
+    session_start = mapped_column(
+        DateTime, nullable=False, default=datetime.now(timezone.utc)
+    )
     username_id = mapped_column(
         Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
@@ -61,6 +64,7 @@ class Message(Base):
         Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
     content = mapped_column(String, nullable=False)
+    role = mapped_column(String, nullable=False, index=True)
     timestamp = mapped_column(
         DateTime, default=datetime.now(timezone.utc), nullable=False
     )
@@ -148,9 +152,24 @@ class CurrentUser(BaseModel):
     roles: list[str]
 
 
+class SessionInDB(BaseModel):
+    id: str
+    session_start: datetime
+
+
 class SessionAndUser(BaseModel):
-    sessions: list[str]
+    sessions: list[SessionInDB]
     user: CurrentUser
+
+
+class MessageInDB(BaseModel):
+    content: str
+    role: str
+    timestamp: datetime
+
+
+class Messages(BaseModel):
+    messages: list[MessageInDB]
 
 
 # Add this to your User model if you want a bidirectional relationship

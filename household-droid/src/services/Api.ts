@@ -10,43 +10,32 @@ const getHeaders = (jwt: string) => ({
   "Content-Type": "application/json",
   Authorization: `Bearer ${jwt}`,
 });
-export const sendQuery = (
-  text: string,
-  jwt: string,
-  sessionId: string | undefined,
-) => {
-  return (
-    fetch(buildUrl("/query", sessionId), {
-      method: "POST",
-      body: JSON.stringify({ text }),
-      headers: getHeaders(jwt),
-    })
-      // Retrieve its body as ReadableStream
-      .then((response) => {
+
+export const sendQuery = (text: string, jwt: string, sessionId: string) => {
+  return fetch(buildUrl("/query", sessionId), {
+    method: "POST",
+    body: JSON.stringify({ text }),
+    headers: getHeaders(jwt),
+  });
+  // Retrieve its body as ReadableStream
+  /* .then((response) => {
         return response.body!.getReader();
-      })
-  );
+      })*/
 };
 
-export const sendTutor = (
-  text: string,
-  jwt: string,
-  sessionId: string | undefined,
-) => {
-  return (
-    fetch(buildUrl("/tutor", sessionId), {
-      method: "POST",
-      body: JSON.stringify({ text }),
-      headers: getHeaders(jwt),
-    })
-      // Retrieve its body as ReadableStream
-      .then((response) => {
+export const sendTutor = (text: string, jwt: string, sessionId: string) => {
+  return fetch(buildUrl("/tutor", sessionId), {
+    method: "POST",
+    body: JSON.stringify({ text }),
+    headers: getHeaders(jwt),
+  });
+  // Retrieve its body as ReadableStream
+  /*.then((response) => {
         return response.body!.getReader();
-      })
-  );
+      })*/
 };
 
-export const getSession = (jwt: string) => {
+export const getSessions = (jwt: string) => {
   return fetch("/session", {
     headers: getHeaders(jwt),
   }).then((response) => {
@@ -59,6 +48,44 @@ export const getSession = (jwt: string) => {
   });
 };
 
+export const createSession = (jwt: string) => {
+  return fetch("/session", {
+    method: "POST",
+    headers: getHeaders(jwt),
+  }).then((response) => {
+    return response.json().then((result) => {
+      if (response.ok) {
+        return result;
+      }
+      throw new Error(result.detail);
+    });
+  });
+};
+
+export const getMessages = (sessionId: string, jwt: string) => {
+  return fetch(`/messages/${sessionId}`, {
+    headers: getHeaders(jwt),
+  }).then((response) => {
+    return response.json().then((result) => {
+      if (response.ok) {
+        return result;
+      }
+      throw new Error(result.detail);
+    });
+  });
+};
+export const getUser = (jwt: string) => {
+  return fetch("/users/me", {
+    headers: getHeaders(jwt),
+  }).then((response) => {
+    return response.json().then((result) => {
+      if (response.ok) {
+        return result;
+      }
+      throw new Error(result.detail);
+    });
+  });
+};
 export const getUsers = (jwt: string) => {
   return fetch("/users", {
     headers: getHeaders(jwt),

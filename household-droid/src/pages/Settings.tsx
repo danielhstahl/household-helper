@@ -1,4 +1,4 @@
-import { useLoaderData, useSubmit } from "react-router";
+import { useLoaderData, useFetcher } from "react-router";
 import { type Action } from "../components/TableX";
 import Table from "../components/TableX";
 
@@ -10,7 +10,7 @@ interface User {
 
 const Settings = () => {
   const users = useLoaderData() as User[];
-  const submit = useSubmit();
+  const fetcher = useFetcher();
   console.log(users);
   const onChange = (
     type: Action,
@@ -26,7 +26,7 @@ const Settings = () => {
       JSON.stringify({ id, username, password, roles }),
     );
     formData.append("actionType", type);
-    submit(formData, { method: "post" });
+    fetcher.submit(formData, { method: "post" });
   };
   return <Table users={users} onChange={onChange} />;
 };

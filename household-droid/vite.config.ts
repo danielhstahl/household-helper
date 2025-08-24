@@ -27,6 +27,10 @@ export default defineConfig({
         target: "http://localhost:8000", // Backend server
         changeOrigin: true, // Ensure the request appears to come from the frontend server
       },
+      "/messages": {
+        target: "http://localhost:8000", // Backend server
+        changeOrigin: true, // Ensure the request appears to come from the frontend server
+      },
     },
   },
   test: {
