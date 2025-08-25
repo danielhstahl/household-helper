@@ -12,6 +12,7 @@ echo | sudo apt install postgresql-15-pgvector
 sudo service postgresql start
 sudo -u postgres psql -c "ALTER USER postgres PASSWORD 'yourpassword';"
 sudo -u postgres psql -c "CREATE DATABASE vector_db;"
+sudo -u postgres psql -c "CREATE DATABASE fastapi_db;"
 ```
 
 ### Mac
@@ -23,4 +24,5 @@ brew install pgvector
 brew services start postgresql@17
 psql -d postgres -c "ALTER USER postgres PASSWORD 'yourpassword';"
 psql -d postgres -c "CREATE DATABASE vector_db;"
+psql -d postgres -c "CREATE DATABASE fastapi_db;"
 ```

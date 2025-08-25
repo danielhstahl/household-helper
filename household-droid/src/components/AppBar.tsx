@@ -7,7 +7,8 @@ import LightMode from "@mui/icons-material/LightMode";
 import DarkMode from "@mui/icons-material/DarkMode";
 import IconButton from "@mui/material/IconButton";
 import NativeSelect from "@mui/material/NativeSelect";
-import { useAgentParams } from "../state/AgentProvider";
+import SettingsIcon from "@mui/icons-material/Settings";
+import { useParams } from "react-router";
 import {
   AgentSelectionsEnum,
   getAgentName,
@@ -17,9 +18,16 @@ import { useTheme } from "@mui/material";
 import useScrollTrigger from "@mui/material/useScrollTrigger";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import { useColorScheme } from "@mui/material/styles";
+import { NavLink } from "react-router";
 
-const AppBarDroid = ({ threshold }: { threshold: number }) => {
-  const { state: selectedAgent, dispatch: setSelectedAgent } = useAgentParams();
+const AppBarDroid = ({
+  threshold,
+  isAdmin,
+}: {
+  threshold: number;
+  isAdmin: boolean;
+}) => {
+  const { agent, sessionId } = useParams();
   const theme = useTheme();
   const trigger = useScrollTrigger({ threshold, disableHysteresis: true });
   const isLargerThanXS = useMediaQuery(theme.breakpoints.up("sm"));
@@ -39,11 +47,9 @@ const AppBarDroid = ({ threshold }: { threshold: number }) => {
         {trigger && isLargerThanXS && (
           <Select
             id="menu-appbar"
-            value={selectedAgent}
-            onChange={(event) => {
-              setSelectedAgent(event.target.value);
-            }}
+            value={agent as AgentSelections}
             variant="standard"
+            renderValue={getAgentName}
             sx={{
               borderRadius: theme.shape.borderRadius,
               "& .MuiSelect-select": {
@@ -54,21 +60,28 @@ const AppBarDroid = ({ threshold }: { threshold: number }) => {
               },
             }}
           >
-            <MenuItem value={AgentSelectionsEnum.HELPER_INDEX}>
-              {getAgentName(AgentSelectionsEnum.HELPER_INDEX)}
-            </MenuItem>
-            <MenuItem value={AgentSelectionsEnum.TUTOR_INDEX}>
-              {getAgentName(AgentSelectionsEnum.TUTOR_INDEX)}
-            </MenuItem>
+            <NavLink
+              to={`/${AgentSelectionsEnum.HELPER}/${sessionId}`}
+              style={{ textDecoration: "none", color: "inherit" }}
+            >
+              <MenuItem value={AgentSelectionsEnum.HELPER}>
+                {getAgentName(AgentSelectionsEnum.HELPER)}
+              </MenuItem>
+            </NavLink>
+            <NavLink
+              to={`/${AgentSelectionsEnum.TUTOR}/${sessionId}`}
+              style={{ textDecoration: "none", color: "inherit" }}
+            >
+              <MenuItem value={AgentSelectionsEnum.TUTOR}>
+                {getAgentName(AgentSelectionsEnum.TUTOR)}
+              </MenuItem>
+            </NavLink>
           </Select>
         )}
         {!isLargerThanXS && (
           <NativeSelect
             id="menu-appbar"
-            value={selectedAgent}
-            onChange={(event) => {
-              setSelectedAgent(parseInt(event.target.value) as AgentSelections);
-            }}
+            value={agent}
             variant="standard"
             sx={{
               borderRadius: theme.shape.borderRadius,
@@ -80,11 +93,11 @@ const AppBarDroid = ({ threshold }: { threshold: number }) => {
               },
             }}
           >
-            <option value={AgentSelectionsEnum.HELPER_INDEX}>
-              {getAgentName(AgentSelectionsEnum.HELPER_INDEX)}
+            <option value={AgentSelectionsEnum.HELPER}>
+              {getAgentName(AgentSelectionsEnum.HELPER)}
             </option>
-            <option value={AgentSelectionsEnum.TUTOR_INDEX}>
-              {getAgentName(AgentSelectionsEnum.TUTOR_INDEX)}
+            <option value={AgentSelectionsEnum.TUTOR}>
+              {getAgentName(AgentSelectionsEnum.TUTOR)}
             </option>
           </NativeSelect>
         )}
@@ -95,6 +108,16 @@ const AppBarDroid = ({ threshold }: { threshold: number }) => {
         >
           {mode === "light" ? <DarkMode /> : <LightMode />}
         </IconButton>
+        {isAdmin && (
+          <IconButton
+            aria-label="settings"
+            color="inherit"
+            component={NavLink}
+            to="/settings"
+          >
+            <SettingsIcon />
+          </IconButton>
+        )}
       </Toolbar>
     </AppBar>
   );

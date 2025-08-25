@@ -3,24 +3,28 @@ import CardContent from "@mui/material/CardContent";
 import CardActionArea from "@mui/material/CardActionArea";
 import Typography from "@mui/material/Typography";
 import { useTheme } from "@mui/material";
+import { NavLink } from "react-router";
 interface AgentProps {
   agentType: string;
   agentDescription: string;
   isDefault: boolean;
-  setDefault: () => void;
+  agent: string;
+  sessionId: string;
 }
 const AgentSelection = ({
   agentType,
   agentDescription,
   isDefault,
-  setDefault,
+  agent,
+  sessionId,
 }: AgentProps) => {
   const theme = useTheme();
   return (
-    <Card sx={{ minWidth: 275, height: "100%" }} variant="outlined">
+    <Card sx={{ height: "100%" }} variant="outlined">
       <CardActionArea
-        onClick={() => setDefault()}
         data-active={isDefault ? "" : undefined}
+        component={NavLink}
+        to={`/${agent}/${sessionId}`}
         sx={{
           //alignItems: "start",
           height: "100%",
