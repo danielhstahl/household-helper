@@ -13,6 +13,7 @@ import {
   getMessages,
   getUser,
   createSession,
+  deleteSession,
 } from "./api";
 import { AgentSelectionsEnum } from "../state/selectAgent";
 import { ActionEnum, type Action } from "../components/TableX";
@@ -86,7 +87,7 @@ export const loadSessionsAndMessages = async ({
         return messages;
       }),
     ]);
-
+    console.log("reloading sessions and messages");
     return { sessions, messages };
   } catch (error) {
     console.log(error);
@@ -114,19 +115,26 @@ export const loadUser = async () => {
   }
 };
 
-export const sessionAction = async ({ params }: ActionFunctionArgs) => {
+export const sessionAction = async ({
+  request,
+  params,
+}: ActionFunctionArgs) => {
   const jwt = getLoggedInJwt();
-  console.log(params);
   if (!jwt) {
     // Redirect unauthenticated users to the login page
     return redirect("/login");
   }
   try {
-    const session = await createSession(jwt);
-    console.log(session);
-    //redirect to new session
-    const redirectRoute = getRedirectRoute(params.agent, session.id);
-    return redirect(redirectRoute);
+    switch (request.method) {
+      case "POST":
+        const session = await createSession(jwt);
+        //return session
+        const redirectRoute = getRedirectRoute(params.agent, session.id);
+        return redirect(redirectRoute);
+      case "DELETE":
+        const result = await deleteSession(params.sessionId as string, jwt);
+        return result;
+    }
   } catch (error) {
     console.log(error);
     setLoggedInJwt(null);
@@ -160,6 +168,7 @@ export const loginAction = async ({ request }: ActionFunctionArgs) => {
 export const setUserAction = async ({ request }: ActionFunctionArgs) => {
   const formData = await request.formData();
   const jwt = getLoggedInJwt();
+  //consider using patch/post/delete request parameters
   const actionData = formData.get("actionData") as string;
   const actionType = formData.get("actionType") as Action;
   console.log(jwt);

@@ -210,10 +210,31 @@ async def session(
 async def create_session(
     db: Session = Depends(get_db), current_user: CurrentUser = Depends(get_current_user)
 ) -> SessionInDB:
-    db_session = Sessions(id=uuid.uuid4(), username_id=current_user.id)
+    db_session = Sessions(id=str(uuid.uuid4()), username_id=current_user.id)
     db.add(db_session)
     db.commit()
     return SessionInDB(id=db_session.id, session_start=db_session.session_start)
+
+
+@app.delete(
+    "/session/{session_id}",
+    response_model=GenericSuccess,
+    status_code=status.HTTP_201_CREATED,
+)
+async def delete_session(
+    session_id: str,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    session = db.get(Sessions, session_id)
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Session does not exist",
+        )
+    db.delete(session)
+    db.commit()
+    return {"status": "success"}
 
 
 # consider pagination

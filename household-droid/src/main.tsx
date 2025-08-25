@@ -30,7 +30,7 @@ const router = createBrowserRouter([
     children: [
       {
         path: "/",
-        Component: MainPage,
+        Component: MainPage, //careful, I think this has appBar, which also requires agent and session (and will be undefined on first load)
         loader: loadUser,
         children: [
           {
@@ -45,7 +45,7 @@ const router = createBrowserRouter([
                 path: ":agent/:sessionId",
                 Component: MainChat,
                 loader: loadSessionsAndMessages, // messages for the session...do I also really want sessions here?  I could put it up a level
-                action: sessionAction, // create new session
+                action: sessionAction, // create new session or delete session
               },
             ],
           },

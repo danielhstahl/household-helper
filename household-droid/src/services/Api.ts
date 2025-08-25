@@ -62,6 +62,20 @@ export const createSession = (jwt: string) => {
   });
 };
 
+export const deleteSession = (sessionId: string, jwt: string) => {
+  return fetch(`/session/${sessionId}`, {
+    method: "DELETE",
+    headers: getHeaders(jwt),
+  }).then((response) => {
+    return response.json().then((result) => {
+      if (response.ok) {
+        return result;
+      }
+      throw new Error(result.detail);
+    });
+  });
+};
+
 export const getMessages = (sessionId: string, jwt: string) => {
   return fetch(`/messages/${sessionId}`, {
     headers: getHeaders(jwt),

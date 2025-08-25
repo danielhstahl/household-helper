@@ -8,7 +8,8 @@ import Box from "@mui/material/Box";
 import AddIcon from "@mui/icons-material/Add";
 import Button from "@mui/material/Button";
 import Typography from "@mui/material/Typography";
-import { NavLink, Form, useLocation } from "react-router";
+import { NavLink, Form, useLocation, useFetcher } from "react-router";
+
 interface Session {
   id: string;
   session_start: string;
@@ -27,6 +28,38 @@ const getNavLink = (location: string, sessionId: string) => {
     .split("/")
     .map((v, i, a) => (i !== a.length - 1 ? v : sessionId))
     .join("/");
+};
+
+const RouterSecondaryAction = ({
+  selectedSessionId,
+  sessionId,
+  locationPath,
+}: {
+  selectedSessionId: string;
+  sessionId: string;
+  locationPath: string;
+}) => {
+  const fetcher = useFetcher();
+  const busy = fetcher.state !== "idle";
+  console.log("is busy", busy);
+  const onSubmit = () => {
+    const formData = new FormData();
+    fetcher.submit(formData, {
+      action: getNavLink(locationPath, sessionId),
+      method: "delete",
+    });
+  };
+  return (
+    <IconButton
+      disabled={selectedSessionId === sessionId}
+      edge="end"
+      aria-label="delete"
+      onClick={onSubmit}
+      loading={busy}
+    >
+      <DeleteIcon />
+    </IconButton>
+  );
 };
 const SessionSelection = ({ sessions, selectedSessionId }: Props) => {
   const location = useLocation();
@@ -54,9 +87,11 @@ const SessionSelection = ({ sessions, selectedSessionId }: Props) => {
             component={NavLink}
             to={getNavLink(location.pathname, id)}
             secondaryAction={
-              <IconButton edge="end" aria-label="delete">
-                <DeleteIcon />
-              </IconButton>
+              <RouterSecondaryAction
+                selectedSessionId={selectedSessionId}
+                sessionId={id}
+                locationPath={location.pathname}
+              />
             }
             disablePadding
             key={id}

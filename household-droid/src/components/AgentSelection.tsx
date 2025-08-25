@@ -2,7 +2,6 @@ import Grid from "@mui/material/Grid";
 import AgentSelection from "./Agent";
 import { AgentSelectionsEnum, getAgentName } from "../state/selectAgent";
 import { type AgentSelections } from "../state/selectAgent";
-//import { useAgentParams } from "../state/AgentProvider";
 
 interface AgentSelectionProps {
   ref: React.Ref<HTMLDivElement>;
@@ -14,7 +13,6 @@ const AgentSelectionOptions = ({
   selectedAgent,
   selectedSessionId,
 }: AgentSelectionProps) => {
-  //const { state: selectedAgent, dispatch: setSelectedAgent } = useAgentParams();
   return (
     <Grid ref={ref} container spacing={2} style={{ paddingTop: 20 }}>
       <Grid
