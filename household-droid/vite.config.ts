@@ -15,6 +15,22 @@ export default defineConfig({
         target: "http://localhost:8000", // Backend server
         changeOrigin: true, // Ensure the request appears to come from the frontend server
       },
+      "/token": {
+        target: "http://localhost:8000", // Backend server
+        changeOrigin: true, // Ensure the request appears to come from the frontend server
+      },
+      "/session": {
+        target: "http://localhost:8000", // Backend server
+        changeOrigin: true, // Ensure the request appears to come from the frontend server
+      },
+      "/users": {
+        target: "http://localhost:8000", // Backend server
+        changeOrigin: true, // Ensure the request appears to come from the frontend server
+      },
+      "/messages": {
+        target: "http://localhost:8000", // Backend server
+        changeOrigin: true, // Ensure the request appears to come from the frontend server
+      },
     },
   },
   test: {

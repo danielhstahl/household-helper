@@ -6,8 +6,9 @@ import Select from "@mui/material/Select";
 import LightMode from "@mui/icons-material/LightMode";
 import DarkMode from "@mui/icons-material/DarkMode";
 import IconButton from "@mui/material/IconButton";
-import NativeSelect from "@mui/material/NativeSelect";
-import { useAgentParams } from "../state/AgentProvider";
+import SettingsIcon from "@mui/icons-material/Settings";
+import { useParams } from "react-router";
+import LogoutIcon from "@mui/icons-material/Logout";
 import {
   AgentSelectionsEnum,
   getAgentName,
@@ -17,33 +18,45 @@ import { useTheme } from "@mui/material";
 import useScrollTrigger from "@mui/material/useScrollTrigger";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import { useColorScheme } from "@mui/material/styles";
+import { NavLink } from "react-router";
 
-const AppBarDroid = ({ threshold }: { threshold: number }) => {
-  const { state: selectedAgent, dispatch: setSelectedAgent } = useAgentParams();
+const AppBarDroid = ({
+  threshold,
+  isAdmin,
+}: {
+  threshold: number;
+  isAdmin: boolean;
+}) => {
+  const { agent, sessionId } = useParams();
   const theme = useTheme();
   const trigger = useScrollTrigger({ threshold, disableHysteresis: true });
+  const isLargerThanSm = useMediaQuery(theme.breakpoints.up("md"));
   const isLargerThanXS = useMediaQuery(theme.breakpoints.up("sm"));
   const { mode, setMode } = useColorScheme();
   return (
     <AppBar>
       <Toolbar>
-        <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
+        <Typography
+          variant="h6"
+          component={NavLink}
+          to="/"
+          sx={{ flexGrow: 1 }}
+          style={{ textDecoration: "none", color: "inherit" }}
+        >
           Household Droid
         </Typography>
-        {!trigger && isLargerThanXS && (
+        {!trigger && isLargerThanSm && (
           <Typography component="div">
             This is the droid you've been looking for!
           </Typography>
         )}
 
-        {trigger && isLargerThanXS && (
+        {(trigger || !isLargerThanXS) && agent && (
           <Select
             id="menu-appbar"
-            value={selectedAgent}
-            onChange={(event) => {
-              setSelectedAgent(event.target.value);
-            }}
+            value={agent as AgentSelections}
             variant="standard"
+            renderValue={getAgentName}
             sx={{
               borderRadius: theme.shape.borderRadius,
               "& .MuiSelect-select": {
@@ -54,39 +67,23 @@ const AppBarDroid = ({ threshold }: { threshold: number }) => {
               },
             }}
           >
-            <MenuItem value={AgentSelectionsEnum.HELPER_INDEX}>
-              {getAgentName(AgentSelectionsEnum.HELPER_INDEX)}
-            </MenuItem>
-            <MenuItem value={AgentSelectionsEnum.TUTOR_INDEX}>
-              {getAgentName(AgentSelectionsEnum.TUTOR_INDEX)}
-            </MenuItem>
+            <NavLink
+              to={`/${AgentSelectionsEnum.HELPER}/${sessionId}`}
+              style={{ textDecoration: "none", color: "inherit" }}
+            >
+              <MenuItem value={AgentSelectionsEnum.HELPER}>
+                {getAgentName(AgentSelectionsEnum.HELPER)}
+              </MenuItem>
+            </NavLink>
+            <NavLink
+              to={`/${AgentSelectionsEnum.TUTOR}/${sessionId}`}
+              style={{ textDecoration: "none", color: "inherit" }}
+            >
+              <MenuItem value={AgentSelectionsEnum.TUTOR}>
+                {getAgentName(AgentSelectionsEnum.TUTOR)}
+              </MenuItem>
+            </NavLink>
           </Select>
-        )}
-        {!isLargerThanXS && (
-          <NativeSelect
-            id="menu-appbar"
-            value={selectedAgent}
-            onChange={(event) => {
-              setSelectedAgent(parseInt(event.target.value) as AgentSelections);
-            }}
-            variant="standard"
-            sx={{
-              borderRadius: theme.shape.borderRadius,
-              "& .MuiNativeSelect-select": {
-                color: theme.palette.common.white,
-              },
-              "& .MuiSvgIcon-root": {
-                color: theme.palette.common.white,
-              },
-            }}
-          >
-            <option value={AgentSelectionsEnum.HELPER_INDEX}>
-              {getAgentName(AgentSelectionsEnum.HELPER_INDEX)}
-            </option>
-            <option value={AgentSelectionsEnum.TUTOR_INDEX}>
-              {getAgentName(AgentSelectionsEnum.TUTOR_INDEX)}
-            </option>
-          </NativeSelect>
         )}
         <IconButton
           aria-label="switch-mode"
@@ -94,6 +91,24 @@ const AppBarDroid = ({ threshold }: { threshold: number }) => {
           onClick={() => setMode(mode === "light" ? "dark" : "light")}
         >
           {mode === "light" ? <DarkMode /> : <LightMode />}
+        </IconButton>
+        {isAdmin && (
+          <IconButton
+            aria-label="settings"
+            color="inherit"
+            component={NavLink}
+            to="/settings"
+          >
+            <SettingsIcon />
+          </IconButton>
+        )}
+        <IconButton
+          aria-label="logout"
+          color="inherit"
+          component={NavLink}
+          to="/logout"
+        >
+          <LogoutIcon />
         </IconButton>
       </Toolbar>
     </AppBar>
