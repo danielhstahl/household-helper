@@ -48,6 +48,19 @@ export const getSessions = (jwt: string) => {
   });
 };
 
+export const getMostRecentSession = (jwt: string) => {
+  return fetch("/session/recent", {
+    headers: getHeaders(jwt),
+  }).then((response) => {
+    return response.json().then((result) => {
+      if (response.ok) {
+        return result;
+      }
+      throw new Error(result.detail);
+    });
+  });
+};
+
 export const createSession = (jwt: string) => {
   return fetch("/session", {
     method: "POST",

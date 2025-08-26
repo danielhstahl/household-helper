@@ -6,6 +6,7 @@ import {
 import {
   getToken,
   getSessions,
+  getMostRecentSession,
   getUsers,
   createUser,
   updateUser,
@@ -48,10 +49,8 @@ export const loadSession = async ({ params }: LoaderFunctionArgs) => {
     return redirect("/login");
   }
   try {
-    //consider getting a singleton to reduce payload size
-    const sessions = await getSessions(jwt);
-    const sessionId =
-      sessions.length === 0 ? (await createSession(jwt)).id : sessions[0].id;
+    const session = await getMostRecentSession(jwt);
+    const sessionId = session ? session.id : (await createSession(jwt)).id;
     const redirectRoute = getRedirectRoute(params.agent, sessionId);
     return redirect(redirectRoute);
   } catch (error) {

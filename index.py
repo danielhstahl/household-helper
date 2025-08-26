@@ -33,7 +33,6 @@ from models import (
     Token,
     CurrentUser,
     Base,
-    SessionAndUser,
     GenericSuccess,
     UserUpdate,
     Messages,
