@@ -14,7 +14,7 @@ import { createBrowserRouter } from "react-router";
 import { RouterProvider } from "react-router/dom";
 import {
   loginAction,
-  logoutAction,
+  logoutLoader,
   userAction,
   loadUsers,
   loadSessionsAndMessages,
@@ -64,7 +64,7 @@ const router = createBrowserRouter([
       },
       {
         path: "logout",
-        action: logoutAction,
+        loader: logoutLoader,
       },
     ],
   },

@@ -6,9 +6,9 @@ import Select from "@mui/material/Select";
 import LightMode from "@mui/icons-material/LightMode";
 import DarkMode from "@mui/icons-material/DarkMode";
 import IconButton from "@mui/material/IconButton";
-import NativeSelect from "@mui/material/NativeSelect";
 import SettingsIcon from "@mui/icons-material/Settings";
 import { useParams } from "react-router";
+import LogoutIcon from "@mui/icons-material/Logout";
 import {
   AgentSelectionsEnum,
   getAgentName,
@@ -30,6 +30,7 @@ const AppBarDroid = ({
   const { agent, sessionId } = useParams();
   const theme = useTheme();
   const trigger = useScrollTrigger({ threshold, disableHysteresis: true });
+  const isLargerThanSm = useMediaQuery(theme.breakpoints.up("md"));
   const isLargerThanXS = useMediaQuery(theme.breakpoints.up("sm"));
   const { mode, setMode } = useColorScheme();
   return (
@@ -44,13 +45,13 @@ const AppBarDroid = ({
         >
           Household Droid
         </Typography>
-        {!trigger && isLargerThanXS && (
+        {!trigger && isLargerThanSm && (
           <Typography component="div">
             This is the droid you've been looking for!
           </Typography>
         )}
 
-        {trigger && isLargerThanXS && (
+        {(trigger || !isLargerThanXS) && agent && (
           <Select
             id="menu-appbar"
             value={agent as AgentSelections}
@@ -84,29 +85,6 @@ const AppBarDroid = ({
             </NavLink>
           </Select>
         )}
-        {!isLargerThanXS && (
-          <NativeSelect
-            id="menu-appbar"
-            value={agent}
-            variant="standard"
-            sx={{
-              borderRadius: theme.shape.borderRadius,
-              "& .MuiNativeSelect-select": {
-                color: theme.palette.common.white,
-              },
-              "& .MuiSvgIcon-root": {
-                color: theme.palette.common.white,
-              },
-            }}
-          >
-            <option value={AgentSelectionsEnum.HELPER}>
-              {getAgentName(AgentSelectionsEnum.HELPER)}
-            </option>
-            <option value={AgentSelectionsEnum.TUTOR}>
-              {getAgentName(AgentSelectionsEnum.TUTOR)}
-            </option>
-          </NativeSelect>
-        )}
         <IconButton
           aria-label="switch-mode"
           color="inherit"
@@ -124,6 +102,14 @@ const AppBarDroid = ({
             <SettingsIcon />
           </IconButton>
         )}
+        <IconButton
+          aria-label="logout"
+          color="inherit"
+          component={NavLink}
+          to="/logout"
+        >
+          <LogoutIcon />
+        </IconButton>
       </Toolbar>
     </AppBar>
   );

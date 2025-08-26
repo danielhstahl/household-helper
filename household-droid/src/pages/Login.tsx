@@ -3,14 +3,14 @@ import Button from "@mui/material/Button";
 import { Form, useActionData, useFetcher } from "react-router";
 import Alert from "@mui/material/Alert";
 const Auth = () => {
-  const formResult = useActionData();
+  //const formResult = useActionData();
   const fetcher = useFetcher();
   return (
-    <Form
+    <fetcher.Form
       noValidate
       autoComplete="off"
       method="post"
-      replace={true}
+      //replace={true}
       action={`/login`} //go to main page, where the "Action" will be triggered to get a token
     >
       <TextField
@@ -42,10 +42,10 @@ const Auth = () => {
       >
         Log In
       </Button>
-      {formResult?.error && (
-        <Alert severity="error">{formResult.error.message}</Alert>
+      {fetcher.data?.error && (
+        <Alert severity="error">{fetcher.data?.error.message}</Alert>
       )}
-    </Form>
+    </fetcher.Form>
   );
 };
 

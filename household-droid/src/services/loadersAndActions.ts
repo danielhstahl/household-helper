@@ -39,7 +39,6 @@ export const getRedirectRoute = (
   sessionId: string,
 ) => {
   //default to session that was most recently started
-  //const extraUrl = sessions.length === 0 ? "" : `/${sessionId}`;
   return `/${agent || AgentSelectionsEnum.HELPER}/${sessionId}`;
 };
 // --- Route Loaders ---
@@ -131,7 +130,7 @@ export const sessionAction = async ({
   }
 };
 
-export const logoutAction = () => {
+export const logoutLoader = () => {
   setLoggedInJwt(null);
   return redirect("/login");
 };

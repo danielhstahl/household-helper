@@ -84,8 +84,6 @@ const SessionSelection = ({ sessions, selectedSessionId }: Props) => {
       <List sx={{ display: { xs: "none", sm: "block" } }}>
         {sessions.map(({ id, session_start }) => (
           <ListItem
-            component={NavLink}
-            to={getNavLink(location.pathname, id)}
             secondaryAction={
               <RouterSecondaryAction
                 selectedSessionId={selectedSessionId}
@@ -95,11 +93,12 @@ const SessionSelection = ({ sessions, selectedSessionId }: Props) => {
             }
             disablePadding
             key={id}
-            style={{ textDecoration: "none", color: "inherit" }}
           >
             <ListItemButton
-              //role={undefined}
               selected={id === selectedSessionId}
+              component={NavLink}
+              to={getNavLink(location.pathname, id)}
+              style={{ textDecoration: "none", color: "inherit" }}
             >
               <ListItemText primary={trimDate(session_start)} secondary={id} />
             </ListItemButton>

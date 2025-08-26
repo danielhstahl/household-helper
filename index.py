@@ -206,6 +206,22 @@ async def session(
     ]
 
 
+@app.get("/session/recent")
+async def recent_session(
+    db: Session = Depends(get_db), current_user: CurrentUser = Depends(get_current_user)
+) -> Optional[SessionInDB]:
+    session = (
+        db.query(Sessions)
+        .filter(Sessions.username_id == current_user.id)
+        .order_by(Sessions.session_start.desc())
+        .first()
+    )
+    if session:
+        return SessionInDB(id=session.id, session_start=session.session_start)
+    else:
+        return
+
+
 @app.post("/session")
 async def create_session(
     db: Session = Depends(get_db), current_user: CurrentUser = Depends(get_current_user)
@@ -213,6 +229,7 @@ async def create_session(
     db_session = Sessions(id=str(uuid.uuid4()), username_id=current_user.id)
     db.add(db_session)
     db.commit()
+    db.refresh(db_session)
     return SessionInDB(id=db_session.id, session_start=db_session.session_start)
 
 
