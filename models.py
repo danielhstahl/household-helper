@@ -16,9 +16,6 @@ class User(Base):
     hashed_password = mapped_column(String, nullable=False)
     disabled = mapped_column(Boolean, default=False)
     roles = relationship("Roles", back_populates="user", cascade="all, delete")
-    # cascade = (
-    #    "all, delete-orphan"  # delete everything that FKs to ID when deleting a user
-    # )
 
 
 class Roles(Base):
@@ -46,9 +43,6 @@ class Sessions(Base):
     username_id = mapped_column(
         Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
-    # cascade = (
-    #    "all, delete-orphan"  # delete everything that FKs to ID when deleting a session
-    # )
 
 
 class Message(Base):

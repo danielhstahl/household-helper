@@ -31,8 +31,6 @@ interface OutletContext {
 const MainChat = () => {
   const { agent, sessionId } = useParams();
   const { sessions, messages: historicalMessages } = useLoaderData();
-  console.log(historicalMessages);
-  console.log(sessions);
   const navigation = useNavigation();
   const navigate = useNavigate();
   const { agentSelectionRef } = useOutletContext() as OutletContext;
@@ -88,7 +86,7 @@ const MainChat = () => {
   const onSubmit = (selectedAgent: AgentSelections, value: string) => {
     const jwt = getLoggedInJwt();
     onStart(value);
-    invokeAgent(selectedAgent, value, jwt as string, sessionId as string)
+    return invokeAgent(selectedAgent, value, jwt as string, sessionId as string)
       .then(streamText(onNew, onDone))
       .catch(() => navigate("/login"));
   };

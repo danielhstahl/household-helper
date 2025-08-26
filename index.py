@@ -234,14 +234,12 @@ async def create_session(
 
 @app.delete(
     "/session/{session_id}",
-    response_model=GenericSuccess,
-    status_code=status.HTTP_201_CREATED,
 )
 async def delete_session(
     session_id: str,
     db: Session = Depends(get_db),
     current_user: CurrentUser = Depends(get_current_user),
-):
+) -> GenericSuccess:
     session = db.get(Sessions, session_id)
     if not session:
         raise HTTPException(
@@ -250,7 +248,7 @@ async def delete_session(
         )
     db.delete(session)
     db.commit()
-    return {"status": "success"}
+    return GenericSuccess(status="success")
 
 
 # consider pagination
@@ -302,7 +300,6 @@ async def tutor(
     session_id: str,
     db: Session = Depends(get_db),
     current_user: CurrentUser = Depends(get_current_user_by_roles("tutor")),
-    # agent: FunctionAgent = Depends(get_tutor_agent),
 ):
     memory = get_session_memory(db, current_user.id, session_id)
     handler = tutor_agent.run(chat.text, memory=memory)
@@ -319,10 +316,10 @@ async def tutor(
     )
 
 
-@app.post("/token", response_model=Token)
+@app.post("/token")
 async def login_for_access_token(
     form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)
-):
+) -> Token:
     """
     Endpoint for users to log in and receive an access token (JWT).
     Uses OAuth2PasswordRequestForm for standard username/password submission.
@@ -341,15 +338,15 @@ async def login_for_access_token(
         data={"sub": user.username}, expires_delta=access_token_expires
     )
 
-    return {"access_token": access_token, "token_type": "bearer"}
+    return Token(access_token=access_token, token_type="bearer")
 
 
-@app.post("/users", response_model=CurrentUser, status_code=status.HTTP_201_CREATED)
+@app.post("/users")
 async def create_user(
     user: UserCreate,
     current_admin: CurrentUser = Depends(get_current_admin_user),  # Requires admin role
     db: Session = Depends(get_db),
-):
+) -> CurrentUser:
     """
     Endpoint for administrators to create new users.
     Requires an authenticated admin user.
@@ -370,14 +367,12 @@ async def create_user(
     )
 
 
-@app.delete(
-    "/users", response_model=GenericSuccess, status_code=status.HTTP_201_CREATED
-)
+@app.delete("/users")
 async def delete_user(
     user: UserDelete,
     current_admin: CurrentUser = Depends(get_current_admin_user),  # Requires admin role
     db: Session = Depends(get_db),
-):
+) -> GenericSuccess:
     """
     Endpoint for administrators to create new users.
     Requires an authenticated admin user.
@@ -390,15 +385,15 @@ async def delete_user(
         )
     delete_user_in_db_func(db, db_user)
 
-    return {"status": "success"}
+    return GenericSuccess(status="success")
 
 
-@app.patch("/users", response_model=CurrentUser, status_code=status.HTTP_201_CREATED)
+@app.patch("/users")
 async def update_user(
     user: UserUpdate,
     current_admin: CurrentUser = Depends(get_current_admin_user),  # Requires admin role
     db: Session = Depends(get_db),
-):
+) -> CurrentUser:
     """
     Endpoint for administrators to update new users.
     Requires an authenticated admin user.
@@ -427,11 +422,11 @@ async def read_users_me(current_user: CurrentUser = Depends(get_current_user)):
     return current_user
 
 
-@app.get("/users", response_model=list[CurrentUser])
+@app.get("/users")
 async def read_users(
     current_user: CurrentUser = Depends(get_current_admin_user),
     db: Session = Depends(get_db),
-):
+) -> list[CurrentUser]:
     """
     Endpoint to get all users information
     """
@@ -446,8 +441,10 @@ async def read_users(
     ]
 
 
-@app.get("/users/admin_info", response_model=CurrentUser)
-async def read_admin_info(current_admin: CurrentUser = Depends(get_current_admin_user)):
+@app.get("/users/admin_info")
+async def read_admin_info(
+    current_admin: CurrentUser = Depends(get_current_admin_user),
+) -> CurrentUser:
     """
     Endpoint accessible only by administrators to get their own info (demonstrates admin access).
     """

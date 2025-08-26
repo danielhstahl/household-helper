@@ -48,7 +48,6 @@ def get_db() -> Iterator[Session]:
     try:
         yield db
     finally:
-        print("closing database")  # testing, make sure this gets called
         db.close()
 
 

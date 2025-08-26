@@ -17,10 +17,6 @@ export const sendQuery = (text: string, jwt: string, sessionId: string) => {
     body: JSON.stringify({ text }),
     headers: getHeaders(jwt),
   });
-  // Retrieve its body as ReadableStream
-  /* .then((response) => {
-        return response.body!.getReader();
-      })*/
 };
 
 export const sendTutor = (text: string, jwt: string, sessionId: string) => {
@@ -29,10 +25,6 @@ export const sendTutor = (text: string, jwt: string, sessionId: string) => {
     body: JSON.stringify({ text }),
     headers: getHeaders(jwt),
   });
-  // Retrieve its body as ReadableStream
-  /*.then((response) => {
-        return response.body!.getReader();
-      })*/
 };
 
 export const getSessions = (jwt: string) => {
