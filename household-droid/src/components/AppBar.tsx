@@ -35,7 +35,13 @@ const AppBarDroid = ({
   return (
     <AppBar>
       <Toolbar>
-        <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
+        <Typography
+          variant="h6"
+          component={NavLink}
+          to="/"
+          sx={{ flexGrow: 1 }}
+          style={{ textDecoration: "none", color: "inherit" }}
+        >
           Household Droid
         </Typography>
         {!trigger && isLargerThanXS && (
