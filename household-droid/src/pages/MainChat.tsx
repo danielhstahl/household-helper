@@ -4,7 +4,7 @@ import AgentSelection from "../components/AgentSelection";
 import Output, { DialogEnum, type Message } from "../components/Output";
 import { streamText } from "../services/api";
 import { invokeAgent, type AgentSelections } from "../state/selectAgent";
-import { getLoggedInJwt } from "../services/auth";
+import { getLoggedInJwt } from "../services/loadersAndActions";
 import {
   useNavigate,
   useNavigation,
@@ -36,7 +36,7 @@ const MainChat = () => {
   const navigation = useNavigation();
   const navigate = useNavigate();
   const { agentSelectionRef } = useOutletContext() as OutletContext;
-  const areMessagesInitialLoading = navigation.state === "loading"; // && navigation.location.pathname === "/";
+  const areMessagesInitialLoading = navigation.state === "loading";
   const [isWaiting, setIsWaiting] = useState(false);
   const [{ messages, latestText }, setMessages] = useState<MessagesAndText>(
     initMessageState(historicalMessages),

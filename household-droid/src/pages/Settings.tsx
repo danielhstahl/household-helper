@@ -1,5 +1,5 @@
 import { useLoaderData, useFetcher } from "react-router";
-import { type Action } from "../components/TableX";
+import { type Action, ActionEnum } from "../components/TableX";
 import Table from "../components/TableX";
 
 interface User {
@@ -7,6 +7,17 @@ interface User {
   username: string;
   roles: string[];
 }
+
+const mapActionToRequest = (actionType: Action) => {
+  switch (actionType) {
+    case ActionEnum.Create:
+      return "POST";
+    case ActionEnum.Update:
+      return "PATCH";
+    case ActionEnum.Delete:
+      return "DELETE";
+  }
+};
 
 const Settings = () => {
   const users = useLoaderData() as User[];
@@ -20,13 +31,8 @@ const Settings = () => {
     roles: string[],
   ) => {
     const formData = new FormData();
-
-    formData.append(
-      "actionData",
-      JSON.stringify({ id, username, password, roles }),
-    );
-    formData.append("actionType", type);
-    fetcher.submit(formData, { method: "post" });
+    formData.append("data", JSON.stringify({ id, username, password, roles }));
+    fetcher.submit(formData, { method: mapActionToRequest(type) });
   };
   return <Table users={users} onChange={onChange} />;
 };

@@ -15,13 +15,13 @@ import { RouterProvider } from "react-router/dom";
 import {
   loginAction,
   logoutAction,
-  setUserAction,
+  userAction,
   loadUsers,
   loadSessionsAndMessages,
   sessionAction,
   loadUser,
   loadSession,
-} from "./services/auth.ts";
+} from "./services/loadersAndActions.ts";
 
 const router = createBrowserRouter([
   {
@@ -53,7 +53,7 @@ const router = createBrowserRouter([
             path: "settings",
             Component: Settings,
             loader: loadUsers,
-            action: setUserAction,
+            action: userAction,
           },
         ],
       },

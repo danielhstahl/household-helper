@@ -16,8 +16,8 @@ import {
   deleteSession,
 } from "./api";
 import { AgentSelectionsEnum } from "../state/selectAgent";
-import { ActionEnum, type Action } from "../components/TableX";
 import { type Message } from "../components/Output";
+
 const USER_JWT_KEY = "user-jwt";
 
 export const getLoggedInJwt = () => {
@@ -45,10 +45,7 @@ export const getRedirectRoute = (
 // --- Route Loaders ---
 export const loadSession = async ({ params }: LoaderFunctionArgs) => {
   const jwt = getLoggedInJwt();
-  console.log(params);
-
   if (!jwt) {
-    // Redirect unauthenticated users to the login page
     return redirect("/login");
   }
   try {
@@ -56,8 +53,6 @@ export const loadSession = async ({ params }: LoaderFunctionArgs) => {
     const sessions = await getSessions(jwt);
     const sessionId =
       sessions.length === 0 ? (await createSession(jwt)).id : sessions[0].id;
-
-    console.log(sessions);
     const redirectRoute = getRedirectRoute(params.agent, sessionId);
     return redirect(redirectRoute);
   } catch (error) {
@@ -73,7 +68,6 @@ export const loadSessionsAndMessages = async ({
 }: LoaderFunctionArgs) => {
   const jwt = getLoggedInJwt();
   if (!jwt) {
-    // Redirect unauthenticated users to the login page
     return redirect("/login");
   }
   try {
@@ -87,7 +81,6 @@ export const loadSessionsAndMessages = async ({
         return messages;
       }),
     ]);
-    console.log("reloading sessions and messages");
     return { sessions, messages };
   } catch (error) {
     console.log(error);
@@ -98,16 +91,12 @@ export const loadSessionsAndMessages = async ({
 
 export const loadUser = async () => {
   const jwt = getLoggedInJwt();
-  console.log(jwt);
   if (!jwt) {
-    // Redirect unauthenticated users to the login page
     return redirect("/login");
   }
   try {
     const user = await getUser(jwt);
-    console.log(user);
     return user;
-    //return redirect(`/${AgentSelectionsEnum.HELPER}`); //{ jwt, session }; // Pass user data to the route component via useLoaderData
   } catch (error) {
     console.log(error);
     setLoggedInJwt(null);
@@ -121,19 +110,19 @@ export const sessionAction = async ({
 }: ActionFunctionArgs) => {
   const jwt = getLoggedInJwt();
   if (!jwt) {
-    // Redirect unauthenticated users to the login page
     return redirect("/login");
   }
   try {
     switch (request.method) {
-      case "POST":
+      case "POST": {
         const session = await createSession(jwt);
-        //return session
         const redirectRoute = getRedirectRoute(params.agent, session.id);
         return redirect(redirectRoute);
-      case "DELETE":
+      }
+      case "DELETE": {
         const result = await deleteSession(params.sessionId as string, jwt);
         return result;
+      }
     }
   } catch (error) {
     console.log(error);
@@ -151,7 +140,6 @@ interface AccessToken {
 }
 export const loginAction = async ({ request }: ActionFunctionArgs) => {
   const formData = await request.formData();
-
   try {
     const { access_token: accessToken } = (await getToken(
       formData,
@@ -160,33 +148,34 @@ export const loginAction = async ({ request }: ActionFunctionArgs) => {
     return redirect("/");
   } catch (error) {
     console.log(error);
-    // Return an error object to the component
     return { error };
   }
 };
 
-export const setUserAction = async ({ request }: ActionFunctionArgs) => {
+export const userAction = async ({ request }: ActionFunctionArgs) => {
   const formData = await request.formData();
   const jwt = getLoggedInJwt();
-  //consider using patch/post/delete request parameters
-  const actionData = formData.get("actionData") as string;
-  const actionType = formData.get("actionType") as Action;
-  console.log(jwt);
   if (!jwt) {
-    // Redirect unauthenticated users to the login page
     return redirect("/login");
   }
   try {
-    const { id, username, password, roles } = JSON.parse(actionData);
-    switch (actionType) {
-      case ActionEnum.Create:
-        return createUser(username, password, roles, jwt);
-      case ActionEnum.Update:
-        return updateUser(id, username, password, roles, jwt);
-      case ActionEnum.Delete:
-        return deleteUser(id, username, password, jwt);
+    const { id, username, password, roles } = JSON.parse(
+      formData.get("data") as string,
+    );
+    switch (request.method) {
+      case "POST": {
+        const postUser = await createUser(username, password, roles, jwt);
+        return postUser;
+      }
+      case "PATCH": {
+        const patchUser = await updateUser(id, username, password, roles, jwt);
+        return patchUser;
+      }
+      case "DELETE": {
+        const delUser = await deleteUser(id, username, password, jwt);
+        return delUser;
+      }
     }
-    //request.body;
   } catch (error) {
     console.log(error);
     setLoggedInJwt(null);
@@ -198,12 +187,10 @@ export const loadUsers = async () => {
   const jwt = getLoggedInJwt();
   console.log(jwt);
   if (!jwt) {
-    // Redirect unauthenticated users to the login page
     return redirect("/login");
   }
   try {
     const users = await getUsers(jwt);
-    console.log(users);
     return users;
   } catch (error) {
     console.log(error);
@@ -211,27 +198,3 @@ export const loadUsers = async () => {
     return redirect("/login");
   }
 };
-/*
-export const loadMessages = async ({ params }: LoaderFunctionArgs) => {
-  //const formData = await request.formData();
-  console.log(params);
-  const jwt = getLoggedInJwt();
-
-  //const text = formData.get("text") as string;
-
-  if (!jwt) {
-    // Redirect unauthenticated users to the login page
-    return redirect("/login");
-  }
-  try {
-    //console.log(text);
-    //need to actually get previous messages
-    const response = await Promise.resolve([]); //getMessages("placeholder", jwt);
-    return response;
-    //request.body;
-  } catch (error) {
-    console.log(error);
-    setLoggedInJwt(null);
-    return redirect("/login");
-  }
-};*/
