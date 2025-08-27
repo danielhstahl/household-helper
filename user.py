@@ -10,6 +10,7 @@ from typing import Iterator
 from sqlalchemy import create_engine, delete
 from sqlalchemy.orm import sessionmaker
 import bcrypt
+import os
 
 SECRET_KEY = secrets.token_hex(
     32
@@ -36,7 +37,10 @@ def verify_password(plain_password: str, hashed_password: str):
 # --- OAuth2PasswordBearer is used to extract the token from the Authorization header ---
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
-DATABASE_URL = "postgresql://postgres:yourpassword@localhost:5432/fastapi_db"
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "sqlite://",  # in memory
+)  # "postgresql://postgres:yourpassword@localhost:5432/fastapi_db"
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
