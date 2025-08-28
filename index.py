@@ -29,7 +29,6 @@ from models import (
     Sessions,
     User,
     UserCreate,
-    UserDelete,
     Token,
     CurrentUser,
     Base,
@@ -136,7 +135,7 @@ logger = logging.getLogger("household-helper")
 logger.setLevel(LOG_LEVEL)
 
 
-def create_init_admin(db):
+def create_init_admin(db, engine):
     Base.metadata.create_all(bind=engine)
     if db.query(User).count() == 0:
         print("No users found. Creating initial admin user.")
@@ -154,25 +153,8 @@ def create_init_admin(db):
         print("Users already exist. Skipping initial admin creation.")
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    instrumentor.start_registering()
-
-    db = next(get_db())
-    create_init_admin(db)
-
-    logger.debug("loaded database")
-
-    yield
-
-    session_cache.clear()
-
-
 class Chat(BaseModel):
     text: str
-
-
-app = FastAPI(lifespan=lifespan)
 
 
 async def yield_streams(stream_events, db: Session, session_id: str, username_id: int):
@@ -191,261 +173,277 @@ async def yield_streams(stream_events, db: Session, session_id: str, username_id
     db.commit()
 
 
-@app.get("/session")
-async def session(
-    db: Session = Depends(get_db), current_user: CurrentUser = Depends(get_current_user)
-) -> list[SessionInDB]:
-    return [
-        SessionInDB(id=session.id, session_start=session.session_start)
-        for session in db.query(Sessions)
-        .filter(Sessions.username_id == current_user.id)
-        .order_by(Sessions.session_start.desc())
-        .limit(100)
-        .all()
-    ]
+def create_fastapi(engine) -> FastAPI:
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        instrumentor.start_registering()
 
+        with Session(engine) as db:
+            create_init_admin(db, engine)
+            logger.debug("Loaded database")
+            yield
 
-@app.get("/session/recent")
-async def recent_session(
-    db: Session = Depends(get_db), current_user: CurrentUser = Depends(get_current_user)
-) -> Optional[SessionInDB]:
-    session = (
-        db.query(Sessions)
-        .filter(Sessions.username_id == current_user.id)
-        .order_by(Sessions.session_start.desc())
-        .first()
-    )
-    if session:
-        return SessionInDB(id=session.id, session_start=session.session_start)
-    else:
-        return
+        session_cache.clear()
 
+    app = FastAPI(lifespan=lifespan)
 
-@app.post("/session")
-async def create_session(
-    db: Session = Depends(get_db), current_user: CurrentUser = Depends(get_current_user)
-) -> SessionInDB:
-    db_session = Sessions(id=str(uuid.uuid4()), username_id=current_user.id)
-    db.add(db_session)
-    db.commit()
-    db.refresh(db_session)
-    return SessionInDB(id=db_session.id, session_start=db_session.session_start)
-
-
-@app.delete(
-    "/session/{session_id}",
-)
-async def delete_session(
-    session_id: str,
-    db: Session = Depends(get_db),
-    current_user: CurrentUser = Depends(get_current_user),
-) -> GenericSuccess:
-    session = db.get(Sessions, session_id)
-    if not session:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Session does not exist",
-        )
-    db.delete(session)
-    db.commit()
-    return GenericSuccess(status="success")
-
-
-# consider pagination
-@app.get("/messages/{session_id}")
-async def messages(
-    session_id: str,
-    db: Session = Depends(get_db),
-    current_user: CurrentUser = Depends(get_current_user),
-) -> Messages:
-    return Messages(
-        messages=[
-            MessageInDB(content=msg.content, role=msg.role, timestamp=msg.timestamp)
-            for msg in db.query(Message)
-            .filter(Message.username_id == current_user.id)
-            .filter(Message.session_id == session_id)
-            .order_by(Message.timestamp.desc())  # get most recent
+    @app.get("/session")
+    async def session(
+        db: Session = Depends(get_db),
+        current_user: CurrentUser = Depends(get_current_user),
+    ) -> list[SessionInDB]:
+        return [
+            SessionInDB(id=session.id, session_start=session.session_start)
+            for session in db.query(Sessions)
+            .filter(Sessions.username_id == current_user.id)
+            .order_by(Sessions.session_start.desc())
             .limit(100)
-            # .order_by(Message.timestamp.asc())  # most recnet needs to be add end
             .all()
         ]
+
+    @app.get("/session/recent")
+    async def recent_session(
+        db: Session = Depends(get_db),
+        current_user: CurrentUser = Depends(get_current_user),
+    ) -> Optional[SessionInDB]:
+        session = (
+            db.query(Sessions)
+            .filter(Sessions.username_id == current_user.id)
+            .order_by(Sessions.session_start.desc())
+            .first()
+        )
+        if session:
+            return SessionInDB(id=session.id, session_start=session.session_start)
+        else:
+            return
+
+    @app.post("/session")
+    async def create_session(
+        db: Session = Depends(get_db),
+        current_user: CurrentUser = Depends(get_current_user),
+    ) -> SessionInDB:
+        db_session = Sessions(id=str(uuid.uuid4()), username_id=current_user.id)
+        db.add(db_session)
+        db.commit()
+        db.refresh(db_session)
+        return SessionInDB(id=db_session.id, session_start=db_session.session_start)
+
+    @app.delete(
+        "/session/{session_id}",
     )
+    async def delete_session(
+        session_id: str,
+        db: Session = Depends(get_db),
+        current_user: CurrentUser = Depends(get_current_user),
+    ) -> GenericSuccess:
+        session = db.get(Sessions, session_id)
+        if not session:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Session does not exist",
+            )
+        db.delete(session)
+        db.commit()
+        return GenericSuccess(status="success")
 
-
-@app.post("/query")
-async def query(
-    chat: Chat,
-    session_id: str,
-    db: Session = Depends(get_db),
-    current_user: CurrentUser = Depends(get_current_user_by_roles("helper")),
-):
-    memory = get_session_memory(db, current_user.id, session_id)
-    handler = helper_agent.run(chat.text, memory=memory)
-    db_message = Message(
-        session_id=session_id,
-        username_id=current_user.id,
-        role="me",
-        content="".join(chat.text),
-    )
-    db.add(db_message)
-    db.commit()
-    return StreamingResponse(
-        yield_streams(handler.stream_events(), db, session_id, current_user.id)
-    )
-
-
-@app.post("/tutor")
-async def tutor(
-    chat: Chat,
-    session_id: str,
-    db: Session = Depends(get_db),
-    current_user: CurrentUser = Depends(get_current_user_by_roles("tutor")),
-):
-    memory = get_session_memory(db, current_user.id, session_id)
-    handler = tutor_agent.run(chat.text, memory=memory)
-    db_message = Message(
-        session_id=session_id,
-        username_id=current_user.id,
-        role="me",
-        content="".join(chat.text),
-    )
-    db.add(db_message)
-    db.commit()
-    return StreamingResponse(
-        yield_streams(handler.stream_events(), db, session_id, current_user.id)
-    )
-
-
-@app.post("/token")
-async def login_for_access_token(
-    form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)
-) -> Token:
-    """
-    Endpoint for users to log in and receive an access token (JWT).
-    Uses OAuth2PasswordRequestForm for standard username/password submission.
-    """
-    user = await authenticate_user(db, form_data.username, form_data.password)
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
-            headers={"WWW-Authenticate": "Bearer"},
+    # consider pagination
+    @app.get("/messages/{session_id}")
+    async def messages(
+        session_id: str,
+        db: Session = Depends(get_db),
+        current_user: CurrentUser = Depends(get_current_user),
+    ) -> Messages:
+        return Messages(
+            messages=[
+                MessageInDB(content=msg.content, role=msg.role, timestamp=msg.timestamp)
+                for msg in db.query(Message)
+                .filter(Message.username_id == current_user.id)
+                .filter(Message.session_id == session_id)
+                .order_by(Message.timestamp.desc())  # get most recent
+                .limit(100)
+                # .order_by(Message.timestamp.asc())  # most recnet needs to be add end
+                .all()
+            ]
         )
 
-    # Generate JWT
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": user.username}, expires_delta=access_token_expires
-    )
-
-    return Token(access_token=access_token, token_type="bearer")
-
-
-@app.post("/users")
-async def create_user(
-    user: UserCreate,
-    current_admin: CurrentUser = Depends(get_current_admin_user),  # Requires admin role
-    db: Session = Depends(get_db),
-) -> CurrentUser:
-    """
-    Endpoint for administrators to create new users.
-    Requires an authenticated admin user.
-    """
-    if get_user_from_db(db, user.username):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Username already registered",
+    @app.post("/query")
+    async def query(
+        chat: Chat,
+        session_id: str,
+        db: Session = Depends(get_db),
+        current_user: CurrentUser = Depends(get_current_user_by_roles("helper")),
+    ):
+        memory = get_session_memory(db, current_user.id, session_id)
+        handler = helper_agent.run(chat.text, memory=memory)
+        db_message = Message(
+            session_id=session_id,
+            username_id=current_user.id,
+            role="me",
+            content="".join(chat.text),
+        )
+        db.add(db_message)
+        db.commit()
+        return StreamingResponse(
+            yield_streams(handler.stream_events(), db, session_id, current_user.id)
         )
 
-    db_user = create_user_in_db_func(db, user)
-
-    return CurrentUser(
-        id=db_user.id,
-        username=db_user.username,
-        disabled=db_user.disabled,
-        roles=[role.role for role in db_user.roles],
-    )
-
-
-@app.delete("/users")
-async def delete_user(
-    user: UserDelete,
-    current_admin: CurrentUser = Depends(get_current_admin_user),  # Requires admin role
-    db: Session = Depends(get_db),
-) -> GenericSuccess:
-    """
-    Endpoint for administrators to create new users.
-    Requires an authenticated admin user.
-    """
-    db_user = get_user_from_db_by_id(db, user.id)
-    if not db_user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Username does not exist",
+    @app.post("/tutor")
+    async def tutor(
+        chat: Chat,
+        session_id: str,
+        db: Session = Depends(get_db),
+        current_user: CurrentUser = Depends(get_current_user_by_roles("tutor")),
+    ):
+        memory = get_session_memory(db, current_user.id, session_id)
+        handler = tutor_agent.run(chat.text, memory=memory)
+        db_message = Message(
+            session_id=session_id,
+            username_id=current_user.id,
+            role="me",
+            content="".join(chat.text),
         )
-    delete_user_in_db_func(db, db_user)
-
-    return GenericSuccess(status="success")
-
-
-@app.patch("/users")
-async def update_user(
-    user: UserUpdate,
-    current_admin: CurrentUser = Depends(get_current_admin_user),  # Requires admin role
-    db: Session = Depends(get_db),
-) -> CurrentUser:
-    """
-    Endpoint for administrators to update new users.
-    Requires an authenticated admin user.
-    """
-    db_user = get_user_from_db_by_id(db, user.id)
-    if not db_user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="User does not exist",
+        db.add(db_message)
+        db.commit()
+        return StreamingResponse(
+            yield_streams(handler.stream_events(), db, session_id, current_user.id)
         )
-    updated_user = update_user_in_db_func(db, db_user, user)
-    return CurrentUser(
-        id=updated_user.id,
-        username=updated_user.username,
-        disabled=updated_user.disabled,
-        roles=[role.role for role in updated_user.roles],
-    )
 
+    @app.post("/token")
+    async def login_for_access_token(
+        form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)
+    ) -> Token:
+        """
+        Endpoint for users to log in and receive an access token (JWT).
+        Uses OAuth2PasswordRequestForm for standard username/password submission.
+        """
+        user = await authenticate_user(db, form_data.username, form_data.password)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Incorrect username or password",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
 
-@app.get("/users/me", response_model=CurrentUser)
-async def read_users_me(current_user: CurrentUser = Depends(get_current_user)):
-    """
-    Endpoint to get information about the currently authenticated user.
-    Requires any authenticated user.
-    """
-    return current_user
-
-
-@app.get("/users")
-async def read_users(
-    current_user: CurrentUser = Depends(get_current_admin_user),
-    db: Session = Depends(get_db),
-) -> list[CurrentUser]:
-    """
-    Endpoint to get all users information
-    """
-    return [
-        CurrentUser(
-            id=user.id,
-            username=user.username,
-            disabled=user.disabled,
-            roles=[role.role for role in user.roles],
+        # Generate JWT
+        access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_token = create_access_token(
+            data={"sub": user.username}, expires_delta=access_token_expires
         )
-        for user in db.query(User).all()
-    ]
+
+        return Token(access_token=access_token, token_type="bearer")
+
+    @app.post("/users")
+    async def create_user(
+        user: UserCreate,
+        current_admin: CurrentUser = Depends(
+            get_current_admin_user
+        ),  # Requires admin role
+        db: Session = Depends(get_db),
+    ) -> CurrentUser:
+        """
+        Endpoint for administrators to create new users.
+        Requires an authenticated admin user.
+        """
+        if get_user_from_db(db, user.username):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Username already registered",
+            )
+
+        db_user = create_user_in_db_func(db, user)
+
+        return CurrentUser(
+            id=db_user.id,
+            username=db_user.username,
+            disabled=db_user.disabled,
+            roles=[role.role for role in db_user.roles],
+        )
+
+    @app.delete("/users/{id}")
+    async def delete_user(
+        id: int,
+        current_admin: CurrentUser = Depends(
+            get_current_admin_user
+        ),  # Requires admin role
+        db: Session = Depends(get_db),
+    ) -> GenericSuccess:
+        """
+        Endpoint for administrators to create new users.
+        Requires an authenticated admin user.
+        """
+        db_user = get_user_from_db_by_id(db, id)
+        if not db_user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Username does not exist",
+            )
+        delete_user_in_db_func(db, db_user)
+
+        return GenericSuccess(status="success")
+
+    @app.patch("/users/{id}")
+    async def update_user(
+        id: int,
+        user: UserUpdate,
+        current_admin: CurrentUser = Depends(
+            get_current_admin_user
+        ),  # Requires admin role
+        db: Session = Depends(get_db),
+    ) -> CurrentUser:
+        """
+        Endpoint for administrators to update new users.
+        Requires an authenticated admin user.
+        """
+        db_user = get_user_from_db_by_id(db, id)
+        if not db_user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="User does not exist",
+            )
+        updated_user = update_user_in_db_func(db, db_user, user)
+        return CurrentUser(
+            id=updated_user.id,
+            username=updated_user.username,
+            disabled=updated_user.disabled,
+            roles=[role.role for role in updated_user.roles],
+        )
+
+    @app.get("/users/me", response_model=CurrentUser)
+    async def read_users_me(current_user: CurrentUser = Depends(get_current_user)):
+        """
+        Endpoint to get information about the currently authenticated user.
+        Requires any authenticated user.
+        """
+        return current_user
+
+    @app.get("/users")
+    async def read_users(
+        current_user: CurrentUser = Depends(get_current_admin_user),
+        db: Session = Depends(get_db),
+    ) -> list[CurrentUser]:
+        """
+        Endpoint to get all users information
+        """
+        return [
+            CurrentUser(
+                id=user.id,
+                username=user.username,
+                disabled=user.disabled,
+                roles=[role.role for role in user.roles],
+            )
+            for user in db.query(User).all()
+        ]
+
+    @app.get("/users/admin_info")
+    async def read_admin_info(
+        current_admin: CurrentUser = Depends(get_current_admin_user),
+    ) -> CurrentUser:
+        """
+        Endpoint accessible only by administrators to get their own info (demonstrates admin access).
+        """
+        return current_admin
+
+    return app
 
 
-@app.get("/users/admin_info")
-async def read_admin_info(
-    current_admin: CurrentUser = Depends(get_current_admin_user),
-) -> CurrentUser:
-    """
-    Endpoint accessible only by administrators to get their own info (demonstrates admin access).
-    """
-    return current_admin
+app = create_fastapi(engine)

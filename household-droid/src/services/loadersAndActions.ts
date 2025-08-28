@@ -170,7 +170,7 @@ export const userAction = async ({ request }: ActionFunctionArgs) => {
         return patchUser;
       }
       case "DELETE": {
-        const delUser = await deleteUser(id, username, password, jwt);
+        const delUser = await deleteUser(id, jwt);
         return delUser;
       }
     }

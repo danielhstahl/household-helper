@@ -99,16 +99,9 @@ class UserCreate(BaseModel):
 class UserUpdate(BaseModel):
     """Model for updating a new user (request body)."""
 
-    id: int
     username: str = Field(..., min_length=3, max_length=50)
     password: Optional[str] = Field(None, min_length=6)
     roles: list[str]
-
-
-class UserDelete(BaseModel):
-    """Model for updating a new user (request body)."""
-
-    id: int
 
 
 class UserLogin(BaseModel):
