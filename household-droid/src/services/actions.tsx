@@ -6,9 +6,9 @@ import {
   deleteUser,
   createSession,
   deleteSession,
-} from "./api";
-import { getLoggedInJwt, setLoggedInJwt } from "../state/localState.ts";
-import { getRedirectRoute } from "./routes.ts";
+} from "./api.tsx";
+import { getLoggedInJwt, setLoggedInJwt } from "../state/localState.tsx";
+import { getRedirectRoute } from "./routes.tsx";
 
 export const sessionAction = async ({
   request,

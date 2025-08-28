@@ -1,4 +1,4 @@
-import { sendQuery, sendTutor } from "../services/api.ts";
+import { sendQuery, sendTutor } from "../services/api.tsx";
 
 const HELPER = "helper";
 const TUTOR = "tutor";

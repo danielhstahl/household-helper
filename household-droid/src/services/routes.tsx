@@ -1,4 +1,4 @@
-import { AgentSelectionsEnum } from "../state/selectAgent.ts";
+import { AgentSelectionsEnum } from "../state/selectAgent.tsx";
 
 export const getRedirectRoute = (
   agent: string | undefined,

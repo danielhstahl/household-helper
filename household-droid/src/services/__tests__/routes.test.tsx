@@ -1,4 +1,4 @@
-import { getRedirectRoute } from "../routes.ts";
+import { getRedirectRoute } from "../routes.tsx";
 import { describe, it, expect } from "vitest";
 
 describe("getRedirectRoute", () => {

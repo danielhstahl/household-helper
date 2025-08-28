@@ -4,7 +4,7 @@ import {
   AgentSelectionsEnum,
   getAgentName,
   type AgentSelections,
-} from "../state/selectAgent.ts";
+} from "../state/selectAgent.tsx";
 
 interface AgentSelectionProps {
   ref: React.Ref<HTMLDivElement>;

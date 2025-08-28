@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { render } from "vitest-browser-react";
 import App from "../App.tsx";
-import { createMemoryRouter, RouterProvider } from "react-router";
 import MainPage from "../pages/MainPage.tsx";
+import { createMemoryRouter, RouterProvider } from "react-router";
 const createRouter = () => {
   return createMemoryRouter([
     {

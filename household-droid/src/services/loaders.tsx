@@ -11,9 +11,9 @@ import {
   getMessages,
   getUser,
   createSession,
-} from "./api";
-import { getLoggedInJwt, setLoggedInJwt } from "../state/localState.ts";
-import { getRedirectRoute } from "./routes.ts";
+} from "./api.tsx";
+import { getLoggedInJwt, setLoggedInJwt } from "../state/localState.tsx";
+import { getRedirectRoute } from "./routes.tsx";
 import { type Message } from "../components/Output.tsx";
 
 // --- Route Loaders ---

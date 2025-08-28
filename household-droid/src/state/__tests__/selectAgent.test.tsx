@@ -1,4 +1,4 @@
-import { getAgentName, AgentSelectionsEnum } from "../selectAgent.ts";
+import { getAgentName, AgentSelectionsEnum } from "../selectAgent.tsx";
 import { describe, it, expect } from "vitest";
 
 describe("getAgentName", () => {
