@@ -2,9 +2,9 @@ import { useEffect, useState } from "react";
 import Chat from "../components/Chat.tsx";
 import AgentSelection from "../components/AgentSelection.tsx";
 import Output, { DialogEnum, type Message } from "../components/Output.tsx";
-import { streamText } from "../services/api.ts";
-import { invokeAgent, type AgentSelections } from "../state/selectAgent.ts";
-import { getLoggedInJwt } from "../state/localState.ts";
+import { streamText } from "../services/api.tsx";
+import { invokeAgent, type AgentSelections } from "../state/selectAgent.tsx";
+import { getLoggedInJwt } from "../state/localState.tsx";
 import {
   useNavigate,
   useNavigation,

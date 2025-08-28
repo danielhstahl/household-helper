@@ -18,9 +18,9 @@ import {
   loadSessionsAndMessages,
   loadUser,
   loadSession,
-} from "./services/loaders.ts";
+} from "./services/loaders.tsx";
 
-import { sessionAction, userAction } from "./services/actions.ts";
+import { sessionAction, userAction } from "./services/actions.tsx";
 
 const router = createBrowserRouter([
   {

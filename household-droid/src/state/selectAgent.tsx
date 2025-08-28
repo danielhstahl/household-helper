@@ -10,6 +10,7 @@ export const AgentSelectionsEnum = {
 export type AgentSelections =
   (typeof AgentSelectionsEnum)[keyof typeof AgentSelectionsEnum];
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const invokeAgent = (
   selectedAgent: AgentSelections,
   query: string,
@@ -24,6 +25,7 @@ export const invokeAgent = (
   }
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const getAgentName = (selectedAgent: AgentSelections) => {
   switch (selectedAgent) {
     case AgentSelectionsEnum.HELPER:

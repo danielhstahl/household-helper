@@ -1,7 +1,7 @@
 import TextField from "@mui/material/TextField";
 import Grid from "@mui/material/Grid";
 import { type KeyboardEvent } from "react";
-import { getAgentName, type AgentSelections } from "../state/selectAgent.ts";
+import { getAgentName, type AgentSelections } from "../state/selectAgent.tsx";
 
 interface ChatProps {
   onSubmit: (agent: AgentSelections, _: string) => void;

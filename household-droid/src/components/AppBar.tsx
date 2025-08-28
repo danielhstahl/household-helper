@@ -13,7 +13,7 @@ import {
   AgentSelectionsEnum,
   getAgentName,
   type AgentSelections,
-} from "../state/selectAgent.ts";
+} from "../state/selectAgent.tsx";
 import { useTheme } from "@mui/material";
 import useScrollTrigger from "@mui/material/useScrollTrigger";
 import useMediaQuery from "@mui/material/useMediaQuery";
