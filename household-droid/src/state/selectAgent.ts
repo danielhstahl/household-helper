@@ -32,13 +32,3 @@ export const getAgentName = (selectedAgent: AgentSelections) => {
       return "Tutor";
   }
 };
-
-/*
-export const getAgentPath = (selectedAgent: AgentSelections) => {
-  switch (selectedAgent) {
-    case AgentSelectionsEnum.HELPER_INDEX:
-      return "helper";
-    case AgentSelectionsEnum.TUTOR_INDEX:
-      return "tutor";
-  }
-};*/

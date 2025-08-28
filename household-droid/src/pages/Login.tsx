@@ -2,17 +2,10 @@ import TextField from "@mui/material/TextField";
 import Button from "@mui/material/Button";
 import { useFetcher } from "react-router";
 import Alert from "@mui/material/Alert";
-const Auth = () => {
-  //const formResult = useActionData();
+const Login = () => {
   const fetcher = useFetcher();
   return (
-    <fetcher.Form
-      noValidate
-      autoComplete="off"
-      method="post"
-      //replace={true}
-      action={`/login`} //go to main page, where the "Action" will be triggered to get a token
-    >
+    <fetcher.Form noValidate autoComplete="off" method="post" action="/login">
       <TextField
         label="Username"
         name="username"
@@ -49,4 +42,4 @@ const Auth = () => {
   );
 };
 
-export default Auth;
+export default Login;
