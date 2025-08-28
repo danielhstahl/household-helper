@@ -1,7 +1,10 @@
 import Grid from "@mui/material/Grid";
-import AgentSelection from "./Agent";
-import { AgentSelectionsEnum, getAgentName } from "../state/selectAgent";
-import { type AgentSelections } from "../state/selectAgent";
+import AgentSelection from "./Agent.tsx";
+import {
+  AgentSelectionsEnum,
+  getAgentName,
+  type AgentSelections,
+} from "../state/selectAgent.ts";
 
 interface AgentSelectionProps {
   ref: React.Ref<HTMLDivElement>;

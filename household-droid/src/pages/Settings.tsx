@@ -1,6 +1,5 @@
 import { useLoaderData, useFetcher } from "react-router";
-import { type Action, ActionEnum } from "../components/TableX";
-import Table from "../components/TableX";
+import Table, { type Action, ActionEnum } from "../components/TableX";
 
 interface User {
   id: number;

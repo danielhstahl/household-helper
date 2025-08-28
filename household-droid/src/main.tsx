@@ -9,7 +9,7 @@ import App from "./App.tsx";
 import MainPage from "./pages/MainPage.tsx";
 import MainChat from "./pages/MainChat.tsx";
 import Login from "./pages/Login.tsx";
-import Settings from "./pages/Settings";
+import Settings from "./pages/Settings.tsx";
 import { createBrowserRouter, RouterProvider } from "react-router";
 import {
   loginAction,

@@ -1,7 +1,6 @@
-import AppBarDroid from "../components/AppBar";
+import AppBarDroid from "../components/AppBar.tsx";
 import { useState, useRef, useEffect } from "react";
-import { useLoaderData } from "react-router";
-import { Outlet } from "react-router";
+import { useLoaderData, Outlet } from "react-router";
 
 interface User {
   roles: string[];

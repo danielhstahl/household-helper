@@ -12,9 +12,9 @@ import {
   getUser,
   createSession,
 } from "./api";
-import { getLoggedInJwt, setLoggedInJwt } from "../state/localState";
-import { getRedirectRoute } from "./routes";
-import { type Message } from "../components/Output";
+import { getLoggedInJwt, setLoggedInJwt } from "../state/localState.ts";
+import { getRedirectRoute } from "./routes.ts";
+import { type Message } from "../components/Output.tsx";
 
 // --- Route Loaders ---
 export const loadSession = async ({ params }: LoaderFunctionArgs) => {
