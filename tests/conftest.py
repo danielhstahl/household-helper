@@ -1,14 +1,10 @@
 import pytest
 from models import Base
 from sqlalchemy import create_engine, StaticPool
-from index import create_fastapi
+from main import create_fastapi
 from user import get_db
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import sessionmaker
-
-# engine = create_engine(
-#    "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
-# )
 
 
 @pytest.fixture(name="engine")
@@ -20,14 +16,6 @@ def engine_fixture():
     )
     Base.metadata.create_all(bind=engine)
     return engine
-
-
-# @pytest.fixture()
-# def test_db():
-# Base.metadata.create_all(bind=engine)
-#    yield
-##    print("only get here at end")
-#   Base.metadata.drop_all(bind=engine)
 
 
 @pytest.fixture(name="session")
