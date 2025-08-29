@@ -21,7 +21,6 @@ const mapActionToRequest = (actionType: Action) => {
 const Settings = () => {
   const users = useLoaderData() as User[];
   const fetcher = useFetcher();
-  console.log(users);
   const onChange = (
     type: Action,
     id: string | number,

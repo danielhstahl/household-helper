@@ -231,7 +231,6 @@ export default function FullFeaturedCrudGrid({
   const processRowUpdate = (newRow: GridRowModel) => {
     const updatedRow = { ...newRow, isNew: false };
     setRows(rows.map((row) => (row.id === newRow.id ? updatedRow : row)));
-    console.log(newRow);
     if (newRow.isNew) {
       onChange(
         ActionEnum.Create,
