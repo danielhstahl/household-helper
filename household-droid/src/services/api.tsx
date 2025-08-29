@@ -176,23 +176,22 @@ export const deleteUser = (id: number, jwt: string) => {
   });
 };
 
-export const getToken = (formData: FormData) => {
+export const getToken = async (formData: FormData) => {
   //https://github.com/microsoft/TypeScript/issues/30584#issuecomment-1865354582
   const data = new URLSearchParams(
     formData as unknown as Record<string, string>,
   );
-
-  return fetch("/token", {
+  const response = await fetch("/token", {
     method: "POST",
     body: data,
-  }).then((response) => {
-    return response.json().then((result) => {
-      if (response.ok) {
-        return result;
-      }
-      throw new Error(result.detail);
-    });
   });
+  const result = await response.json();
+  console.log(response.ok);
+  console.log(result);
+  if (response.ok) {
+    return result;
+  }
+  throw new Error(result.detail);
 };
 
 export const streamText = (

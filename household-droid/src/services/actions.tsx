@@ -61,19 +61,23 @@ export const userAction = async ({ request }: ActionFunctionArgs) => {
     return redirect("/login");
   }
   try {
-    const { id, username, password, roles } = JSON.parse(
-      formData.get("data") as string,
-    );
     switch (request.method) {
       case "POST": {
+        const { username, password, roles } = JSON.parse(
+          formData.get("data") as string,
+        );
         const postUser = await createUser(username, password, roles, jwt);
         return postUser;
       }
       case "PATCH": {
+        const { id, username, password, roles } = JSON.parse(
+          formData.get("data") as string,
+        );
         const patchUser = await updateUser(id, username, password, roles, jwt);
         return patchUser;
       }
       case "DELETE": {
+        const { id } = JSON.parse(formData.get("data") as string);
         const delUser = await deleteUser(id, jwt);
         return delUser;
       }
