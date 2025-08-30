@@ -1,7 +1,6 @@
 FROM python:3.13
 RUN adduser --system --no-create-home householdhelper
 WORKDIR /code
-COPY uv.lock uv.lock
 # copy contents of app into code
 ADD app /code/
 RUN mkdir static
