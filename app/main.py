@@ -441,7 +441,8 @@ def create_fastapi(engine) -> FastAPI:
         """
         return current_admin
 
-    app.mount("/", StaticFiles(directory="static"), name="static")
+    if os.getenv("PRODUCTION"):
+        app.mount("/", StaticFiles(directory="static"), name="static")
     return app
 
 

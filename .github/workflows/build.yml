@@ -14,10 +14,10 @@ jobs:
 
       - name: install deps
         run: npm ci
-        working-directory: household-droid
+        working-directory: ui
 
       - name: compile
-        working-directory: household-droid
+        working-directory: ui
         run: npm run build
 
       - name: generate docker

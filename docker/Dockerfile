@@ -2,10 +2,11 @@ FROM python:3.13
 RUN adduser --system --no-create-home householdhelper
 WORKDIR /code
 COPY uv.lock uv.lock
-# copy contents into code
+# copy contents of app into code
 ADD app /code/
 RUN mkdir static
-ADD ./household-droid/dist /code/static/
+# copy contents of dist into static
+ADD ./ui/dist /code/static/
 RUN pip3 install uv
 RUN uv sync --no-dev
 # don't run as root
