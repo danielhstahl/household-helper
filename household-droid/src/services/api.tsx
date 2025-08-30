@@ -93,49 +93,43 @@ export const getMessages = (sessionId: string, jwt: string) => {
     });
   });
 };
-export const getUser = (jwt: string) => {
-  return fetch("/users/me", {
+export const getUser = async (jwt: string) => {
+  const response = await fetch("/users/me", {
     headers: getHeaders(jwt),
-  }).then((response) => {
-    return response.json().then((result) => {
-      if (response.ok) {
-        return result;
-      }
-      throw new Error(result.detail);
-    });
   });
+  const result = await response.json();
+  if (response.ok) {
+    return result;
+  }
+  throw new Error(result.detail);
 };
-export const getUsers = (jwt: string) => {
-  return fetch("/users", {
+export const getUsers = async (jwt: string) => {
+  const response = await fetch("/users", {
     headers: getHeaders(jwt),
-  }).then((response) => {
-    return response.json().then((result) => {
-      if (response.ok) {
-        return result;
-      }
-      throw new Error(result.detail);
-    });
   });
+  const result = await response.json();
+  if (response.ok) {
+    return result;
+  }
+  throw new Error(result.detail);
 };
 
-export const createUser = (
+export const createUser = async (
   username: string,
   password: string,
   roles: string[],
   jwt: string,
 ) => {
-  return fetch("/users", {
+  const response = await fetch("/users", {
     method: "POST",
     body: JSON.stringify({ username, password, roles }),
     headers: getHeaders(jwt),
-  }).then((response) => {
-    return response.json().then((result) => {
-      if (response.ok) {
-        return result;
-      }
-      throw new Error(result.detail);
-    });
   });
+  const result = await response.json();
+  if (response.ok) {
+    return result;
+  }
+  throw new Error(result.detail);
 };
 
 export const updateUser = (
@@ -186,8 +180,6 @@ export const getToken = async (formData: FormData) => {
     body: data,
   });
   const result = await response.json();
-  console.log(response.ok);
-  console.log(result);
   if (response.ok) {
     return result;
   }

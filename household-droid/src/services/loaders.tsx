@@ -1,10 +1,5 @@
+import { redirect, type LoaderFunctionArgs } from "react-router";
 import {
-  redirect,
-  type ActionFunctionArgs,
-  type LoaderFunctionArgs,
-} from "react-router";
-import {
-  getToken,
   getSessions,
   getMostRecentSession,
   getUsers,
@@ -43,10 +38,10 @@ export const loadSessionsAndMessages = async ({
     return redirect("/login");
   }
   try {
+    const { sessionId } = params;
     const [sessions, messages] = await Promise.all([
       getSessions(jwt),
-      getMessages(params.sessionId as string, jwt).then((v) => {
-        const messages = v.messages;
+      getMessages(sessionId as string, jwt).then((messages) => {
         messages.sort((a: Message, b: Message) =>
           a.timestamp < b.timestamp ? -1 : 1,
         );
@@ -80,26 +75,9 @@ export const logoutLoader = () => {
   setLoggedInJwt(null);
   return redirect("/login");
 };
-interface AccessToken {
-  access_token: string;
-}
-export const loginAction = async ({ request }: ActionFunctionArgs) => {
-  const formData = await request.formData();
-  try {
-    const { access_token: accessToken } = (await getToken(
-      formData,
-    )) as AccessToken;
-    setLoggedInJwt(accessToken);
-    return redirect("/");
-  } catch (error) {
-    console.log(error);
-    return { error };
-  }
-};
 
 export const loadUsers = async () => {
   const jwt = getLoggedInJwt();
-  console.log(jwt);
   if (!jwt) {
     return redirect("/login");
   }

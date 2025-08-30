@@ -153,13 +153,3 @@ class MessageInDB(BaseModel):
     content: str
     role: str
     timestamp: datetime
-
-
-class Messages(BaseModel):
-    messages: list[MessageInDB]
-
-
-# Add this to your User model if you want a bidirectional relationship
-# class User(...):
-#    ...
-#    chat_messages = relationship("ChatMessage", back_populates="user", order_by=ChatMessage.timestamp)

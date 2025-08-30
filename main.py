@@ -34,7 +34,6 @@ from models import (
     Base,
     GenericSuccess,
     UserUpdate,
-    Messages,
     SessionInDB,
 )
 from user import (
@@ -252,19 +251,17 @@ def create_fastapi(engine) -> FastAPI:
         session_id: str,
         db: Session = Depends(get_db),
         current_user: CurrentUser = Depends(get_current_user),
-    ) -> Messages:
-        return Messages(
-            messages=[
-                MessageInDB(content=msg.content, role=msg.role, timestamp=msg.timestamp)
-                for msg in db.query(Message)
-                .filter(Message.username_id == current_user.id)
-                .filter(Message.session_id == session_id)
-                .order_by(Message.timestamp.desc())  # get most recent
-                .limit(100)
-                # .order_by(Message.timestamp.asc())  # most recnet needs to be add end
-                .all()
-            ]
-        )
+    ) -> list[MessageInDB]:
+        return [
+            MessageInDB(content=msg.content, role=msg.role, timestamp=msg.timestamp)
+            for msg in db.query(Message)
+            .filter(Message.username_id == current_user.id)
+            .filter(Message.session_id == session_id)
+            .order_by(Message.timestamp.desc())  # get most recent
+            .limit(100)
+            # .order_by(Message.timestamp.asc())  # most recnet needs to be add end
+            .all()
+        ]
 
     @app.post("/query")
     async def query(
