@@ -35,16 +35,16 @@ jobs:
         with:
           node-version: "24.1.0"
       - name: install deps
-        working-directory: household-droid
+        working-directory: ui
         run: |
           npm ci
           npx playwright install-deps
           npx playwright install
       - name: run tests
-        working-directory: household-droid
+        working-directory: ui
         run: npm run test -- --coverage .
       - name: compile
-        working-directory: household-droid
+        working-directory: ui
         run: npm run build
 
       - name: generate docker
