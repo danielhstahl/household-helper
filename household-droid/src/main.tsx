@@ -12,7 +12,6 @@ import Login from "./pages/Login.tsx";
 import Settings from "./pages/Settings.tsx";
 import { createBrowserRouter, RouterProvider } from "react-router";
 import {
-  loginAction,
   logoutLoader,
   loadUsers,
   loadSessionsAndMessages,
@@ -20,7 +19,7 @@ import {
   loadSession,
 } from "./services/loaders.tsx";
 
-import { sessionAction, userAction } from "./services/actions.tsx";
+import { sessionAction, userAction, loginAction } from "./services/actions.tsx";
 
 const router = createBrowserRouter([
   {
