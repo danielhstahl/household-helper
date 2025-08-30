@@ -49,4 +49,4 @@ jobs:
 
       - name: generate docker
         run: |
-          docker build -t ghcr.io/danielhstahl/householdhelper:${{ github.event.release.tag_name }} -f docker/Dockerfile .
+          docker build -t ghcr.io/danielhstahl/householdhelper -f docker/Dockerfile .
