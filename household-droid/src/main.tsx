@@ -28,7 +28,7 @@ const router = createBrowserRouter([
     children: [
       {
         path: "/",
-        Component: MainPage, //careful, I think this has appBar, which also requires agent and session (and will be undefined on first load)
+        Component: MainPage, //careful, this has appBar, which also requires agent and session (and will be undefined on first load)
         loader: loadUser,
         children: [
           {

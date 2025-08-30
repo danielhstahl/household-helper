@@ -124,7 +124,7 @@ function EditToolbar({
   setRowModesModel,
 }: GridSlotProps["toolbar"]) {
   const handleClick = () => {
-    const id = rows.length + 1;
+    const id = Math.max(...rows.map((v) => v.id)) + 1;
     setRows((oldRows) => [
       ...oldRows,
       {
@@ -144,7 +144,7 @@ function EditToolbar({
   return (
     <Toolbar>
       <Tooltip title="Add record">
-        <ToolbarButton onClick={handleClick}>
+        <ToolbarButton onClick={handleClick} aria-label="AddButton">
           <AddIcon fontSize="small" />
         </ToolbarButton>
       </Tooltip>
@@ -318,6 +318,7 @@ export default function FullFeaturedCrudGrid({
                 },
               }}
               onClick={handleSaveClick(id)}
+              aria-label="SaveButton"
             />,
             <GridActionsCellItem
               icon={<CancelIcon />}
@@ -325,6 +326,7 @@ export default function FullFeaturedCrudGrid({
               className="textPrimary"
               onClick={handleCancelClick(id)}
               color="inherit"
+              aria-label="CancelButton"
             />,
           ];
         }
@@ -336,12 +338,14 @@ export default function FullFeaturedCrudGrid({
             className="textPrimary"
             onClick={handleEditClick(id)}
             color="inherit"
+            aria-label="EditButton"
           />,
           <GridActionsCellItem
             icon={<DeleteIcon />}
             label="Delete"
             onClick={handleDeleteClick(id)}
             color="inherit"
+            aria-label="DeleteButton"
           />,
         ];
       },
