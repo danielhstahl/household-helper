@@ -1,6 +1,5 @@
 import { useLoaderData, useFetcher } from "react-router";
-import { type Action, ActionEnum } from "../components/TableX";
-import Table from "../components/TableX";
+import Table, { type Action, ActionEnum } from "../components/TableX";
 
 interface User {
   id: number;
@@ -22,7 +21,6 @@ const mapActionToRequest = (actionType: Action) => {
 const Settings = () => {
   const users = useLoaderData() as User[];
   const fetcher = useFetcher();
-  console.log(users);
   const onChange = (
     type: Action,
     id: string | number,

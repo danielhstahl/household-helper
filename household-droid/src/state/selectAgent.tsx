@@ -1,4 +1,4 @@
-import { sendQuery, sendTutor } from "../services/api";
+import { sendQuery, sendTutor } from "../services/api.tsx";
 
 const HELPER = "helper";
 const TUTOR = "tutor";
@@ -10,6 +10,7 @@ export const AgentSelectionsEnum = {
 export type AgentSelections =
   (typeof AgentSelectionsEnum)[keyof typeof AgentSelectionsEnum];
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const invokeAgent = (
   selectedAgent: AgentSelections,
   query: string,
@@ -24,6 +25,7 @@ export const invokeAgent = (
   }
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const getAgentName = (selectedAgent: AgentSelections) => {
   switch (selectedAgent) {
     case AgentSelectionsEnum.HELPER:
@@ -32,13 +34,3 @@ export const getAgentName = (selectedAgent: AgentSelections) => {
       return "Tutor";
   }
 };
-
-/*
-export const getAgentPath = (selectedAgent: AgentSelections) => {
-  switch (selectedAgent) {
-    case AgentSelectionsEnum.HELPER_INDEX:
-      return "helper";
-    case AgentSelectionsEnum.TUTOR_INDEX:
-      return "tutor";
-  }
-};*/

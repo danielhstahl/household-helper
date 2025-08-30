@@ -1,10 +1,10 @@
-import Chat from "../components/Chat";
 import { useEffect, useState } from "react";
-import AgentSelection from "../components/AgentSelection";
-import Output, { DialogEnum, type Message } from "../components/Output";
-import { streamText } from "../services/api";
-import { invokeAgent, type AgentSelections } from "../state/selectAgent";
-import { getLoggedInJwt } from "../services/loadersAndActions";
+import Chat from "../components/Chat.tsx";
+import AgentSelection from "../components/AgentSelection.tsx";
+import Output, { DialogEnum, type Message } from "../components/Output.tsx";
+import { streamText } from "../services/api.tsx";
+import { invokeAgent, type AgentSelections } from "../state/selectAgent.tsx";
+import { getLoggedInJwt } from "../state/localState.tsx";
 import {
   useNavigate,
   useNavigation,
@@ -52,7 +52,7 @@ const MainChat = () => {
       messages: [
         ...state.messages,
         {
-          role: DialogEnum.Me,
+          persona: DialogEnum.Me,
           content: value,
           id: state.messages.length,
           timestamp: Date.now().toString(),
@@ -72,7 +72,7 @@ const MainChat = () => {
       messages: [
         ...state.messages,
         {
-          role: DialogEnum.It,
+          persona: DialogEnum.It,
           content: state.latestText,
           id: state.messages.length,
           timestamp: Date.now().toString(),

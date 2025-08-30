@@ -18,7 +18,7 @@ jobs:
           uv run ruff format --check
       - name: Run tests
         run: |
-          uv run pytest .
+          uv run pytest tests
 
   run_ui_tests:
     name: Run UI tests
@@ -37,6 +37,7 @@ jobs:
       - name: install deps
         run: |
           npm ci
+          npx playwright install-deps
           npx playwright install
       - name: run tests
         run: npm run test -- --coverage .

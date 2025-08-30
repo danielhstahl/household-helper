@@ -99,16 +99,9 @@ class UserCreate(BaseModel):
 class UserUpdate(BaseModel):
     """Model for updating a new user (request body)."""
 
-    id: int
     username: str = Field(..., min_length=3, max_length=50)
     password: Optional[str] = Field(None, min_length=6)
     roles: list[str]
-
-
-class UserDelete(BaseModel):
-    """Model for updating a new user (request body)."""
-
-    id: int
 
 
 class UserLogin(BaseModel):
@@ -160,13 +153,3 @@ class MessageInDB(BaseModel):
     content: str
     role: str
     timestamp: datetime
-
-
-class Messages(BaseModel):
-    messages: list[MessageInDB]
-
-
-# Add this to your User model if you want a bidirectional relationship
-# class User(...):
-#    ...
-#    chat_messages = relationship("ChatMessage", back_populates="user", order_by=ChatMessage.timestamp)

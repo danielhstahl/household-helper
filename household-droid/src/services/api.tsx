@@ -93,49 +93,43 @@ export const getMessages = (sessionId: string, jwt: string) => {
     });
   });
 };
-export const getUser = (jwt: string) => {
-  return fetch("/users/me", {
+export const getUser = async (jwt: string) => {
+  const response = await fetch("/users/me", {
     headers: getHeaders(jwt),
-  }).then((response) => {
-    return response.json().then((result) => {
-      if (response.ok) {
-        return result;
-      }
-      throw new Error(result.detail);
-    });
   });
+  const result = await response.json();
+  if (response.ok) {
+    return result;
+  }
+  throw new Error(result.detail);
 };
-export const getUsers = (jwt: string) => {
-  return fetch("/users", {
+export const getUsers = async (jwt: string) => {
+  const response = await fetch("/users", {
     headers: getHeaders(jwt),
-  }).then((response) => {
-    return response.json().then((result) => {
-      if (response.ok) {
-        return result;
-      }
-      throw new Error(result.detail);
-    });
   });
+  const result = await response.json();
+  if (response.ok) {
+    return result;
+  }
+  throw new Error(result.detail);
 };
 
-export const createUser = (
+export const createUser = async (
   username: string,
   password: string,
   roles: string[],
   jwt: string,
 ) => {
-  return fetch("/users", {
+  const response = await fetch("/users", {
     method: "POST",
     body: JSON.stringify({ username, password, roles }),
     headers: getHeaders(jwt),
-  }).then((response) => {
-    return response.json().then((result) => {
-      if (response.ok) {
-        return result;
-      }
-      throw new Error(result.detail);
-    });
   });
+  const result = await response.json();
+  if (response.ok) {
+    return result;
+  }
+  throw new Error(result.detail);
 };
 
 export const updateUser = (
@@ -146,9 +140,9 @@ export const updateUser = (
   jwt: string,
 ) => {
   const payload = password
-    ? { id, username, password, roles }
-    : { id, username, roles };
-  return fetch("/users", {
+    ? { username, password, roles }
+    : { username, roles };
+  return fetch(`/users/${id}`, {
     method: "PATCH",
     body: JSON.stringify(payload),
     headers: getHeaders(jwt),
@@ -162,15 +156,9 @@ export const updateUser = (
   });
 };
 
-export const deleteUser = (
-  id: number,
-  username: string,
-  password: string | undefined,
-  jwt: string,
-) => {
-  return fetch("/users", {
+export const deleteUser = (id: number, jwt: string) => {
+  return fetch(`/users/${id}`, {
     method: "DELETE",
-    body: JSON.stringify({ id, username, password, roles: [] }),
     headers: getHeaders(jwt),
   }).then((response) => {
     return response.json().then((result) => {
@@ -182,23 +170,20 @@ export const deleteUser = (
   });
 };
 
-export const getToken = (formData: FormData) => {
+export const getToken = async (formData: FormData) => {
   //https://github.com/microsoft/TypeScript/issues/30584#issuecomment-1865354582
   const data = new URLSearchParams(
     formData as unknown as Record<string, string>,
   );
-
-  return fetch("/token", {
+  const response = await fetch("/token", {
     method: "POST",
     body: data,
-  }).then((response) => {
-    return response.json().then((result) => {
-      if (response.ok) {
-        return result;
-      }
-      throw new Error(result.detail);
-    });
   });
+  const result = await response.json();
+  if (response.ok) {
+    return result;
+  }
+  throw new Error(result.detail);
 };
 
 export const streamText = (
