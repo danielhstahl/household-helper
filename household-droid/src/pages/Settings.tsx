@@ -1,6 +1,6 @@
 import { useLoaderData, useFetcher } from "react-router";
 import Table, { type Action, ActionEnum } from "../components/TableX";
-
+import Grid from "@mui/material/Grid";
 interface User {
   id: number;
   username: string;
@@ -32,6 +32,12 @@ const Settings = () => {
     formData.append("data", JSON.stringify({ id, username, password, roles }));
     fetcher.submit(formData, { method: mapActionToRequest(type) });
   };
-  return <Table users={users} onChange={onChange} />;
+  return (
+    <Grid container spacing={2} style={{ paddingTop: 20 }}>
+      <Grid size={{ xs: 12 }}>
+        <Table users={users} onChange={onChange} />
+      </Grid>
+    </Grid>
+  );
 };
 export default Settings;

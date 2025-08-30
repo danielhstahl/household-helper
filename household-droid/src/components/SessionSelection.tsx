@@ -41,7 +41,6 @@ const RouterSecondaryAction = ({
 }) => {
   const fetcher = useFetcher();
   const busy = fetcher.state !== "idle";
-  console.log("is busy", busy);
   const onSubmit = () => {
     const formData = new FormData();
     fetcher.submit(formData, {
@@ -84,6 +83,7 @@ const SessionSelection = ({ sessions, selectedSessionId }: Props) => {
       <List sx={{ display: { xs: "none", sm: "block" } }}>
         {sessions.map(({ id, session_start }) => (
           <ListItem
+            role="listitem"
             secondaryAction={
               <RouterSecondaryAction
                 selectedSessionId={selectedSessionId}

@@ -16,7 +16,7 @@ export const DialogEnum = {
 } as const;
 export type Dialog = (typeof DialogEnum)[keyof typeof DialogEnum];
 export interface Message {
-  persona: Dialog; //me or it
+  role: Dialog; //me or it
   content: string;
   id: number;
   timestamp: string;
@@ -58,20 +58,19 @@ const Output = ({ messages, isWaiting, latestText, loading }: OutputProps) => {
           }}
         >
           {loading && <CircularProgress />}
-          {messages.map(({ persona, content }, id) => (
+          {messages.map(({ role, content }, id) => (
             <Box
               key={id}
               style={{
-                alignSelf:
-                  persona === DialogEnum.Me ? "flex-end" : "flex-start",
+                alignSelf: role === DialogEnum.Me ? "flex-end" : "flex-start",
                 maxWidth: "70%",
                 borderRadius: 16,
                 backgroundColor:
-                  persona === DialogEnum.Me
+                  role === DialogEnum.Me
                     ? theme.palette.primary.main
                     : theme.palette.text.disabled, //theme.palette.grey[300],
                 color:
-                  persona === DialogEnum.Me
+                  role === DialogEnum.Me
                     ? theme.palette.primary.contrastText
                     : theme.palette.text.primary,
                 padding: theme.spacing(1, 2),

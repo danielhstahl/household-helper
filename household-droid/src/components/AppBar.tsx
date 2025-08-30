@@ -7,7 +7,6 @@ import LightMode from "@mui/icons-material/LightMode";
 import DarkMode from "@mui/icons-material/DarkMode";
 import IconButton from "@mui/material/IconButton";
 import SettingsIcon from "@mui/icons-material/Settings";
-import { useParams } from "react-router";
 import LogoutIcon from "@mui/icons-material/Logout";
 import {
   AgentSelectionsEnum,
@@ -23,11 +22,14 @@ import { NavLink } from "react-router";
 const AppBarDroid = ({
   threshold,
   isAdmin,
+  agent,
+  sessionId,
 }: {
   threshold: number;
   isAdmin: boolean;
+  agent: string;
+  sessionId: string;
 }) => {
-  const { agent, sessionId } = useParams();
   const theme = useTheme();
   const trigger = useScrollTrigger({ threshold, disableHysteresis: true });
   const isLargerThanSm = useMediaQuery(theme.breakpoints.up("md"));

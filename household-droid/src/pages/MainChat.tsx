@@ -52,7 +52,7 @@ const MainChat = () => {
       messages: [
         ...state.messages,
         {
-          persona: DialogEnum.Me,
+          role: DialogEnum.Me,
           content: value,
           id: state.messages.length,
           timestamp: Date.now().toString(),
@@ -72,7 +72,7 @@ const MainChat = () => {
       messages: [
         ...state.messages,
         {
-          persona: DialogEnum.It,
+          role: DialogEnum.It,
           content: state.latestText,
           id: state.messages.length,
           timestamp: Date.now().toString(),
