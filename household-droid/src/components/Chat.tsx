@@ -23,6 +23,7 @@ const Chat = ({ onSubmit, selectedAgent }: ChatProps) => {
     <Grid container spacing={2} style={{ paddingTop: 20, flexShrink: 0 }}>
       <Grid size={{ xs: 12 }}>
         <TextField
+          autoFocus={true}
           label={`Chat or instruct your ${agentName}`}
           style={{ width: "100%" }}
           name="chat"

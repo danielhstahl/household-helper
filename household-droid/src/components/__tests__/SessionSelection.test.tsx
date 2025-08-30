@@ -2,7 +2,6 @@ import { describe, it, expect, vi } from "vitest";
 import { render } from "vitest-browser-react";
 import { createRoutesStub } from "react-router";
 import SessionSelection from "../SessionSelection.tsx";
-import { ThemeProvider, createTheme } from "@mui/material";
 describe("SessionSelection", () => {
   it("renders", async () => {
     const Stub = createRoutesStub([
@@ -71,14 +70,11 @@ describe("SessionSelection", () => {
             { id: "session123", session_start: "2025-08-30T13:00:18.350Z" },
             { id: "session456", session_start: "2025-08-30T12:00:18.350Z" },
           ];
-          const theme = createTheme();
           return (
-            <ThemeProvider theme={theme}>
-              <SessionSelection
-                sessions={sessions}
-                selectedSessionId={params.sessionId as string}
-              />
-            </ThemeProvider>
+            <SessionSelection
+              sessions={sessions}
+              selectedSessionId={params.sessionId as string}
+            />
           );
         },
         action,
@@ -104,14 +100,11 @@ describe("SessionSelection", () => {
             { id: "session123", session_start: "2025-08-30T13:00:18.350Z" },
             { id: "session456", session_start: "2025-08-30T12:00:18.350Z" },
           ];
-          const theme = createTheme();
           return (
-            <ThemeProvider theme={theme}>
-              <SessionSelection
-                sessions={sessions}
-                selectedSessionId={params.sessionId as string}
-              />
-            </ThemeProvider>
+            <SessionSelection
+              sessions={sessions}
+              selectedSessionId={params.sessionId as string}
+            />
           );
         },
         action,
