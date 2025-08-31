@@ -6,7 +6,8 @@ jobs:
   build_container:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # release changes require contents write
+      contents: read
+      packages: write
     env:
       NODE_OPTIONS: "--max_old_space_size=4096"
     steps:
