@@ -58,7 +58,9 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 30  # Token valid for 30 minutes
 LM_STUDIO_ENDPOINT = os.getenv("LM_STUDIO_ENDPOINT", "http://localhost:1234")
 OLLAMA_ENDPOINT = os.getenv("OLLAMA_ENDPOINT", "http://localhost:11434")
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
-
+## Additional env variables to set:
+# VECTOR_DATABASE_URL (defaults to postgresql://postgres:yourpassword@localhost:5432)
+# USER_DATABASE_URL (defaults to sqlite://)
 
 conn_str, db_name = get_connection_information()
 vector_store = get_vector_store(
@@ -441,7 +443,7 @@ def create_fastapi(engine) -> FastAPI:
         """
         return current_admin
 
-    if os.getenv("PRODUCTION"):
+    if os.getenv("HOST_STATIC"):
         app.mount("/", StaticFiles(directory="static"), name="static")
     return app
 
