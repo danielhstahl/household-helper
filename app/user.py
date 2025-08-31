@@ -40,8 +40,14 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 USER_DATABASE_URL = os.getenv(
     "USER_DATABASE_URL",
     "sqlite://",  # in memory
-)  # "postgresql://postgres:yourpassword@localhost:5432/fastapi_db"
-engine = create_engine(USER_DATABASE_URL)
+)  # "postgresql://postgres:yourpassword@localhost:5432"
+
+# sqlite doesn't need a specific database, psql does
+engine = create_engine(
+    USER_DATABASE_URL
+    if USER_DATABASE_URL.startswith("sqlite://")
+    else f"{USER_DATABASE_URL}/fastapi_db"
+)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 

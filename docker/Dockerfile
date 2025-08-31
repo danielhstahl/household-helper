@@ -1,13 +1,26 @@
-FROM python:3.13
-RUN adduser --system --no-create-home householdhelper
-WORKDIR /code
+FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim AS builder
+ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
+WORKDIR /app
+RUN --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=bind,source=uv.lock,target=uv.lock \
+    --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
+    uv sync --frozen --no-install-project --no-dev
+
 # copy contents of app into code
-ADD app /code/
+ADD app /app/
 RUN mkdir static
 # copy contents of dist into static
-ADD ./ui/dist /code/static/
-RUN pip3 install uv
-RUN uv sync --no-dev
-# don't run as root
-USER householdhelper
-CMD ["fastapi", "run", "main.py", "--port", "80"]
+ADD ui/dist /app/static/
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-dev
+
+FROM python:3.13-rc-slim-bookworm
+
+# Copy the application from the builder
+COPY --from=builder --chown=app:app /app /app
+
+# Place executables in the environment at the front of the path
+ENV PATH="/app/.venv/bin:$PATH"
+
+# Run the FastAPI application by default
+CMD ["fastapi", "run", "main.py", "--port", "80", "--host", "0.0.0.0"]
