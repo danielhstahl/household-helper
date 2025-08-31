@@ -1,0 +1,31 @@
+on:
+  release:
+    types: [published]
+
+jobs:
+  build_container:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # release changes require contents write
+    env:
+      NODE_OPTIONS: "--max_old_space_size=4096"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: install deps
+        run: npm ci
+        working-directory: ui
+
+      - name: compile
+        working-directory: ui
+        run: npm run build
+
+      - name: generate docker
+        run: |
+          docker build -t ghcr.io/danielhstahl/householdhelper:${{ github.event.release.tag_name }} -f docker/Dockerfile .
+
+      - name: publish docker
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          docker push ghcr.io/danielhstahl/householdhelper:${{ github.event.release.tag_name }}

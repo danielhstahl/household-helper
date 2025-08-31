@@ -19,6 +19,7 @@ from vector_store import (
 )
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi import HTTPException, Depends, status
+from fastapi.staticfiles import StaticFiles
 from llama_index.observability.otel import LlamaIndexOpenTelemetry
 
 from system_prompt import get_system_prompt
@@ -440,6 +441,8 @@ def create_fastapi(engine) -> FastAPI:
         """
         return current_admin
 
+    if os.getenv("PRODUCTION"):
+        app.mount("/", StaticFiles(directory="static"), name="static")
     return app
 
 

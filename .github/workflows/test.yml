@@ -9,23 +9,23 @@ jobs:
         with:
           node-version: "24.1.0"
       - name: Install
+        working-directory: app
         run: |
           pip3 install uv
           uv sync
       - name: lint
+        working-directory: app
         run: |
           uv run ruff check
           uv run ruff format --check
       - name: Run tests
+        working-directory: app
         run: |
           uv run pytest tests
 
   run_ui_tests:
     name: Run UI tests
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./household-droid
     env:
       NODE_OPTIONS: "--max_old_space_size=4096"
       VITEST_SEGFAULT_RETRY: "5"
@@ -35,11 +35,18 @@ jobs:
         with:
           node-version: "24.1.0"
       - name: install deps
+        working-directory: ui
         run: |
           npm ci
           npx playwright install-deps
           npx playwright install
       - name: run tests
+        working-directory: ui
         run: npm run test -- --coverage .
       - name: compile
+        working-directory: ui
         run: npm run build
+
+      - name: generate docker
+        run: |
+          docker build -t ghcr.io/danielhstahl/householdhelper -f docker/Dockerfile .
