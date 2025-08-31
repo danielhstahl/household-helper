@@ -3,12 +3,15 @@ from sqlalchemy import make_url
 from llama_index.core import VectorStoreIndex
 from llama_index.vector_stores.postgres import PGVectorStore
 from llama_index.core.vector_stores.types import BasePydanticVectorStore
+import os
 
 
 def get_connection_information() -> tuple[str, str]:
-    connection_string = "postgresql://postgres:yourpassword@localhost:5432"
+    VECTOR_DATABASE_URL = os.getenv(
+        "VECTOR_DATABASE_URL", "postgresql://postgres:yourpassword@localhost:5432"
+    )
     db_name = "vector_db"
-    return connection_string, db_name
+    return VECTOR_DATABASE_URL, db_name
 
 
 def get_vector_store(

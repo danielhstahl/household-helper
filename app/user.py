@@ -37,11 +37,11 @@ def verify_password(plain_password: str, hashed_password: str):
 # --- OAuth2PasswordBearer is used to extract the token from the Authorization header ---
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
+USER_DATABASE_URL = os.getenv(
+    "USER_DATABASE_URL",
     "sqlite://",  # in memory
 )  # "postgresql://postgres:yourpassword@localhost:5432/fastapi_db"
-engine = create_engine(DATABASE_URL)
+engine = create_engine(USER_DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
