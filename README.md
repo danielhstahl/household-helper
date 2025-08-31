@@ -49,6 +49,6 @@ Docker images are built and available at `ghcr.io/danielhstahl/householdhelper:$
 * LM_STUDIO_ENDPOINT (defaults to "http://localhost:1234")
 * OLLAMA_ENDPOINT (defaults to "http://localhost:11434")
 * VECTOR_DATABASE_URL (defaults to "postgresql://postgres:yourpassword@localhost:5432")
-* USER_DATABASE_URL (defaults to "sqlite://")
+* USER_DATABASE_URL (defaults to "sqlite://", in production this can be the same as VECTOR_DATABASE_URL)
 * INIT_ADMIN_PASSWORD (required to start the app)
 * HOST_STATIC.  Required to be set for the docker container to serve the compiled HTML.
