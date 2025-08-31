@@ -444,7 +444,7 @@ def create_fastapi(engine) -> FastAPI:
         return current_admin
 
     if os.getenv("HOST_STATIC"):
-        app.mount("/", StaticFiles(directory="static", html=True), name="static")
+        app.mount("/", StaticFiles(directory="app/static", html=True), name="static")
     return app
 
 
