@@ -20,7 +20,7 @@ from vector_store import (
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi import HTTPException, Depends, status
 from fastapi.staticfiles import StaticFiles
-from llama_index.observability.otel import LlamaIndexOpenTelemetry
+import mlflow
 
 from system_prompt import get_system_prompt
 import os
@@ -58,9 +58,12 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 30  # Token valid for 30 minutes
 LM_STUDIO_ENDPOINT = os.getenv("LM_STUDIO_ENDPOINT", "http://localhost:1234")
 OLLAMA_ENDPOINT = os.getenv("OLLAMA_ENDPOINT", "http://localhost:11434")
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
-## Additional env variables to set:
-# VECTOR_DATABASE_URL (defaults to postgresql://postgres:yourpassword@localhost:5432)
-# USER_DATABASE_URL (defaults to sqlite://)
+MLFLOW_TRACKING_URL = os.getenv(
+    "MLFLOW_TRACKING_URL", "http://localhost:5000"
+)  # default
+
+mlflow.llama_index.autolog()
+mlflow.set_tracking_uri(MLFLOW_TRACKING_URL)
 
 conn_str, db_name = get_connection_information()
 vector_store = get_vector_store(
@@ -68,8 +71,6 @@ vector_store = get_vector_store(
     db_name,
     "household_helper",
 )
-
-instrumentor = LlamaIndexOpenTelemetry()
 
 ollama_embedding = OllamaEmbedding(
     model_name="bge-m3:567m",
@@ -178,8 +179,6 @@ async def yield_streams(stream_events, db: Session, session_id: str, username_id
 def create_fastapi(engine) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        instrumentor.start_registering()
-
         with Session(engine) as db:
             create_init_admin(db, engine)
             logger.debug("Loaded database")
@@ -273,6 +272,7 @@ def create_fastapi(engine) -> FastAPI:
         db: Session = Depends(get_db),
         current_user: CurrentUser = Depends(get_current_user_by_roles("helper")),
     ):
+        mlflow.set_experiment("lammaindex-helper")
         memory = get_session_memory(db, current_user.id, session_id)
         handler = helper_agent.run(chat.text, memory=memory)
         db_message = Message(
@@ -294,6 +294,7 @@ def create_fastapi(engine) -> FastAPI:
         db: Session = Depends(get_db),
         current_user: CurrentUser = Depends(get_current_user_by_roles("tutor")),
     ):
+        mlflow.set_experiment("lammaindex-tutor")
         memory = get_session_memory(db, current_user.id, session_id)
         handler = tutor_agent.run(chat.text, memory=memory)
         db_message = Message(

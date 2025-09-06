@@ -43,6 +43,11 @@ psql -d postgres -c "CREATE DATABASE vector_db;"
 psql -d postgres -c "CREATE DATABASE fastapi_db;"
 ```
 
+### Recommended dev command
+
+`INIT_ADMIN_PASSWORD=[yourinitpassword] USER_DATABASE_URL=postgresql://postgres:[yourpassword]@localhost:5432 fastapi dev main.py`
+
+
 ## Deploy
 
 Docker images are built and available at `ghcr.io/danielhstahl/householdhelper:${tag}`.  The following environmental variables need to be defined:
@@ -52,3 +57,4 @@ Docker images are built and available at `ghcr.io/danielhstahl/householdhelper:$
 * USER_DATABASE_URL (defaults to "sqlite://", in production this can be the same as VECTOR_DATABASE_URL)
 * INIT_ADMIN_PASSWORD (required to start the app)
 * HOST_STATIC.  Required to be set for the docker container to serve the compiled HTML.
+* MLFLOW_TRACKING_URL.  Set for enabling traces
