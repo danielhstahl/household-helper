@@ -73,7 +73,6 @@ class RoleInDB(BaseModel):
     role: str
 
 
-# Is this actually necesary??
 class UserInDB(BaseModel):
     """Internal model for a user retrieved from the database."""
 
@@ -93,7 +92,6 @@ class UserCreate(BaseModel):
     username: str = Field(..., min_length=3, max_length=50)
     password: str = Field(..., min_length=6)
     roles: list[str]
-    # is_admin: bool = False  # Allow setting admin status on creation (admin-only)
 
 
 class UserUpdate(BaseModel):
