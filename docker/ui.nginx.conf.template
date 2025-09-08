@@ -4,7 +4,7 @@ events {
 pid /var/run/nginx/nginx.pid;
 http {
     server {
-        listen 80;
+        listen 8000;
         root /usr/share/nginx/html;
         index index.html;
         include /etc/nginx/mime.types;
