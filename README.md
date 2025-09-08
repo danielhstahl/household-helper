@@ -50,11 +50,10 @@ psql -d postgres -c "CREATE DATABASE fastapi_db;"
 
 ## Deploy
 
-Docker images are built and available at `ghcr.io/danielhstahl/householdhelper:${tag}`.  The following environmental variables need to be defined:
+There are two Docker images, one for the UI (static files) and one for the API.  The UI Docker includes an nginx config that needs to point to the address of the App Docker.  These images are built and available at `ghcr.io/danielhstahl/householdhelper-ui:${tag}` and `ghcr.io/danielhstahl/householdhelper-app:${tag}`.  The following environmental variables need to be defined on the app Docker:
 * LM_STUDIO_ENDPOINT (defaults to "http://localhost:1234")
 * OLLAMA_ENDPOINT (defaults to "http://localhost:11434")
 * VECTOR_DATABASE_URL (defaults to "postgresql://postgres:yourpassword@localhost:5432")
 * USER_DATABASE_URL (defaults to "sqlite://", in production this can be the same as VECTOR_DATABASE_URL)
 * INIT_ADMIN_PASSWORD (required to start the app)
-* HOST_STATIC.  Required to be set for the docker container to serve the compiled HTML.
 * MLFLOW_TRACKING_URL.  Set for enabling traces

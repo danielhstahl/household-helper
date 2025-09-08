@@ -12,7 +12,7 @@ const getHeaders = (jwt: string) => ({
 });
 
 export const sendQuery = (text: string, jwt: string, sessionId: string) => {
-  return fetch(buildUrl("/query", sessionId), {
+  return fetch(buildUrl("/api/query", sessionId), {
     method: "POST",
     body: JSON.stringify({ text }),
     headers: getHeaders(jwt),
@@ -20,7 +20,7 @@ export const sendQuery = (text: string, jwt: string, sessionId: string) => {
 };
 
 export const sendTutor = (text: string, jwt: string, sessionId: string) => {
-  return fetch(buildUrl("/tutor", sessionId), {
+  return fetch(buildUrl("/api/tutor", sessionId), {
     method: "POST",
     body: JSON.stringify({ text }),
     headers: getHeaders(jwt),
@@ -28,7 +28,7 @@ export const sendTutor = (text: string, jwt: string, sessionId: string) => {
 };
 
 export const getSessions = (jwt: string) => {
-  return fetch("/session", {
+  return fetch("/api/session", {
     headers: getHeaders(jwt),
   }).then((response) => {
     return response.json().then((result) => {
@@ -41,7 +41,7 @@ export const getSessions = (jwt: string) => {
 };
 
 export const getMostRecentSession = (jwt: string) => {
-  return fetch("/session/recent", {
+  return fetch("/api/session/recent", {
     headers: getHeaders(jwt),
   }).then((response) => {
     return response.json().then((result) => {
@@ -54,7 +54,7 @@ export const getMostRecentSession = (jwt: string) => {
 };
 
 export const createSession = (jwt: string) => {
-  return fetch("/session", {
+  return fetch("/api/session", {
     method: "POST",
     headers: getHeaders(jwt),
   }).then((response) => {
@@ -68,7 +68,7 @@ export const createSession = (jwt: string) => {
 };
 
 export const deleteSession = (sessionId: string, jwt: string) => {
-  return fetch(`/session/${sessionId}`, {
+  return fetch(`/api/session/${sessionId}`, {
     method: "DELETE",
     headers: getHeaders(jwt),
   }).then((response) => {
@@ -82,7 +82,7 @@ export const deleteSession = (sessionId: string, jwt: string) => {
 };
 
 export const getMessages = (sessionId: string, jwt: string) => {
-  return fetch(`/messages/${sessionId}`, {
+  return fetch(`/api/messages/${sessionId}`, {
     headers: getHeaders(jwt),
   }).then((response) => {
     return response.json().then((result) => {
@@ -94,7 +94,7 @@ export const getMessages = (sessionId: string, jwt: string) => {
   });
 };
 export const getUser = async (jwt: string) => {
-  const response = await fetch("/users/me", {
+  const response = await fetch("/api/users/me", {
     headers: getHeaders(jwt),
   });
   const result = await response.json();
@@ -104,7 +104,7 @@ export const getUser = async (jwt: string) => {
   throw new Error(result.detail);
 };
 export const getUsers = async (jwt: string) => {
-  const response = await fetch("/users", {
+  const response = await fetch("/api/users", {
     headers: getHeaders(jwt),
   });
   const result = await response.json();
@@ -120,7 +120,7 @@ export const createUser = async (
   roles: string[],
   jwt: string,
 ) => {
-  const response = await fetch("/users", {
+  const response = await fetch("/api/users", {
     method: "POST",
     body: JSON.stringify({ username, password, roles }),
     headers: getHeaders(jwt),
@@ -142,7 +142,7 @@ export const updateUser = (
   const payload = password
     ? { username, password, roles }
     : { username, roles };
-  return fetch(`/users/${id}`, {
+  return fetch(`/api/users/${id}`, {
     method: "PATCH",
     body: JSON.stringify(payload),
     headers: getHeaders(jwt),
@@ -157,7 +157,7 @@ export const updateUser = (
 };
 
 export const deleteUser = (id: number, jwt: string) => {
-  return fetch(`/users/${id}`, {
+  return fetch(`/api/users/${id}`, {
     method: "DELETE",
     headers: getHeaders(jwt),
   }).then((response) => {
@@ -175,7 +175,7 @@ export const getToken = async (formData: FormData) => {
   const data = new URLSearchParams(
     formData as unknown as Record<string, string>,
   );
-  const response = await fetch("/token", {
+  const response = await fetch("/api/token", {
     method: "POST",
     body: data,
   });
