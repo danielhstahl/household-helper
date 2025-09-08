@@ -58,6 +58,9 @@ There are two Docker images, one for the UI (static files) and one for the API. 
 * INIT_ADMIN_PASSWORD (required to start the app)
 * MLFLOW_TRACKING_URL.  Set for enabling traces
 
+In the UI docker:
+* BACKEND_SERVICE.  Needs to be [ip/dns]:[port] of your app docker.
+
 ## Helpful commands
 
 If you are creating a self-signed certificate for local hosting:
