@@ -8,9 +8,6 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 # copy contents of app into code
 ADD app /app/
-RUN mkdir static
-# copy contents of dist into static
-ADD ui/dist /app/static/
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev
 

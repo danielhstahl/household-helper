@@ -22,6 +22,9 @@ jobs:
         working-directory: app
         run: |
           uv run pytest tests
+      - name: generate docker
+        run: |
+          docker build -t ghcr.io/danielhstahl/householdhelper-app -f docker/app.Dockerfile .
 
   run_ui_tests:
     name: Run UI tests
@@ -49,4 +52,4 @@ jobs:
 
       - name: generate docker
         run: |
-          docker build -t ghcr.io/danielhstahl/householdhelper -f docker/Dockerfile .
+          docker build -t ghcr.io/danielhstahl/householdhelper-ui -f docker/ui.Dockerfile .

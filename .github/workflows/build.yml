@@ -3,7 +3,7 @@ on:
     types: [published]
 
 jobs:
-  build_container:
+  build_ui_container:
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -23,7 +23,7 @@ jobs:
 
       - name: generate docker
         run: |
-          docker build -t ghcr.io/danielhstahl/householdhelper:${{ github.event.release.tag_name }} -f docker/Dockerfile .
+          docker build -t ghcr.io/danielhstahl/householdhelper-ui:${{ github.event.release.tag_name }} -f docker/ui.Dockerfile .
 
       - name: Log in to the Container registry
         uses: docker/login-action@65b78e6e13532edd9afa3aa52ac7964289d1a9c1
@@ -34,4 +34,27 @@ jobs:
 
       - name: publish docker
         run: |
-          docker push ghcr.io/danielhstahl/householdhelper:${{ github.event.release.tag_name }}
+          docker push ghcr.io/danielhstahl/householdhelper-ui:${{ github.event.release.tag_name }}
+
+  build_app_container:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: generate docker
+        run: |
+          docker build -t ghcr.io/danielhstahl/householdhelper-app:${{ github.event.release.tag_name }} -f docker/app.Dockerfile .
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@65b78e6e13532edd9afa3aa52ac7964289d1a9c1
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: publish docker
+        run: |
+          docker push ghcr.io/danielhstahl/householdhelper-app:${{ github.event.release.tag_name }}
