@@ -8,9 +8,6 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 # copy contents of app into code
 ADD app /app/
-RUN mkdir static
-# copy contents of dist into static
-ADD ui/dist /app/static/
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev
 
@@ -21,6 +18,5 @@ COPY --from=builder --chown=app:app /app /app
 
 # Place executables in the environment at the front of the path
 ENV PATH="/app/.venv/bin:$PATH"
-ENV HOST_STATIC="yes"
 # Run the FastAPI application by default
 CMD ["fastapi", "run", "/app/main.py", "--port", "80", "--host", "0.0.0.0"]

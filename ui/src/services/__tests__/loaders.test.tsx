@@ -18,12 +18,12 @@ describe("loadSession", () => {
   it("redirects to login if no jwt", async () => {
     setLoggedInJwt(null);
     const server = setupWorker(
-      http.get("/session/recent", () => {
+      http.get("/api/session/recent", () => {
         return HttpResponse.json({
           id: "session123",
         });
       }),
-      http.post("/session", () => {
+      http.post("/api/session", () => {
         return HttpResponse.json({
           id: "session123",
         });
@@ -41,7 +41,7 @@ describe("loadSession", () => {
   it("loads session if most recent session exists", async () => {
     setLoggedInJwt("dummyjwt");
     const server = setupWorker(
-      http.get("/session/recent", () => {
+      http.get("/api/session/recent", () => {
         return HttpResponse.json({
           id: "session123",
         });
@@ -59,10 +59,10 @@ describe("loadSession", () => {
   it("creates and loads session if no session exists", async () => {
     setLoggedInJwt("dummyjwt");
     const server = setupWorker(
-      http.get("/session/recent", () => {
+      http.get("/api/session/recent", () => {
         return HttpResponse.json(null);
       }),
-      http.post("/session", () => {
+      http.post("/api/session", () => {
         return HttpResponse.json({
           id: "session123",
         });
@@ -87,14 +87,14 @@ describe("loadSessionsAndMessages", () => {
   it("redirects to login if no jwt", async () => {
     setLoggedInJwt(null);
     const server = setupWorker(
-      http.get("/session", () => {
+      http.get("/api/session", () => {
         return HttpResponse.json([
           {
             id: "session123",
           },
         ]);
       }),
-      http.get("/messages/:sessionId", () => {
+      http.get("/api/messages/:sessionId", () => {
         return HttpResponse.json({
           id: "session123",
         });
@@ -115,7 +115,7 @@ describe("loadSessionsAndMessages", () => {
   it("loads sessions and messages", async () => {
     setLoggedInJwt("dummyjwt");
     const server = setupWorker(
-      http.get("/session", () => {
+      http.get("/api/session", () => {
         return HttpResponse.json([
           {
             id: "session123",
@@ -125,7 +125,7 @@ describe("loadSessionsAndMessages", () => {
           },
         ]);
       }),
-      http.get("/messages/:sessionId", () => {
+      http.get("/api/messages/:sessionId", () => {
         return HttpResponse.json([
           {
             id: 1,
@@ -184,7 +184,7 @@ describe("loadUser", () => {
   it("redirects to login if no jwt", async () => {
     setLoggedInJwt(null);
     const server = setupWorker(
-      http.get("/users/me", () => {
+      http.get("/api/users/me", () => {
         return HttpResponse.json({
           id: 1,
         });
@@ -198,7 +198,7 @@ describe("loadUser", () => {
   it("returns user if jwt", async () => {
     setLoggedInJwt("dummyjwt");
     const server = setupWorker(
-      http.get("/users/me", () => {
+      http.get("/api/users/me", () => {
         return HttpResponse.json({
           id: 1,
         });
@@ -219,7 +219,7 @@ describe("loadUsers", () => {
   it("redirects to login if no jwt", async () => {
     setLoggedInJwt(null);
     const server = setupWorker(
-      http.get("/users", () => {
+      http.get("/api/users", () => {
         return HttpResponse.json({
           id: 1,
         });
@@ -233,7 +233,7 @@ describe("loadUsers", () => {
   it("returns users if jwt", async () => {
     setLoggedInJwt("dummyjwt");
     const server = setupWorker(
-      http.get("/users", () => {
+      http.get("/api/users", () => {
         return HttpResponse.json([
           {
             id: 1,

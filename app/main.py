@@ -19,9 +19,7 @@ from vector_store import (
 )
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi import HTTPException, Depends, status
-from fastapi.staticfiles import StaticFiles
 import mlflow
-
 from system_prompt import get_system_prompt
 import os
 from models import (
@@ -261,7 +259,6 @@ def create_fastapi(engine) -> FastAPI:
             .filter(Message.session_id == session_id)
             .order_by(Message.timestamp.desc())  # get most recent
             .limit(100)
-            # .order_by(Message.timestamp.asc())  # most recnet needs to be add end
             .all()
         ]
 
@@ -444,8 +441,6 @@ def create_fastapi(engine) -> FastAPI:
         """
         return current_admin
 
-    if os.getenv("HOST_STATIC"):
-        app.mount("/", StaticFiles(directory="app/static", html=True), name="static")
     return app
 
 
