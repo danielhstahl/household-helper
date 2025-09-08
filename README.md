@@ -58,3 +58,15 @@ Docker images are built and available at `ghcr.io/danielhstahl/householdhelper:$
 * INIT_ADMIN_PASSWORD (required to start the app)
 * HOST_STATIC.  Required to be set for the docker container to serve the compiled HTML.
 * MLFLOW_TRACKING_URL.  Set for enabling traces
+
+## Helpful commands
+
+If you are creating a self-signed certificate for local hosting:
+
+`export DOMAIN_NAME=[yourdomainname]`
+
+`export LOCAL_IP=[yourlocalip]`
+
+`openssl req -x509 -newkey rsa:4096 -sha256 -days 3650 -nodes \
+  -keyout $DOMAIN_NAME.key -out $DOMAIN_NAME.crt -subj "/CN=$DOMAIN_NAME.local" \
+  -addext "subjectAltName=DNS:*.$DOMAIN_NAME.local,IP:$LOCAL_IP"`
