@@ -12,7 +12,7 @@ describe("sessionAction", () => {
   it("redirects to login if no jwt", async () => {
     setLoggedInJwt(null);
     const server = setupWorker(
-      http.post("/session", () => {
+      http.post("/api/session", () => {
         return HttpResponse.json({
           id: "session123",
         });
@@ -32,7 +32,7 @@ describe("sessionAction", () => {
   it("returns new session if POST and JWT", async () => {
     setLoggedInJwt("dummyjwt");
     const server = setupWorker(
-      http.post("/session", () => {
+      http.post("/api/session", () => {
         return HttpResponse.json({
           id: "session123",
         });
@@ -52,7 +52,7 @@ describe("sessionAction", () => {
   it("returns deletes session if DELETE and JWT", async () => {
     setLoggedInJwt("dummyjwt");
     const server = setupWorker(
-      http.delete("/session/:id", () => {
+      http.delete("/api/session/:id", () => {
         return HttpResponse.json({
           status: "success",
         });
@@ -77,7 +77,7 @@ describe("loginAction", () => {
   it("returns jwt on successful login", async () => {
     setLoggedInJwt("dummyjwt");
     const server = setupWorker(
-      http.post("/token", () => {
+      http.post("/api/token", () => {
         return HttpResponse.json({
           access_token: "helloworld",
         });
@@ -101,7 +101,7 @@ describe("loginAction", () => {
   });
   it("returns error if not authenticated", async () => {
     const server = setupWorker(
-      http.post("/token", () => {
+      http.post("/api/token", () => {
         return HttpResponse.json({ detail: "bad things" }, { status: 404 });
       }),
     );
@@ -133,7 +133,7 @@ describe("userAction", () => {
   it("redirects to login if no jwt", async () => {
     setLoggedInJwt(null);
     const server = setupWorker(
-      http.post("/users", () => {
+      http.post("/api/users", () => {
         return HttpResponse.json({
           id: "session123",
         });
@@ -162,7 +162,7 @@ describe("userAction", () => {
   it("returns new user if POST and JWT", async () => {
     setLoggedInJwt("dummyjwt");
     const server = setupWorker(
-      http.post("/users", () => {
+      http.post("/api/users", () => {
         return HttpResponse.json({
           id: 2,
           username: "hello",
@@ -196,7 +196,7 @@ describe("userAction", () => {
   it("updates new user if PATCH and JWT", async () => {
     setLoggedInJwt("dummyjwt");
     const server = setupWorker(
-      http.patch("/users/:id", ({ params }) => {
+      http.patch("/api/users/:id", ({ params }) => {
         const { id } = params;
         return HttpResponse.json({
           id: parseInt(id as string),
@@ -232,7 +232,7 @@ describe("userAction", () => {
   it("deletes user if DELETE and JWT", async () => {
     setLoggedInJwt("dummyjwt");
     const server = setupWorker(
-      http.delete("/users/:id", () => {
+      http.delete("/api/users/:id", () => {
         return HttpResponse.json({
           status: "success",
         });
