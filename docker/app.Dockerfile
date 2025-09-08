@@ -15,8 +15,7 @@ FROM python:3.13-rc-slim-bookworm
 
 # Copy the application from the builder
 COPY --from=builder --chown=app:app /app /app
-
-RUN addgroup -g 1000 appuser && adduser -u 1000 -G appuser -D -s /bin/sh appuser
+RUN groupadd appuser && useradd appuser  && usermod -a -G appuser appuser
 RUN chown -R appuser:appuser /app
 USER appuser
 # Place executables in the environment at the front of the path
