@@ -1,0 +1,39 @@
+services:
+  app:
+    image: ghcr.io/danielhstahl/householdhelper-app:v0.1.2
+    container_name: app
+    environment:
+      INIT_ADMIN_PASSWORD: [yourpassword]
+      LM_STUDIO_ENDPOINT: http://[yourllmip]:8100/ai/llm
+      OLLAMA_ENDPOINT: http://[yourllmip]:8100/ai/embedding
+      VECTOR_DATABASE_URL: postgresql://[yourpsqluser]:[yourpsqlpassword]@vectordb:5432
+      USER_DATABASE_URL: postgresql://[yourpsqluser]:[yourpsqlpassword]@vectordb:5432
+      MLFLOW_TRACKING_URL: http://mlflow:5002
+
+  ui:
+    image: ghcr.io/danielhstahl/householdhelper-ui:v0.1.2
+    environment:
+      BACKEND_SERVICE: app:8000
+    # for exposing outside the container network
+    ports:
+      - "8002:8000"
+
+  vectordb:
+    image: pgvector/pgvector:0.8.0-pg17-trixie
+    container_name: vectordb
+    environment:
+      POSTGRES_PASSWORD: [yourpsqlpassword]
+      POSTGRES_USER: [yourpsqluser]
+    volumes:
+      - "/volume1/docker/postgres:/var/lib/postgresql/data/"
+
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v3.3.2
+    container_name: mlflow
+    # for exposing outside the container network
+    ports:
+      - "5002:5000"
+    command: mlflow server -h 0.0.0.0
+
+volumes:
+  vectordb:
