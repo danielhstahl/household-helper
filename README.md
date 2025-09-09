@@ -61,6 +61,8 @@ There are two Docker images, one for the UI (static files) and one for the API. 
 In the UI docker:
 * BACKEND_SERVICE.  Needs to be [ip/dns]:[port] of your app docker.
 
+The [docker-compose](./docker/docker-compose.yml) file shows an example of how to orchestrate the containers.
+
 ## Helpful commands
 
 If you are creating a self-signed certificate for local hosting:

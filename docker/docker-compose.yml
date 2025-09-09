@@ -36,4 +36,4 @@ services:
     command: mlflow server -h 0.0.0.0
 
 volumes:
-  database:
+  vectordb:
