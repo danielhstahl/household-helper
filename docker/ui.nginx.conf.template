@@ -3,6 +3,8 @@ events {
 }
 pid /var/run/nginx/nginx.pid;
 http {
+    # This is a key line for streaming. It disables buffering for all proxy connections.
+    proxy_buffering off;
     server {
         listen 8000;
         root /usr/share/nginx/html;
@@ -18,6 +20,14 @@ http {
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto $scheme;
+
+            # These headers are vital for keeping the connection open, especially for SSE.
+            proxy_set_header Connection '';
+            proxy_http_version 1.1;
+
+            # Prevents Nginx from sending a "chunked" Transfer-Encoding header.
+            # While sometimes useful, it can interfere with certain clients or protocols.
+            chunked_transfer_encoding off;
         }
     }
 }
