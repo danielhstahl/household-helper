@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO messages (id, content, message_type, session_id, message_ts)\n            VALUES(gen_random_uuid(), $1, $2, $3, NOW())\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        {
+          "Custom": {
+            "name": "message_type",
+            "kind": {
+              "Enum": [
+                "system",
+                "ai",
+                "human",
+                "tool"
+              ]
+            }
+          }
+        },
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "eee79ab314b53ae230266912fca239a4581a2491c2045e56454b267df15e064f"
+}
