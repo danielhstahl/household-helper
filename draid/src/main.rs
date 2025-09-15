@@ -145,8 +145,35 @@ struct AuthResponse {
     token: String,
 }
 
+#[derive(Debug, Serialize)]
+#[serde(crate = "rocket::serde")]
+enum ResponseStatus {
+    Success,
+    Failure,
+}
+#[derive(Debug, Serialize)]
+#[serde(crate = "rocket::serde")]
+struct StatusResponse {
+    status: ResponseStatus,
+}
+
+#[post("/user", format = "json", data = "<user>")]
+async fn new_user<'a>(
+    user: Json<psql_users::UserRequest<'a>>,
+    db: &Db,
+    _admin: auth::Admin, //guard, only admins can access this
+) -> Result<Json<StatusResponse>, BadRequest<String>> {
+    psql_users::create_user(&user, &db.0)
+        .await
+        .map_err(|e| BadRequest(e.to_string()))?;
+
+    Ok(Json(StatusResponse {
+        status: ResponseStatus::Success,
+    }))
+}
+
 #[post("/login", format = "json", data = "<credentials>")]
-fn login(credentials: Json<AuthRequest>) -> Result<Json<AuthResponse>, Status> {
+async fn login(credentials: Json<AuthRequest>) -> Result<Json<AuthResponse>, Status> {
     // Hardcoded credentials for demonstration. In a real app, you'd check a database.
     if credentials.username != "admin" || credentials.password != "password123" {
         return Err(Status::Unauthorized);

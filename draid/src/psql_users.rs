@@ -4,7 +4,7 @@ use argon2::{
 };
 use rocket::serde::{Deserialize, Serialize};
 use sqlx::{Pool, Postgres, Type, query, types::Uuid};
-
+use std::fmt;
 fn hash_password(password: &str) -> Result<String, Error> {
     // Generate a secure random salt
     let salt = SaltString::generate(&mut OsRng);
@@ -29,6 +29,17 @@ pub enum Role {
     Tutor,
 }
 
+//only for printing a nice error in auth.rs
+impl fmt::Display for Role {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Role::Admin => write!(f, "admin"),
+            Role::Helper => write!(f, "helper"),
+            Role::Tutor => write!(f, "tutor"),
+        }
+    }
+}
+
 #[derive(sqlx::FromRow)]
 //#[serde(crate = "rocket::serde")]
 struct UserDB {
@@ -46,7 +57,7 @@ struct RoleDB {
 pub struct UserResponse {
     id: String, //uuid but serde doesn't recognize it
     username: String,
-    roles: Vec<Role>,
+    pub roles: Vec<Role>,
 }
 #[derive(Deserialize)]
 #[serde(crate = "rocket::serde")]
