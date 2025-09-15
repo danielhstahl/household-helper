@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT id, role as \"role: Role\" FROM roles where username_id=$1\n        ",
+  "query": "\n        SELECT id, role as \"role: Role\", username_id FROM roles\n        ",
   "describe": {
     "columns": [
       {
@@ -23,17 +23,21 @@
             }
           }
         }
+      },
+      {
+        "ordinal": 2,
+        "name": "username_id",
+        "type_info": "Uuid"
       }
     ],
     "parameters": {
-      "Left": [
-        "Uuid"
-      ]
+      "Left": []
     },
     "nullable": [
+      false,
       false,
       false
     ]
   },
-  "hash": "c6eb44a2ef9e7e93f511e5b8a9217dba74e3e602c8a9a832c7147da4f11f8f23"
+  "hash": "fcbb098fb6530e11c7a0a3cb1644a3ff0b142000f4aadc7ef46931f87d198bbf"
 }

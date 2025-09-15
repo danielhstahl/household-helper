@@ -19,7 +19,8 @@ use rocket::response::stream::TextStream;
 use rocket::serde::{Deserialize, Serialize, json::Json};
 use rocket::{Build, Rocket, State, futures};
 use rocket_db_pools::Database;
-use sqlx::types::Uuid;
+//use sqlx::types::Uuid;
+use rocket::serde::uuid::Uuid;
 use std::env;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -85,7 +86,18 @@ fn rocket() -> _ {
         .manage(ai_config)
         .manage(llm)
         .manage(bots)
-        .mount("/", routes![helper, tutor])
+        .mount(
+            "/",
+            routes![
+                helper,
+                tutor,
+                new_user,
+                get_users,
+                delete_user,
+                update_user,
+                login
+            ],
+        )
 }
 #[derive(Deserialize)]
 #[serde(crate = "rocket::serde")]
@@ -172,12 +184,56 @@ async fn new_user<'a>(
     }))
 }
 
+#[delete("/user/<id>")]
+async fn delete_user<'a>(
+    id: Uuid,
+    db: &Db,
+    _admin: auth::Admin, //guard, only admins can access this
+) -> Result<Json<StatusResponse>, BadRequest<String>> {
+    psql_users::delete_user(&id, &db.0)
+        .await
+        .map_err(|e| BadRequest(e.to_string()))?;
+
+    Ok(Json(StatusResponse {
+        status: ResponseStatus::Success,
+    }))
+}
+
+#[patch("/user/<id>", format = "json", data = "<user>")]
+async fn update_user<'a>(
+    id: Uuid,
+    user: Json<psql_users::UserRequest<'a>>,
+    db: &Db,
+    _admin: auth::Admin, //guard, only admins can access this
+) -> Result<Json<StatusResponse>, BadRequest<String>> {
+    psql_users::patch_user(&id, &user, &db.0)
+        .await
+        .map_err(|e| BadRequest(e.to_string()))?;
+
+    Ok(Json(StatusResponse {
+        status: ResponseStatus::Success,
+    }))
+}
+
+#[get("/user")]
+async fn get_users<'a>(
+    db: &Db,
+    _admin: auth::Admin, //guard, only admins can access this
+) -> Result<Json<StatusResponse>, BadRequest<String>> {
+    psql_users::get_all_users(&db.0)
+        .await
+        .map_err(|e| BadRequest(e.to_string()))?;
+
+    Ok(Json(StatusResponse {
+        status: ResponseStatus::Success,
+    }))
+}
+
 #[post("/login", format = "json", data = "<credentials>")]
-async fn login(credentials: Json<AuthRequest>) -> Result<Json<AuthResponse>, Status> {
-    // Hardcoded credentials for demonstration. In a real app, you'd check a database.
-    if credentials.username != "admin" || credentials.password != "password123" {
-        return Err(Status::Unauthorized);
-    }
+async fn login(credentials: Json<AuthRequest>, db: &Db) -> Result<Json<AuthResponse>, Status> {
+    psql_users::authenticate_user(&credentials.username, &credentials.password, &db.0)
+        .await
+        .map_err(|_e| Status::Unauthorized)?;
 
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -213,6 +269,7 @@ async fn helper<'a>(
     db: &Db,
     llm: &State<Client<OpenAIConfig>>,
     bots: &State<Bots>,
+    _helper: auth::Helper,
 ) -> Result<TextStream![String], BadRequest<String>> {
     let session_id = Uuid::parse_str(session_id).map_err(|e| BadRequest(e.to_string()))?;
     let psql_memory = PsqlMemory::new(100, session_id, db.0.clone());
@@ -221,13 +278,14 @@ async fn helper<'a>(
 
 #[post("/tutor?<session_id>", format = "json", data = "<prompt>")]
 async fn tutor<'a>(
-    session_id: &str,
+    session_id: Uuid,
     prompt: Json<Prompt<'a>>,
     db: &Db,
     llm: &State<Client<OpenAIConfig>>,
     bots: &State<Bots>,
+    _tutor: auth::Tutor,
 ) -> Result<TextStream![String], BadRequest<String>> {
-    let session_id = Uuid::parse_str(session_id).map_err(|e| BadRequest(e.to_string()))?;
+    //let session_id = Uuid::parse_str(session_id).map_err(|e| BadRequest(e.to_string()))?;
     let psql_memory = PsqlMemory::new(100, session_id, db.0.clone());
     chat_with_bot(&llm, psql_memory, bots.tutor_bot.clone(), &prompt.text).await
 }

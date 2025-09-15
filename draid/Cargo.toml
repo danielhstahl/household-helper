@@ -6,7 +6,7 @@ edition = "2024"
 [dependencies]
 async-openai = "0.29.3"
 futures = "0.3.31"
-rocket = {version="0.5.1", features=["json"]}
+rocket = {version="0.5.1", features=["json", "uuid"]}
 sqlx = { version = "0.7.4", default-features = false, features = ["macros", "migrate", "postgres", "uuid"] }
 jsonwebtoken = "8"
 argon2 = "0.5.3"
