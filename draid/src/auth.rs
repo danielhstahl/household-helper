@@ -1,10 +1,11 @@
 use crate::Db;
-use crate::psql_users::Role;
 use crate::psql_users::get_user;
+use crate::psql_users::{Role, UserResponse};
 use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode};
 use rocket::http::{Header, Status};
 use rocket::outcome::Outcome::Success;
 use rocket::request::{FromRequest, Outcome, Request};
+use rocket::serde::uuid::Uuid;
 use rocket::serde::{Deserialize, Serialize, json::Json};
 use std::fmt;
 use std::future::Future;
@@ -33,7 +34,7 @@ impl fmt::Display for AuthError {
 }
 impl std::error::Error for AuthError {}
 
-async fn auth_by_role<'r>(req: &'r Request<'_>) -> Result<Vec<Role>, AuthError> {
+async fn auth_by_role<'r>(req: &'r Request<'_>) -> Result<UserResponse, AuthError> {
     let auth_header = req.headers().get_one("Authorization");
 
     let header = auth_header.ok_or_else(|| AuthError {
@@ -61,86 +62,115 @@ async fn auth_by_role<'r>(req: &'r Request<'_>) -> Result<Vec<Role>, AuthError> 
     let calling_user = get_user(&token_data.claims.sub, &db.0)
         .await
         .map_err(|e| AuthError { msg: e.to_string() })?;
-    Ok(calling_user.roles)
+    Ok(calling_user)
 }
 
-pub struct Admin;
+pub struct Admin {
+    pub id: Uuid,
+    pub username: String,
+}
 
 #[rocket::async_trait]
 impl<'r> FromRequest<'r> for Admin {
     type Error = ();
     async fn from_request(req: &'r Request<'_>) -> Outcome<Self, Self::Error> {
-        let roles = match auth_by_role(req).await {
-            Ok(roles) => roles,
+        let user = match auth_by_role(req).await {
+            Ok(user) => user,
             Err(e) => {
                 println!("Error: {}", e);
                 return Outcome::Error((Status::Unauthorized, ()));
             }
         };
-        if roles.iter().any(|user_role| match user_role {
+        if user.roles.iter().any(|user_role| match user_role {
             Role::Admin => true,
             _ => false,
         }) {
-            Outcome::Success(Admin {})
+            Outcome::Success(Admin {
+                id: user.id,
+                username: user.username,
+            })
         } else {
             Outcome::Error((Status::Unauthorized, ()))
         }
     }
 }
 
-pub struct Tutor;
+pub struct Tutor {
+    pub id: Uuid,
+    pub username: String,
+}
+
 #[rocket::async_trait]
 impl<'r> FromRequest<'r> for Tutor {
     type Error = ();
     async fn from_request(req: &'r Request<'_>) -> Outcome<Self, Self::Error> {
-        let roles = match auth_by_role(req).await {
-            Ok(roles) => roles,
+        let user = match auth_by_role(req).await {
+            Ok(user) => user,
             Err(e) => {
                 println!("Error: {}", e);
                 return Outcome::Error((Status::Unauthorized, ()));
             }
         };
-        if roles.iter().any(|user_role| match user_role {
+        if user.roles.iter().any(|user_role| match user_role {
             Role::Tutor => true,
             _ => false,
         }) {
-            Outcome::Success(Tutor {})
+            Outcome::Success(Tutor {
+                id: user.id,
+                username: user.username,
+            })
         } else {
             Outcome::Error((Status::Unauthorized, ()))
         }
     }
 }
-pub struct Helper;
+pub struct Helper {
+    pub id: Uuid,
+    pub username: String,
+}
 #[rocket::async_trait]
 impl<'r> FromRequest<'r> for Helper {
     type Error = ();
     async fn from_request(req: &'r Request<'_>) -> Outcome<Self, Self::Error> {
-        let roles = match auth_by_role(req).await {
-            Ok(roles) => roles,
+        let user = match auth_by_role(req).await {
+            Ok(user) => user,
             Err(e) => {
                 println!("Error: {}", e);
                 return Outcome::Error((Status::Unauthorized, ()));
             }
         };
-        if roles.iter().any(|user_role| match user_role {
+        if user.roles.iter().any(|user_role| match user_role {
             Role::Helper => true,
             _ => false,
         }) {
-            Outcome::Success(Helper {})
+            Outcome::Success(Helper {
+                id: user.id,
+                username: user.username,
+            })
         } else {
             Outcome::Error((Status::Unauthorized, ()))
         }
     }
 }
 
-pub struct AuthenticatedUser;
+pub struct AuthenticatedUser {
+    pub id: Uuid,
+    pub username: String,
+}
 #[rocket::async_trait]
 impl<'r> FromRequest<'r> for AuthenticatedUser {
     type Error = ();
     async fn from_request(req: &'r Request<'_>) -> Outcome<Self, Self::Error> {
-        if auth_by_role(req).await.is_err() {
-            return Outcome::Error((Status::Unauthorized, ()));
+        let user = match auth_by_role(req).await {
+            Ok(user) => user,
+            Err(e) => {
+                println!("Error: {}", e);
+                return Outcome::Error((Status::Unauthorized, ()));
+            }
         };
-        Outcome::Success(AuthenticatedUser {})
+        Outcome::Success(AuthenticatedUser {
+            id: user.id,
+            username: user.username,
+        })
     }
 }

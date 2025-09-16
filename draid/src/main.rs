@@ -27,6 +27,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 //TODO, pass JWT_SECRET as env variable
 use crate::auth::{Claims, JWT_SECRET};
 use crate::prompts::TUTOR_PROMPT;
+use crate::psql_users::SessionDB;
+use crate::psql_users::UserResponse;
 
 #[derive(Database)]
 #[database("draid")]
@@ -95,7 +97,11 @@ fn rocket() -> _ {
                 get_users,
                 delete_user,
                 update_user,
-                login
+                login,
+                new_session,
+                delete_session,
+                latest_session,
+                get_sessions
             ],
         )
 }
@@ -161,7 +167,7 @@ struct AuthResponse {
 #[serde(crate = "rocket::serde")]
 enum ResponseStatus {
     Success,
-    Failure,
+    //Failure,
 }
 #[derive(Debug, Serialize)]
 #[serde(crate = "rocket::serde")]
@@ -219,14 +225,65 @@ async fn update_user<'a>(
 async fn get_users<'a>(
     db: &Db,
     _admin: auth::Admin, //guard, only admins can access this
+) -> Result<Json<Vec<UserResponse>>, BadRequest<String>> {
+    let users = psql_users::get_all_users(&db.0)
+        .await
+        .map_err(|e| BadRequest(e.to_string()))?;
+
+    Ok(Json(users))
+}
+
+#[post("/session", format = "json")]
+async fn new_session<'a>(
+    db: &Db,
+    user: auth::AuthenticatedUser, //guard, only authenticated users can access
 ) -> Result<Json<StatusResponse>, BadRequest<String>> {
-    psql_users::get_all_users(&db.0)
+    psql_users::create_session(&user.id, &db.0)
         .await
         .map_err(|e| BadRequest(e.to_string()))?;
 
     Ok(Json(StatusResponse {
         status: ResponseStatus::Success,
     }))
+}
+
+#[delete("/session/<session_id>")]
+async fn delete_session(
+    session_id: Uuid,
+    db: &Db,
+    user: auth::AuthenticatedUser, //guard, only authenticated users can access
+) -> Result<Json<StatusResponse>, BadRequest<String>> {
+    psql_users::delete_session(&session_id, &user.id, &db.0)
+        .await
+        .map_err(|e| BadRequest(e.to_string()))?;
+
+    Ok(Json(StatusResponse {
+        status: ResponseStatus::Success,
+    }))
+}
+
+#[get("/session", format = "json")]
+async fn get_sessions<'a>(
+    db: &Db,
+    user: auth::AuthenticatedUser, //guard, only authenticated users can access
+) -> Result<Json<Vec<SessionDB>>, BadRequest<String>> {
+    let sessions = psql_users::get_all_sessions(&user.id, &db.0)
+        .await
+        .map_err(|e| BadRequest(e.to_string()))?;
+
+    Ok(Json(sessions))
+}
+
+#[get("/session/recent", format = "json")]
+async fn latest_session<'a>(
+    db: &Db,
+    user: auth::AuthenticatedUser, //guard, only authenticated users can access
+) -> Result<Json<Option<SessionDB>>, BadRequest<String>> {
+    let session = psql_users::get_most_recent_session(&user.id, &db.0)
+        .await
+        .map_err(|e| BadRequest(e.to_string()))?;
+
+    Ok(Json(session))
 }
 
 #[post("/login", format = "json", data = "<credentials>")]

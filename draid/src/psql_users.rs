@@ -5,6 +5,7 @@ use argon2::{
 use futures::stream::StreamExt;
 use rocket::serde::uuid::Uuid;
 use rocket::serde::{Deserialize, Serialize};
+use sqlx::types::chrono;
 use sqlx::{Pool, Postgres, Type, query};
 use std::{collections::HashMap, fmt};
 fn hash_password(password: &str) -> Result<String, Error> {
@@ -43,29 +44,34 @@ impl fmt::Display for Role {
 }
 
 #[derive(sqlx::FromRow)]
-//#[serde(crate = "rocket::serde")]
 struct UserDB {
     id: Uuid,
     username: String,
 }
 #[derive(sqlx::FromRow)]
-//#[serde(crate = "rocket::serde")]
 struct RoleDB {
     id: Uuid,
     role: Role,
     username_id: Uuid,
 }
+#[derive(Serialize, sqlx::FromRow)]
+#[serde(crate = "rocket::serde")]
+pub struct SessionDB {
+    id: Uuid,
+    username_id: Uuid,
+    session_start: chrono::DateTime<chrono::Utc>,
+}
+
 #[derive(Serialize)]
 #[serde(crate = "rocket::serde")]
 pub struct UserResponse {
-    id: Uuid, //uuid but serde doesn't recognize it
-    username: String,
+    pub id: Uuid,
+    pub username: String,
     pub roles: Vec<Role>,
 }
 #[derive(Deserialize)]
 #[serde(crate = "rocket::serde")]
 pub struct UserRequest<'a> {
-    //id: String, //uuid but serde doesn't recognize it
     username: &'a str,
     password: &'a str,
     roles: Vec<Role>,
@@ -264,5 +270,79 @@ pub async fn patch_user<'a>(
         sqlx_query = sqlx_query.bind(&id).bind(role);
     }
     sqlx_query.execute(pool).await?;
+    Ok(())
+}
+
+pub async fn create_session<'a>(
+    username_id: &Uuid,
+    pool: &Pool<Postgres>,
+) -> sqlx::Result<SessionDB> {
+    let session_db = sqlx::query_as!(
+        SessionDB,
+        r#"
+        INSERT INTO sessions (id, username_id, session_start)
+        VALUES (gen_random_uuid(), $1, NOW())
+        RETURNING id, username_id, session_start
+        "#,
+        &username_id
+    )
+    .fetch_one(pool)
+    .await?;
+
+    Ok(session_db)
+}
+
+pub async fn get_all_sessions<'a>(
+    username_id: &Uuid,
+    pool: &Pool<Postgres>,
+) -> sqlx::Result<Vec<SessionDB>> {
+    let session_db = sqlx::query_as!(
+        SessionDB,
+        r#"
+        SELECT id, username_id, session_start
+        from sessions WHERE username_id=$1
+        ORDER BY session_start DESC
+        "#,
+        &username_id
+    )
+    .fetch_all(pool)
+    .await?;
+
+    Ok(session_db)
+}
+
+pub async fn get_most_recent_session<'a>(
+    username_id: &Uuid,
+    pool: &Pool<Postgres>,
+) -> sqlx::Result<Option<SessionDB>> {
+    let session_db = sqlx::query_as!(
+        SessionDB,
+        r#"
+        SELECT id, username_id, session_start
+        from sessions WHERE username_id=$1
+        ORDER BY session_start DESC
+        "#,
+        &username_id
+    )
+    .fetch_optional(pool)
+    .await?;
+    Ok(session_db)
+}
+
+pub async fn delete_session<'a>(
+    session_id: &Uuid,
+    user_id: &Uuid,
+    pool: &Pool<Postgres>,
+) -> sqlx::Result<()> {
+    sqlx::query!(
+        r#"
+        DELETE FROM sessions WHERE id=$1
+        AND username_id=$2
+        "#,
+        &session_id,
+        &user_id
+    )
+    .execute(pool)
+    .await?;
     Ok(())
 }
