@@ -31,27 +31,39 @@ pub struct Message {
 pub struct PsqlMemory {
     num_messages: usize,
     session_id: Uuid,
+    username_id: Uuid,
     pool: Pool<Postgres>,
 }
 
+// TODO consider refactoring to just call functions
+// rather than recreating a class and calling methods on
+// the class
 impl PsqlMemory {
-    pub fn new(num_messages: usize, session_id: Uuid, pool: Pool<Postgres>) -> Self {
+    pub fn new(
+        num_messages: usize,
+        session_id: Uuid,
+        username_id: Uuid,
+        pool: Pool<Postgres>,
+    ) -> Self {
         Self {
             num_messages,
             session_id,
+            username_id,
             pool,
         }
     }
     pub async fn messages(&self) -> sqlx::Result<Vec<Message>> {
-        println!("inside messages");
         sqlx::query_as!(
             Message,
             r#"
             SELECT content as "content: String",
             message_type as "message_type: MessageType"
-            FROM messages WHERE session_id = $1 ORDER BY message_ts limit $2
+            FROM messages WHERE session_id = $1
+            AND username_id = $2
+            ORDER BY message_ts limit $3
             "#,
-            self.session_id,
+            &self.session_id,
+            &self.username_id,
             self.num_messages as i32
         )
         .fetch_all(&self.pool)
@@ -97,7 +109,6 @@ pub async fn manage_chat_interaction(
         // After the stream is complete, write to the database
         let result = memory.add_message(message).await;
 
-        //todo fix this cruft
         if let Err(e) = result {
             eprintln!("Failed to save message to database: {}", e);
         }

@@ -27,6 +27,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 //TODO, pass JWT_SECRET as env variable
 use crate::auth::{Claims, JWT_SECRET};
 use crate::prompts::TUTOR_PROMPT;
+use crate::psql_memory::Message;
 use crate::psql_users::SessionDB;
 use crate::psql_users::UserResponse;
 
@@ -101,7 +102,8 @@ fn rocket() -> _ {
                 new_session,
                 delete_session,
                 latest_session,
-                get_sessions
+                get_sessions,
+                get_messages
             ],
         )
 }
@@ -312,6 +314,20 @@ async fn login(credentials: Json<AuthRequest>, db: &Db) -> Result<Json<AuthRespo
 
     Ok(Json(AuthResponse { token }))
 }
+
+#[get("/messages/<session_id>")]
+async fn get_messages(
+    session_id: Uuid,
+    db: &Db,
+    user: auth::AuthenticatedUser,
+) -> Result<Json<Vec<Message>>, BadRequest<String>> {
+    let psql_memory = PsqlMemory::new(100, session_id, user.id, db.0.clone());
+    let messages = psql_memory
+        .messages()
+        .await
+        .map_err(|e| BadRequest(e.to_string()))?;
+    Ok(Json(messages))
+}
 /**
 * Example invocation:
 * curl --header "Content-Type: application/json" \
@@ -321,15 +337,14 @@ async fn login(credentials: Json<AuthRequest>, db: &Db) -> Result<Json<AuthRespo
 */
 #[post("/helper?<session_id>", format = "json", data = "<prompt>")]
 async fn helper<'a>(
-    session_id: &str,
+    session_id: Uuid,
     prompt: Json<Prompt<'a>>,
     db: &Db,
     llm: &State<Client<OpenAIConfig>>,
     bots: &State<Bots>,
-    _helper: auth::Helper,
+    helper: auth::Helper,
 ) -> Result<TextStream![String], BadRequest<String>> {
-    let session_id = Uuid::parse_str(session_id).map_err(|e| BadRequest(e.to_string()))?;
-    let psql_memory = PsqlMemory::new(100, session_id, db.0.clone());
+    let psql_memory = PsqlMemory::new(100, session_id, helper.id, db.0.clone());
     chat_with_bot(&llm, psql_memory, bots.helper_bot.clone(), &prompt.text).await
 }
 
@@ -340,11 +355,8 @@ async fn tutor<'a>(
     db: &Db,
     llm: &State<Client<OpenAIConfig>>,
     bots: &State<Bots>,
-    _tutor: auth::Tutor,
+    tutor: auth::Tutor,
 ) -> Result<TextStream![String], BadRequest<String>> {
-    //let session_id = Uuid::parse_str(session_id).map_err(|e| BadRequest(e.to_string()))?;
-    let psql_memory = PsqlMemory::new(100, session_id, db.0.clone());
+    let psql_memory = PsqlMemory::new(100, session_id, tutor.id, db.0.clone());
     chat_with_bot(&llm, psql_memory, bots.tutor_bot.clone(), &prompt.text).await
 }
-
-//#[get("/session")]

@@ -8,9 +8,10 @@ CREATE TABLE IF NOT EXISTS messages
 (
     id UUID NOT NULL PRIMARY KEY,
     session_id UUID NOT NULL REFERENCES sessions(id),
+    username_id UUID NOT NULL REFERENCES users(id),
     message_type message_type NOT NULL,
     content text NOT NULL,
     message_ts TIMESTAMPTZ NOT NULL
 );
 
-CREATE INDEX messages_session_index ON messages(session_id);
+CREATE INDEX messages_session_index ON messages(session_id, username_id);
