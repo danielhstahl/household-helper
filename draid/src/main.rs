@@ -13,6 +13,7 @@ use prompts::HELPER_PROMPT;
 use psql_memory::PsqlMemory;
 use psql_memory::manage_chat_interaction;
 use rocket::fairing::{self, AdHoc};
+use rocket::form::Form;
 use rocket::http::Status;
 use rocket::response::status::BadRequest;
 use rocket::response::stream::TextStream;
@@ -25,11 +26,10 @@ use std::env;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 //TODO, pass JWT_SECRET as env variable
-use crate::auth::{Claims, JWT_SECRET};
-use crate::prompts::TUTOR_PROMPT;
-use crate::psql_memory::Message;
-use crate::psql_users::SessionDB;
-use crate::psql_users::UserResponse;
+use auth::{Claims, JWT_SECRET};
+use prompts::TUTOR_PROMPT;
+use psql_memory::Message;
+use psql_users::{Role, SessionDB, UserRequest, UserResponse, create_user};
 
 #[derive(Database)]
 #[database("draid")]
@@ -38,7 +38,21 @@ struct Db(rocket_db_pools::sqlx::PgPool);
 async fn run_migrations(rocket: Rocket<Build>) -> fairing::Result {
     match Db::fetch(&rocket) {
         Some(db) => match sqlx::migrate!("./migrations").run(&**db).await {
-            Ok(_) => Ok(rocket),
+            Ok(_) => {
+                let password = env::var("INIT_ADMIN_PASSWORD").unwrap();
+                let admin_user = UserRequest {
+                    username: "admin",
+                    password: &password, //intentinoally don't start up if not set
+                    roles: vec![Role::Admin],
+                };
+                if psql_users::get_user(&admin_user.username, &**db)
+                    .await
+                    .is_err()
+                {
+                    create_user(&admin_user, &**db).await.unwrap();
+                };
+                Ok(rocket)
+            }
             Err(e) => {
                 error!("Failed to initialize SQLx database: {}", e);
                 Err(rocket)
@@ -73,7 +87,6 @@ fn rocket() -> _ {
 
     let model_name = "qwen3-8b";
     //happens at startup, so can "safely" unwrap
-
     let bots = Bots {
         helper_bot: get_bot(&model_name, &HELPER_PROMPT).unwrap(),
         tutor_bot: get_bot(&model_name, &TUTOR_PROMPT).unwrap(),
@@ -96,6 +109,7 @@ fn rocket() -> _ {
                 tutor,
                 new_user,
                 get_users,
+                get_user,
                 delete_user,
                 update_user,
                 login,
@@ -152,11 +166,11 @@ async fn chat_with_bot(
     })
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, FromForm)]
 #[serde(crate = "rocket::serde")]
-struct AuthRequest {
-    username: String,
-    password: String,
+struct AuthRequest<'a> {
+    username: &'a str,
+    password: &'a str,
 }
 
 #[derive(Debug, Serialize)]
@@ -235,6 +249,17 @@ async fn get_users<'a>(
     Ok(Json(users))
 }
 
+#[get("/user/me")]
+async fn get_user<'a>(
+    db: &Db,
+    user: auth::AuthenticatedUser,
+) -> Result<Json<UserResponse>, BadRequest<String>> {
+    let user = psql_users::get_user(&user.username, &db.0)
+        .await
+        .map_err(|e| BadRequest(e.to_string()))?;
+    Ok(Json(user))
+}
+
 #[post("/session", format = "json")]
 async fn new_session<'a>(
     db: &Db,
@@ -288,8 +313,8 @@ async fn latest_session<'a>(
     Ok(Json(session))
 }
 
-#[post("/login", format = "json", data = "<credentials>")]
-async fn login(credentials: Json<AuthRequest>, db: &Db) -> Result<Json<AuthResponse>, Status> {
+#[post("/login", data = "<credentials>")]
+async fn login(credentials: Form<AuthRequest<'_>>, db: &Db) -> Result<Json<AuthResponse>, Status> {
     psql_users::authenticate_user(&credentials.username, &credentials.password, &db.0)
         .await
         .map_err(|_e| Status::Unauthorized)?;
@@ -300,7 +325,7 @@ async fn login(credentials: Json<AuthRequest>, db: &Db) -> Result<Json<AuthRespo
         .as_secs();
 
     let claims = Claims {
-        sub: credentials.username.clone(),
+        sub: credentials.username.to_string(),
         iat: now,
         exp: now + (60 * 30), // 30 minutes expiration
     };

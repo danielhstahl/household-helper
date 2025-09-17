@@ -1,6 +1,8 @@
 use argon2::{
     Argon2,
-    password_hash::{Error, PasswordHasher, SaltString, rand_core::OsRng},
+    password_hash::{
+        Error, PasswordHash, PasswordHasher, PasswordVerifier, SaltString, rand_core::OsRng,
+    },
 };
 use futures::stream::StreamExt;
 use rocket::serde::uuid::Uuid;
@@ -11,16 +13,14 @@ use std::{collections::HashMap, fmt};
 fn hash_password(password: &str) -> Result<String, Error> {
     // Generate a secure random salt
     let salt = SaltString::generate(&mut OsRng);
-
-    // Create an Argon2 instance with default parameters
-    let argon2 = Argon2::default();
-
-    // Hash the password using Argon2
-    let password_hash = argon2
+    let password_hash = Argon2::default()
         .hash_password(password.as_bytes(), &salt)?
         .to_string();
-
     Ok(password_hash)
+}
+fn check_password(password: &str, hashed_password: &str) -> Result<(), Error> {
+    let parsed_hash = PasswordHash::new(&hashed_password)?;
+    Argon2::default().verify_password(password.as_bytes(), &parsed_hash)
 }
 
 #[derive(Serialize, Deserialize, Type)]
@@ -50,7 +50,7 @@ struct UserDB {
 }
 #[derive(sqlx::FromRow)]
 struct RoleDB {
-    id: Uuid,
+    //id: Uuid,
     role: Role,
     username_id: Uuid,
 }
@@ -72,14 +72,15 @@ pub struct UserResponse {
 #[derive(Deserialize)]
 #[serde(crate = "rocket::serde")]
 pub struct UserRequest<'a> {
-    username: &'a str,
-    password: &'a str,
-    roles: Vec<Role>,
+    pub username: &'a str,
+    pub password: &'a str,
+    pub roles: Vec<Role>,
 }
 
 pub struct HashedPassword {
     hashed_password: String,
 }
+
 pub async fn authenticate_user(
     username: &str,
     password: &str,
@@ -94,13 +95,10 @@ pub async fn authenticate_user(
     )
     .fetch_one(pool)
     .await?;
-    let hashed_password =
-        hash_password(&password).map_err(|e| sqlx::Error::Protocol(e.to_string()))?;
-    if password_compare.hashed_password == hashed_password {
-        ()
-    }
 
-    Err(sqlx::Error::Protocol("Unauthorized".to_string()))
+    check_password(&password, &password_compare.hashed_password)
+        .map_err(|e| sqlx::Error::Protocol(e.to_string()))?;
+    Ok(())
 }
 
 pub async fn get_user(username: &str, pool: &Pool<Postgres>) -> sqlx::Result<UserResponse> {
@@ -117,7 +115,7 @@ pub async fn get_user(username: &str, pool: &Pool<Postgres>) -> sqlx::Result<Use
     let roles = sqlx::query_as!(
         RoleDB,
         r#"
-        SELECT id, role as "role: Role", username_id FROM roles where username_id=$1
+        SELECT role as "role: Role", username_id FROM roles where username_id=$1
         "#,
         &user_db.id
     )
@@ -162,7 +160,7 @@ pub async fn get_all_users(pool: &Pool<Postgres>) -> sqlx::Result<Vec<UserRespon
     let mut roles = sqlx::query_as!(
         RoleDB,
         r#"
-        SELECT id, role as "role: Role", username_id FROM roles
+        SELECT role as "role: Role", username_id FROM roles
         "#
     )
     .fetch(pool);
@@ -184,6 +182,27 @@ pub async fn get_all_users(pool: &Pool<Postgres>) -> sqlx::Result<Vec<UserRespon
         .collect())
 }
 
+async fn create_roles(id: &Uuid, roles: &[Role], pool: &Pool<Postgres>) -> sqlx::Result<()> {
+    let mut query_string = String::from("INSERT INTO roles (id, username_id, role) VALUES ");
+
+    // Generate the multi-row `VALUES` placeholders
+    // hilariously hacky...put the numbers in by dollar sign
+    let role_placeholders: Vec<String> = (0..roles.len())
+        .map(|i| format!("(gen_random_uuid(), ${}, ${})", 2 * i + 1, 2 * i + 2))
+        .collect();
+
+    query_string.push_str(&role_placeholders.join(", "));
+
+    // Create a `Query` object with the dynamic SQL string
+    let mut sqlx_query = query(&query_string);
+
+    // Bind each value individually to the query, including the enum
+    for role in roles {
+        sqlx_query = sqlx_query.bind(&id).bind(role);
+    }
+    sqlx_query.execute(pool).await?;
+    Ok(())
+}
 pub async fn create_user<'a>(user: &UserRequest<'a>, pool: &Pool<Postgres>) -> sqlx::Result<()> {
     let hashed_password =
         hash_password(&user.password).map_err(|e| sqlx::Error::Protocol(e.to_string()))?;
@@ -199,25 +218,7 @@ pub async fn create_user<'a>(user: &UserRequest<'a>, pool: &Pool<Postgres>) -> s
     )
     .fetch_one(pool)
     .await?;
-
-    let mut query_string = String::from("INSERT INTO roles (id, username_id, role) VALUES ");
-
-    // Generate the multi-row `VALUES` placeholders
-    // hilariously hacky...put the numbers in by dollar sign
-    let role_placeholders: Vec<String> = (0..user.roles.len())
-        .map(|i| format!("(gen_random_uuid(), ${}, ${})", 2 * i + 1, 2 * i + 2))
-        .collect();
-
-    query_string.push_str(&role_placeholders.join(", "));
-
-    // Create a `Query` object with the dynamic SQL string
-    let mut sqlx_query = query(&query_string);
-
-    // Bind each value individually to the query, including the enum
-    for role in &user.roles {
-        sqlx_query = sqlx_query.bind(&user_db.id).bind(role);
-    }
-    sqlx_query.execute(pool).await?;
+    create_roles(&user_db.id, &user.roles, pool).await?;
     Ok(())
 }
 
@@ -251,25 +252,7 @@ pub async fn patch_user<'a>(
     )
     .execute(pool)
     .await?;
-
-    let mut query_string = String::from("INSERT INTO roles (id, username_id, role) VALUES ");
-
-    // Generate the multi-row `VALUES` placeholders
-    // hilariously hacky...put the numbers in by dollar sign
-    let role_placeholders: Vec<String> = (0..user.roles.len())
-        .map(|i| format!("(gen_random_uuid(), ${}, ${})", 2 * i + 1, 2 * i + 2))
-        .collect();
-
-    query_string.push_str(&role_placeholders.join(", "));
-
-    // Create a `Query` object with the dynamic SQL string
-    let mut sqlx_query = query(&query_string);
-
-    // Bind each value individually to the query, including the enum
-    for role in &user.roles {
-        sqlx_query = sqlx_query.bind(&id).bind(role);
-    }
-    sqlx_query.execute(pool).await?;
+    create_roles(&id, &user.roles, pool).await?;
     Ok(())
 }
 
@@ -345,4 +328,23 @@ pub async fn delete_session<'a>(
     .execute(pool)
     .await?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::check_password;
+    use super::hash_password;
+
+    #[test]
+    fn it_returns_ok_if_password_matches() {
+        let result = hash_password("hello").unwrap();
+        let result = check_password("hello", &result);
+        assert!(result.is_ok());
+    }
+    #[test]
+    fn it_returns_err_if_password_does_not_matche() {
+        let result = hash_password("hello").unwrap();
+        let result = check_password("hello2", &result);
+        assert!(result.is_err());
+    }
 }
