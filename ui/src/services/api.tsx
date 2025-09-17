@@ -94,7 +94,7 @@ export const getMessages = (sessionId: string, jwt: string) => {
   });
 };
 export const getUser = async (jwt: string) => {
-  const response = await fetch("/api/users/me", {
+  const response = await fetch("/api/user/me", {
     headers: getHeaders(jwt),
   });
   const result = await response.json();
@@ -104,7 +104,7 @@ export const getUser = async (jwt: string) => {
   throw new Error(result.detail);
 };
 export const getUsers = async (jwt: string) => {
-  const response = await fetch("/api/users", {
+  const response = await fetch("/api/user", {
     headers: getHeaders(jwt),
   });
   const result = await response.json();
@@ -120,7 +120,7 @@ export const createUser = async (
   roles: string[],
   jwt: string,
 ) => {
-  const response = await fetch("/api/users", {
+  const response = await fetch("/api/user", {
     method: "POST",
     body: JSON.stringify({ username, password, roles }),
     headers: getHeaders(jwt),
@@ -142,7 +142,7 @@ export const updateUser = (
   const payload = password
     ? { username, password, roles }
     : { username, roles };
-  return fetch(`/api/users/${id}`, {
+  return fetch(`/api/user/${id}`, {
     method: "PATCH",
     body: JSON.stringify(payload),
     headers: getHeaders(jwt),
@@ -157,7 +157,7 @@ export const updateUser = (
 };
 
 export const deleteUser = (id: number, jwt: string) => {
-  return fetch(`/api/users/${id}`, {
+  return fetch(`/api/user/${id}`, {
     method: "DELETE",
     headers: getHeaders(jwt),
   }).then((response) => {
@@ -175,7 +175,7 @@ export const getToken = async (formData: FormData) => {
   const data = new URLSearchParams(
     formData as unknown as Record<string, string>,
   );
-  const response = await fetch("/api/token", {
+  const response = await fetch("/api/login", {
     method: "POST",
     body: data,
   });
