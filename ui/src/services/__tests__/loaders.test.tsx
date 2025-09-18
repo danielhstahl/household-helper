@@ -9,7 +9,7 @@ import { setLoggedInJwt } from "../../state/localState.tsx";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { http, HttpResponse } from "msw";
 import { setupWorker } from "msw/browser";
-import { DialogEnum } from "../../components/Output.tsx";
+import { MessageTypeEnum } from "../../components/Output.tsx";
 describe("loadSession", () => {
   beforeEach(() => {
     localStorage.clear();
@@ -131,13 +131,13 @@ describe("loadSessionsAndMessages", () => {
             id: 1,
             content: "hello world",
             timestamp: "time2",
-            persona: "it",
+            message_type: MessageTypeEnum.ai,
           },
           {
             id: 1,
             content: "hello world",
             timestamp: "time1",
-            persona: "it",
+            message_type: MessageTypeEnum.ai,
           },
         ]);
       }),
@@ -162,13 +162,13 @@ describe("loadSessionsAndMessages", () => {
           id: 1,
           content: "hello world",
           timestamp: "time1",
-          persona: DialogEnum.It,
+          message_type: MessageTypeEnum.ai,
         },
         {
           id: 1,
           content: "hello world",
           timestamp: "time2",
-          persona: DialogEnum.It,
+          message_type: MessageTypeEnum.ai,
         },
       ],
     });

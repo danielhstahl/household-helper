@@ -11,8 +11,8 @@ const getHeaders = (jwt: string) => ({
   Authorization: `Bearer ${jwt}`,
 });
 
-export const sendQuery = (text: string, jwt: string, sessionId: string) => {
-  return fetch(buildUrl("/api/query", sessionId), {
+export const sendHelper = (text: string, jwt: string, sessionId: string) => {
+  return fetch(buildUrl("/api/helper", sessionId), {
     method: "POST",
     body: JSON.stringify({ text }),
     headers: getHeaders(jwt),

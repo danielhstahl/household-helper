@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
 import Chat from "../components/Chat.tsx";
 import AgentSelection from "../components/AgentSelection.tsx";
-import Output, { DialogEnum, type Message } from "../components/Output.tsx";
+import Output, {
+  MessageTypeEnum,
+  type Message,
+} from "../components/Output.tsx";
 import { streamText } from "../services/api.tsx";
 import { invokeAgent, type AgentSelections } from "../state/selectAgent.tsx";
 import { getLoggedInJwt } from "../state/localState.tsx";
@@ -52,7 +55,7 @@ const MainChat = () => {
       messages: [
         ...state.messages,
         {
-          role: DialogEnum.Me,
+          message_type: MessageTypeEnum.human,
           content: value,
           id: state.messages.length,
           timestamp: Date.now().toString(),
@@ -72,7 +75,7 @@ const MainChat = () => {
       messages: [
         ...state.messages,
         {
-          role: DialogEnum.It,
+          message_type: MessageTypeEnum.ai,
           content: state.latestText,
           id: state.messages.length,
           timestamp: Date.now().toString(),
