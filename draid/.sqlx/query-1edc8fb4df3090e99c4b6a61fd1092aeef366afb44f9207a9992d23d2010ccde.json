@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            INSERT INTO messages (id, content, message_type, session_id, message_ts)\n            VALUES(gen_random_uuid(), $1, $2, $3, NOW())\n            ",
+  "query": "\n            INSERT INTO messages (id, content, message_type, session_id, username_id, message_ts)\n            VALUES(gen_random_uuid(), $1, $2, $3, $4, NOW())\n            ",
   "describe": {
     "columns": [],
     "parameters": {
@@ -19,10 +19,11 @@
             }
           }
         },
+        "Uuid",
         "Uuid"
       ]
     },
     "nullable": []
   },
-  "hash": "eee79ab314b53ae230266912fca239a4581a2491c2045e56454b267df15e064f"
+  "hash": "1edc8fb4df3090e99c4b6a61fd1092aeef366afb44f9207a9992d23d2010ccde"
 }

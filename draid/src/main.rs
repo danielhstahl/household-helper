@@ -3,7 +3,7 @@ extern crate rocket;
 mod auth;
 mod llm;
 mod psql_users;
-use jsonwebtoken::{EncodingKey, Header, encode};
+
 use llm::{chat, get_bot, get_llm};
 mod prompts;
 mod psql_memory;
@@ -17,18 +17,14 @@ use rocket::form::Form;
 use rocket::http::Status;
 use rocket::response::status::BadRequest;
 use rocket::response::stream::TextStream;
+use rocket::serde::uuid::Uuid;
 use rocket::serde::{Deserialize, Serialize, json::Json};
 use rocket::{Build, Rocket, State, futures};
 use rocket_db_pools::Database;
-//use sqlx::types::Uuid;
-use rocket::serde::uuid::Uuid;
 use std::env;
-use std::time::{SystemTime, UNIX_EPOCH};
 
-//TODO, pass JWT_SECRET as env variable
-use auth::{Claims, JWT_SECRET};
 use prompts::TUTOR_PROMPT;
-use psql_memory::Message;
+use psql_memory::MessageResult;
 use psql_users::{Role, SessionDB, UserRequest, UserResponse, create_user};
 
 #[derive(Database)]
@@ -42,7 +38,7 @@ async fn run_migrations(rocket: Rocket<Build>) -> fairing::Result {
                 let password = env::var("INIT_ADMIN_PASSWORD").unwrap();
                 let admin_user = UserRequest {
                     username: "admin",
-                    password: &password, //intentinoally don't start up if not set
+                    password: Some(&password), //intentinoally don't start up if not set
                     roles: vec![Role::Admin],
                 };
                 if psql_users::get_user(&admin_user.username, &**db)
@@ -159,6 +155,8 @@ async fn chat_with_bot(
                         eprintln!("Failed to send chunk to background task: {}", e);
                     }
                     yield tokens
+
+
                 },
                 Err(e) => yield e.to_string()
             }
@@ -176,7 +174,7 @@ struct AuthRequest<'a> {
 #[derive(Debug, Serialize)]
 #[serde(crate = "rocket::serde")]
 struct AuthResponse {
-    token: String,
+    access_token: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -319,25 +317,10 @@ async fn login(credentials: Form<AuthRequest<'_>>, db: &Db) -> Result<Json<AuthR
         .await
         .map_err(|_e| Status::Unauthorized)?;
 
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("Time went backwards")
-        .as_secs();
+    let access_token = auth::create_token(credentials.username.to_string())
+        .map_err(|_| Status::InternalServerError)?;
 
-    let claims = Claims {
-        sub: credentials.username.to_string(),
-        iat: now,
-        exp: now + (60 * 30), // 30 minutes expiration
-    };
-
-    let token = encode(
-        &Header::default(),
-        &claims,
-        &EncodingKey::from_secret(JWT_SECRET),
-    )
-    .map_err(|_| Status::InternalServerError)?;
-
-    Ok(Json(AuthResponse { token }))
+    Ok(Json(AuthResponse { access_token }))
 }
 
 #[get("/messages/<session_id>")]
@@ -345,7 +328,7 @@ async fn get_messages(
     session_id: Uuid,
     db: &Db,
     user: auth::AuthenticatedUser,
-) -> Result<Json<Vec<Message>>, BadRequest<String>> {
+) -> Result<Json<Vec<MessageResult>>, BadRequest<String>> {
     let psql_memory = PsqlMemory::new(100, session_id, user.id, db.0.clone());
     let messages = psql_memory
         .messages()

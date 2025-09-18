@@ -1,4 +1,4 @@
-use crate::psql_memory::{Message, MessageType};
+use crate::psql_memory::{MessageResult, MessageType};
 use async_openai::{
     Client,
     config::OpenAIConfig,
@@ -24,7 +24,7 @@ pub fn get_bot(
 ) -> Result<CreateChatCompletionRequest, OpenAIError> {
     CreateChatCompletionRequestArgs::default()
         .model(model_name)
-        .max_tokens(40_u32)
+        .max_tokens(8000_u32)
         .stream(true)
         .messages([ChatCompletionRequestSystemMessageArgs::default()
             .content(system_prompt)
@@ -37,7 +37,7 @@ pub fn get_bot(
 pub async fn chat(
     client: &Client<OpenAIConfig>,
     mut bot: CreateChatCompletionRequest,
-    previous_messages: &[Message],
+    previous_messages: &[MessageResult],
     new_message: &str,
 ) -> Result<
     Pin<

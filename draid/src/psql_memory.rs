@@ -1,7 +1,7 @@
-//use langchain_rust::schemas::{ImageContent, MessageType, memory::BaseMemory, messages::Message};
 use rocket::serde::{Deserialize, Serialize};
 use rocket::tokio::sync::mpsc;
 use rocket::tokio::sync::mpsc::Sender;
+use sqlx::types::chrono;
 use sqlx::{Pool, Postgres, Type, types::Uuid};
 #[derive(Serialize, Deserialize, Type)]
 #[serde(crate = "rocket::serde")]
@@ -21,7 +21,15 @@ pub enum MessageType {
     ToolMessage,
 }
 
-#[derive(Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Serialize, sqlx::FromRow)]
+#[serde(crate = "rocket::serde")]
+pub struct MessageResult {
+    pub content: String,
+    pub message_type: MessageType,
+    pub timestamp: chrono::DateTime<chrono::Utc>,
+}
+
+#[derive(Serialize, Deserialize)]
 #[serde(crate = "rocket::serde")]
 pub struct Message {
     pub content: String,
@@ -35,9 +43,6 @@ pub struct PsqlMemory {
     pool: Pool<Postgres>,
 }
 
-// TODO consider refactoring to just call functions
-// rather than recreating a class and calling methods on
-// the class
 impl PsqlMemory {
     pub fn new(
         num_messages: usize,
@@ -52,12 +57,13 @@ impl PsqlMemory {
             pool,
         }
     }
-    pub async fn messages(&self) -> sqlx::Result<Vec<Message>> {
+    pub async fn messages(&self) -> sqlx::Result<Vec<MessageResult>> {
         sqlx::query_as!(
-            Message,
+            MessageResult,
             r#"
             SELECT content as "content: String",
-            message_type as "message_type: MessageType"
+            message_type as "message_type: MessageType",
+            message_ts as "timestamp"
             FROM messages WHERE session_id = $1
             AND username_id = $2
             ORDER BY message_ts limit $3
@@ -73,12 +79,13 @@ impl PsqlMemory {
     pub async fn add_message(&self, message: Message) -> sqlx::Result<()> {
         sqlx::query!(
             r#"
-            INSERT INTO messages (id, content, message_type, session_id, message_ts)
-            VALUES(gen_random_uuid(), $1, $2, $3, NOW())
+            INSERT INTO messages (id, content, message_type, session_id, username_id, message_ts)
+            VALUES(gen_random_uuid(), $1, $2, $3, $4, NOW())
             "#,
             &message.content,
             message.message_type as MessageType,
-            &self.session_id
+            &self.session_id,
+            &self.username_id
         )
         .execute(&self.pool)
         .await?;
@@ -101,7 +108,6 @@ pub async fn manage_chat_interaction(
         while let Some(chunk) = rx.recv().await {
             full_response.push_str(&chunk);
         }
-
         let message = Message {
             content: full_response,
             message_type: MessageType::AIMessage,

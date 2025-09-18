@@ -73,7 +73,7 @@ pub struct UserResponse {
 #[serde(crate = "rocket::serde")]
 pub struct UserRequest<'a> {
     pub username: &'a str,
-    pub password: &'a str,
+    pub password: Option<&'a str>,
     pub roles: Vec<Role>,
 }
 
@@ -204,8 +204,11 @@ async fn create_roles(id: &Uuid, roles: &[Role], pool: &Pool<Postgres>) -> sqlx:
     Ok(())
 }
 pub async fn create_user<'a>(user: &UserRequest<'a>, pool: &Pool<Postgres>) -> sqlx::Result<()> {
+    let password = user
+        .password
+        .ok_or_else(|| sqlx::Error::Protocol("Password is required to create user".to_string()))?;
     let hashed_password =
-        hash_password(&user.password).map_err(|e| sqlx::Error::Protocol(e.to_string()))?;
+        hash_password(&password).map_err(|e| sqlx::Error::Protocol(e.to_string()))?;
     let user_db = sqlx::query_as!(
         UserDB,
         r#"
@@ -227,21 +230,37 @@ pub async fn patch_user<'a>(
     user: &UserRequest<'a>,
     pool: &Pool<Postgres>,
 ) -> sqlx::Result<()> {
-    let hashed_password =
-        hash_password(&user.password).map_err(|e| sqlx::Error::Protocol(e.to_string()))?;
-    sqlx::query_as!(
-        UserDB,
-        r#"
-        UPDATE users
-        set username=$1, hashed_password=$2
-        where id=$3
-        "#,
-        &user.username,
-        &hashed_password,
-        &id
-    )
-    .execute(pool)
+    match &user.password {
+        Some(password) => {
+            let hashed_password =
+                hash_password(password).map_err(|e| sqlx::Error::Protocol(e.to_string()))?;
+            sqlx::query_as!(
+                UserDB,
+                r#"
+                UPDATE users
+                set username=$1, hashed_password=$2
+                where id=$3
+                "#,
+                &user.username,
+                &hashed_password,
+                &id
+            )
+            .execute(pool)
+        }
+        None => sqlx::query_as!(
+            UserDB,
+            r#"
+                UPDATE users
+                set username=$1
+                where id=$2
+                "#,
+            &user.username,
+            &id
+        )
+        .execute(pool),
+    }
     .await?;
+
     sqlx::query_as!(
         UserDB,
         r#"
