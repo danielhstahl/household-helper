@@ -198,7 +198,7 @@ describe("loadUser", () => {
   it("returns user if jwt", async () => {
     setLoggedInJwt("dummyjwt");
     const server = setupWorker(
-      http.get("/api/users/me", () => {
+      http.get("/api/user/me", () => {
         return HttpResponse.json({
           id: 1,
         });
@@ -219,7 +219,7 @@ describe("loadUsers", () => {
   it("redirects to login if no jwt", async () => {
     setLoggedInJwt(null);
     const server = setupWorker(
-      http.get("/api/users", () => {
+      http.get("/api/user", () => {
         return HttpResponse.json({
           id: 1,
         });
@@ -233,7 +233,7 @@ describe("loadUsers", () => {
   it("returns users if jwt", async () => {
     setLoggedInJwt("dummyjwt");
     const server = setupWorker(
-      http.get("/api/users", () => {
+      http.get("/api/user", () => {
         return HttpResponse.json([
           {
             id: 1,
