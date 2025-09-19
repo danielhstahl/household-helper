@@ -1,15 +1,13 @@
 ## Household Helper
 
-This is a slimmed-down bot that is intended to be a more capable Alexa.  Currently it is a standard chatbot with different "voices"/"agents" from different system prompts.  It is intended to be used with Ollama for embeddings and LMStudio for the foundation model.
+This is a slimmed-down bot that is intended to be a more capable Alexa.  Currently it is a standard chatbot with different "voices"/"agents" from different system prompts.  It is intended to be used with Ollama for RAG embeddings and LMStudio for the foundation model.
 
 The intent is to create a local/private "intelligence appliance".
 
 ## Technology
 
-* Llama-index for llm/agent orchestration
-* FastAPI for the API layer
-* PSQL for vector database
-* SQLite or PSQL for user management
+* Server using Rocket and async-openai
+* PSQL for user/vector database
 * React with Material UI for the client
 
 ## Development
@@ -45,7 +43,9 @@ psql -d postgres -c "CREATE DATABASE fastapi_db;"
 
 ### Recommended dev command
 
-`INIT_ADMIN_PASSWORD=[yourinitpassword] USER_DATABASE_URL=postgresql://postgres:[yourpassword]@localhost:5432 fastapi dev main.py`
+Change directory to [draid](./draid), and run
+
+`INIT_ADMIN_PASSWORD=[yourinitpassword] USER_DATABASE_URL=postgresql://postgres:[yourpassword]@localhost:5432 cargo run`
 
 
 ## Deploy
@@ -53,10 +53,11 @@ psql -d postgres -c "CREATE DATABASE fastapi_db;"
 There are two Docker images, one for the UI (static files) and one for the API.  The UI Docker includes an nginx config that needs to point to the address of the App Docker.  These images are built and available at `ghcr.io/danielhstahl/householdhelper-ui:${tag}` and `ghcr.io/danielhstahl/householdhelper-app:${tag}`.  The following environmental variables need to be defined on the app Docker:
 * LM_STUDIO_ENDPOINT (defaults to "http://localhost:1234")
 * OLLAMA_ENDPOINT (defaults to "http://localhost:11434")
-* VECTOR_DATABASE_URL (defaults to "postgresql://postgres:yourpassword@localhost:5432")
-* USER_DATABASE_URL (defaults to "sqlite://", in production this can be the same as VECTOR_DATABASE_URL)
-* INIT_ADMIN_PASSWORD (required to start the app)
-* MLFLOW_TRACKING_URL.  Set for enabling traces
+* ROCKET_DATABASES (eg, '{draid={url="postgresql://[yourpsqluser]:[yourpsqlpassword]@psqldb:5432/draid"}}')
+* ROCKET_PORT (eg 8000)
+* ROCKET_ADDRESS (eg, 0.0.0.0)
+* JWT_SECRET (a secret string for authentication)
+
 
 In the UI docker:
 * BACKEND_SERVICE.  Needs to be [ip/dns]:[port] of your app docker.

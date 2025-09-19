@@ -9,7 +9,7 @@ services:
       JWT_SECRET: [yourjwtsecret]
       #VECTOR_DATABASE_URL: postgresql://[yourpsqluser]:[yourpsqlpassword]@vectordb:5432
       #USER_DATABASE_URL: postgresql://[yourpsqluser]:[yourpsqlpassword]@vectordb:5432
-      ROCKET_DATABASES: '{draid={url="postgresql://[yourpsqluser]:[yourpsqlpassword]@vectordb:5432/draid"}}'
+      ROCKET_DATABASES: '{draid={url="postgresql://[yourpsqluser]:[yourpsqlpassword]@psqldb:5432/draid"}}'
       ROCKET_PORT: 8000
       ROCKET_ADDRESS: 0.0.0.0
       #MLFLOW_TRACKING_URL: http://mlflow:5002
