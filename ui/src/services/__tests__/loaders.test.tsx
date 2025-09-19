@@ -9,7 +9,7 @@ import { setLoggedInJwt } from "../../state/localState.tsx";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { http, HttpResponse } from "msw";
 import { setupWorker } from "msw/browser";
-import { DialogEnum } from "../../components/Output.tsx";
+import { MessageTypeEnum } from "../../components/Output.tsx";
 describe("loadSession", () => {
   beforeEach(() => {
     localStorage.clear();
@@ -131,13 +131,13 @@ describe("loadSessionsAndMessages", () => {
             id: 1,
             content: "hello world",
             timestamp: "time2",
-            persona: "it",
+            message_type: MessageTypeEnum.ai,
           },
           {
             id: 1,
             content: "hello world",
             timestamp: "time1",
-            persona: "it",
+            message_type: MessageTypeEnum.ai,
           },
         ]);
       }),
@@ -162,13 +162,13 @@ describe("loadSessionsAndMessages", () => {
           id: 1,
           content: "hello world",
           timestamp: "time1",
-          persona: DialogEnum.It,
+          message_type: MessageTypeEnum.ai,
         },
         {
           id: 1,
           content: "hello world",
           timestamp: "time2",
-          persona: DialogEnum.It,
+          message_type: MessageTypeEnum.ai,
         },
       ],
     });
@@ -198,7 +198,7 @@ describe("loadUser", () => {
   it("returns user if jwt", async () => {
     setLoggedInJwt("dummyjwt");
     const server = setupWorker(
-      http.get("/api/users/me", () => {
+      http.get("/api/user/me", () => {
         return HttpResponse.json({
           id: 1,
         });
@@ -219,7 +219,7 @@ describe("loadUsers", () => {
   it("redirects to login if no jwt", async () => {
     setLoggedInJwt(null);
     const server = setupWorker(
-      http.get("/api/users", () => {
+      http.get("/api/user", () => {
         return HttpResponse.json({
           id: 1,
         });
@@ -233,7 +233,7 @@ describe("loadUsers", () => {
   it("returns users if jwt", async () => {
     setLoggedInJwt("dummyjwt");
     const server = setupWorker(
-      http.get("/api/users", () => {
+      http.get("/api/user", () => {
         return HttpResponse.json([
           {
             id: 1,

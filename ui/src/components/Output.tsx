@@ -10,17 +10,23 @@ import rehypeKatex from "rehype-katex";
 import "katex/dist/katex.min.css";
 import remarkGfm from "remark-gfm"; // For GitHub-flavored Markdown (tables, strikethrough, etc.)
 import { memo } from "react";
-export const DialogEnum = {
-  Me: "me",
-  It: "it",
+
+export const MessageTypeEnum = {
+  human: "human",
+  ai: "ai",
+  system: "system",
+  tool: "tool",
 } as const;
-export type Dialog = (typeof DialogEnum)[keyof typeof DialogEnum];
+
+export type MessageType =
+  (typeof MessageTypeEnum)[keyof typeof MessageTypeEnum];
+
 export interface Message {
-  role: Dialog; //me or it
+  message_type: MessageType;
   content: string;
-  id: number;
   timestamp: string;
 }
+
 interface OutputProps {
   messages: Message[];
   isWaiting: boolean;
@@ -58,19 +64,22 @@ const Output = ({ messages, isWaiting, latestText, loading }: OutputProps) => {
           }}
         >
           {loading && <CircularProgress />}
-          {messages.map(({ role, content }, id) => (
+          {messages.map(({ message_type, content }, id) => (
             <Box
               key={id}
               style={{
-                alignSelf: role === DialogEnum.Me ? "flex-end" : "flex-start",
+                alignSelf:
+                  message_type === MessageTypeEnum.human
+                    ? "flex-end"
+                    : "flex-start",
                 maxWidth: "70%",
                 borderRadius: 16,
                 backgroundColor:
-                  role === DialogEnum.Me
+                  message_type === MessageTypeEnum.human
                     ? theme.palette.primary.main
                     : theme.palette.text.disabled, //theme.palette.grey[300],
                 color:
-                  role === DialogEnum.Me
+                  message_type === MessageTypeEnum.human
                     ? theme.palette.primary.contrastText
                     : theme.palette.text.primary,
                 padding: theme.spacing(1, 2),

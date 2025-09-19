@@ -1,12 +1,12 @@
 import { describe, it, expect } from "vitest";
 import { render } from "vitest-browser-react";
-import Output, { DialogEnum } from "../Output.tsx";
+import Output, { MessageTypeEnum } from "../Output.tsx";
 
 describe("Output", () => {
   it("renders", async () => {
     const messages = [
       {
-        role: DialogEnum.Me,
+        message_type: MessageTypeEnum.human,
         id: 1,
         content: "hello",
         timestamp: "sometime",
@@ -25,7 +25,7 @@ describe("Output", () => {
   it("shows loading if loading", async () => {
     const messages = [
       {
-        role: DialogEnum.Me,
+        message_type: MessageTypeEnum.human,
         id: 1,
         content: "hello",
         timestamp: "sometime",
@@ -44,7 +44,7 @@ describe("Output", () => {
   it("shows loading if isWaiting", async () => {
     const messages = [
       {
-        role: DialogEnum.Me,
+        message_type: MessageTypeEnum.human,
         id: 1,
         content: "hello",
         timestamp: "sometime",
@@ -63,7 +63,7 @@ describe("Output", () => {
   it("shows latest text if latestText", async () => {
     const messages = [
       {
-        role: DialogEnum.Me,
+        message_type: MessageTypeEnum.human,
         id: 1,
         content: "hello",
         timestamp: "sometime",

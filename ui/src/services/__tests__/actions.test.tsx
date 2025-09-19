@@ -77,7 +77,7 @@ describe("loginAction", () => {
   it("returns jwt on successful login", async () => {
     setLoggedInJwt("dummyjwt");
     const server = setupWorker(
-      http.post("/api/token", () => {
+      http.post("/api/login", () => {
         return HttpResponse.json({
           access_token: "helloworld",
         });
@@ -88,7 +88,7 @@ describe("loginAction", () => {
     formData.append("username", "hello");
     formData.append("password", "world");
     const result = await loginAction({
-      request: new Request("/token", { method: "POST", body: formData }),
+      request: new Request("/login", { method: "POST", body: formData }),
       params: {},
       context: {},
     });
@@ -101,7 +101,7 @@ describe("loginAction", () => {
   });
   it("returns error if not authenticated", async () => {
     const server = setupWorker(
-      http.post("/api/token", () => {
+      http.post("/api/login", () => {
         return HttpResponse.json({ detail: "bad things" }, { status: 404 });
       }),
     );
@@ -110,7 +110,7 @@ describe("loginAction", () => {
     formData.append("username", "hello");
     formData.append("password", "world");
     const result = await loginAction({
-      request: new Request("/token", { method: "POST", body: formData }),
+      request: new Request("/login", { method: "POST", body: formData }),
       params: {},
       context: {},
     });
@@ -162,7 +162,7 @@ describe("userAction", () => {
   it("returns new user if POST and JWT", async () => {
     setLoggedInJwt("dummyjwt");
     const server = setupWorker(
-      http.post("/api/users", () => {
+      http.post("/api/user", () => {
         return HttpResponse.json({
           id: 2,
           username: "hello",
@@ -196,7 +196,7 @@ describe("userAction", () => {
   it("updates new user if PATCH and JWT", async () => {
     setLoggedInJwt("dummyjwt");
     const server = setupWorker(
-      http.patch("/api/users/:id", ({ params }) => {
+      http.patch("/api/user/:id", ({ params }) => {
         const { id } = params;
         return HttpResponse.json({
           id: parseInt(id as string),
@@ -232,7 +232,7 @@ describe("userAction", () => {
   it("deletes user if DELETE and JWT", async () => {
     setLoggedInJwt("dummyjwt");
     const server = setupWorker(
-      http.delete("/api/users/:id", () => {
+      http.delete("/api/user/:id", () => {
         return HttpResponse.json({
           status: "success",
         });

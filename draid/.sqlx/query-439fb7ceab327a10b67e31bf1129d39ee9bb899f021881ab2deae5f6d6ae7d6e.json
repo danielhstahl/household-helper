@@ -1,0 +1,48 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT content as \"content: String\",\n            message_type as \"message_type: MessageType\",\n            message_ts as \"timestamp\"\n            FROM messages WHERE session_id = $1\n            AND username_id = $2\n            ORDER BY message_ts limit $3\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "content: String",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "message_type: MessageType",
+        "type_info": {
+          "Custom": {
+            "name": "message_type",
+            "kind": {
+              "Enum": [
+                "system",
+                "ai",
+                "human",
+                "tool"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "timestamp",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "439fb7ceab327a10b67e31bf1129d39ee9bb899f021881ab2deae5f6d6ae7d6e"
+}

@@ -1,4 +1,4 @@
-import { sendQuery, sendTutor } from "../services/api.tsx";
+import { sendHelper, sendTutor } from "../services/api.tsx";
 
 const HELPER = "helper";
 const TUTOR = "tutor";
@@ -19,7 +19,7 @@ export const invokeAgent = (
 ) => {
   switch (selectedAgent) {
     case AgentSelectionsEnum.HELPER:
-      return sendQuery(query, jwt, sessionId).then((r) => r.body!.getReader());
+      return sendHelper(query, jwt, sessionId).then((r) => r.body!.getReader());
     case AgentSelectionsEnum.TUTOR:
       return sendTutor(query, jwt, sessionId).then((r) => r.body!.getReader());
   }
