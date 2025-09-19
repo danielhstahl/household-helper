@@ -10,22 +10,18 @@ mod psql_memory;
 use async_openai::{Client, config::OpenAIConfig, types::CreateChatCompletionRequest};
 use futures::StreamExt;
 use prompts::HELPER_PROMPT;
-use psql_memory::PsqlMemory;
-use psql_memory::manage_chat_interaction;
+use prompts::TUTOR_PROMPT;
+use psql_memory::{MessageResult, PsqlMemory, manage_chat_interaction};
+use psql_users::{Role, SessionDB, UserRequest, UserResponse, create_user};
 use rocket::fairing::{self, AdHoc};
 use rocket::form::Form;
 use rocket::http::Status;
 use rocket::response::status::BadRequest;
 use rocket::response::stream::TextStream;
-use rocket::serde::uuid::Uuid;
-use rocket::serde::{Deserialize, Serialize, json::Json};
+use rocket::serde::{Deserialize, Serialize, json::Json, uuid::Uuid};
 use rocket::{Build, Rocket, State, futures};
 use rocket_db_pools::Database;
 use std::env;
-
-use prompts::TUTOR_PROMPT;
-use psql_memory::MessageResult;
-use psql_users::{Role, SessionDB, UserRequest, UserResponse, create_user};
 
 #[derive(Database)]
 #[database("draid")]
@@ -60,7 +56,8 @@ async fn run_migrations(rocket: Rocket<Build>) -> fairing::Result {
 
 struct AiConfig {
     lm_studio_endpoint: String,
-    ollama_endpoint: String,
+    //When adding RAG use this endpoint
+    //ollama_endpoint: String,
 }
 
 struct Bots {
@@ -75,11 +72,13 @@ fn rocket() -> _ {
             Ok(v) => v,
             Err(_e) => "http://localhost:1234".to_string(),
         },
-        ollama_endpoint: match env::var("OLLAMA_ENDPOINT") {
+        /*ollama_endpoint: match env::var("OLLAMA_ENDPOINT") {
             Ok(v) => v,
             Err(_e) => "http://localhost:11434".to_string(),
-        },
+        },*/
     };
+
+    let jwt_secret = env::var("JWT_SECRET").unwrap().into_bytes();
 
     let model_name = "qwen3-8b";
     //happens at startup, so can "safely" unwrap
@@ -90,7 +89,7 @@ fn rocket() -> _ {
 
     let llm = get_llm(&ai_config.lm_studio_endpoint);
 
-    //todo, get embeddings
+    //todo, get embeddings for RAG
 
     rocket::build()
         .attach(Db::init())
@@ -98,6 +97,7 @@ fn rocket() -> _ {
         .manage(ai_config)
         .manage(llm)
         .manage(bots)
+        .manage(jwt_secret)
         .mount(
             "/",
             routes![
@@ -312,12 +312,16 @@ async fn latest_session<'a>(
 }
 
 #[post("/login", data = "<credentials>")]
-async fn login(credentials: Form<AuthRequest<'_>>, db: &Db) -> Result<Json<AuthResponse>, Status> {
+async fn login(
+    credentials: Form<AuthRequest<'_>>,
+    db: &Db,
+    jwt_secret: &State<Vec<u8>>,
+) -> Result<Json<AuthResponse>, Status> {
     psql_users::authenticate_user(&credentials.username, &credentials.password, &db.0)
         .await
         .map_err(|_e| Status::Unauthorized)?;
 
-    let access_token = auth::create_token(credentials.username.to_string())
+    let access_token = auth::create_token(credentials.username.to_string(), &jwt_secret)
         .map_err(|_| Status::InternalServerError)?;
 
     Ok(Json(AuthResponse { access_token }))

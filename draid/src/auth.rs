@@ -1,18 +1,11 @@
 use crate::Db;
-use crate::psql_users::get_user;
-use crate::psql_users::{Role, UserResponse};
+use crate::psql_users::{Role, UserResponse, get_user};
 use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation, decode, encode};
 use rocket::http::Status;
 use rocket::request::{FromRequest, Outcome, Request};
-use rocket::serde::uuid::Uuid;
-use rocket::serde::{Deserialize, Serialize};
-//use jsonwebtoken::{EncodingKey, Header, encode};
+use rocket::serde::{Deserialize, Serialize, uuid::Uuid};
 use std::fmt;
-
 use std::time::{SystemTime, UNIX_EPOCH};
-
-//TODO, pass JWT_SECRET as env variable
-pub const JWT_SECRET: &[u8] = b"secret-jwt-key";
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(crate = "rocket::serde")]
@@ -36,7 +29,7 @@ impl fmt::Display for AuthError {
 }
 impl std::error::Error for AuthError {}
 
-pub fn create_token(username: String) -> Result<String, AuthError> {
+pub fn create_token(username: String, jwt_secret: &[u8]) -> Result<String, AuthError> {
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .expect("Time went backwards")
@@ -50,12 +43,15 @@ pub fn create_token(username: String) -> Result<String, AuthError> {
     encode(
         &Header::new(Algorithm::HS256),
         &claims,
-        &EncodingKey::from_secret(JWT_SECRET),
+        &EncodingKey::from_secret(jwt_secret),
     )
     .map_err(|e| AuthError { msg: e.to_string() })
 }
 
 async fn auth_by_role<'r>(req: &'r Request<'_>) -> Result<UserResponse, AuthError> {
+    let jwt_secret = req.rocket().state::<Vec<u8>>().ok_or_else(|| AuthError {
+        msg: "JWT Secret does not exist".to_string(),
+    })?;
     let auth_header = req.headers().get_one("Authorization");
 
     let header = auth_header.ok_or_else(|| AuthError {
@@ -70,7 +66,7 @@ async fn auth_by_role<'r>(req: &'r Request<'_>) -> Result<UserResponse, AuthErro
     }?;
     let token_data = decode::<Claims>(
         token,
-        &DecodingKey::from_secret(JWT_SECRET),
+        &DecodingKey::from_secret(jwt_secret),
         &Validation::new(Algorithm::HS256),
     )
     .map_err(|e| AuthError { msg: e.to_string() })?;
@@ -84,7 +80,9 @@ async fn auth_by_role<'r>(req: &'r Request<'_>) -> Result<UserResponse, AuthErro
 }
 
 pub struct Admin {
+    #[allow(dead_code)]
     pub id: Uuid,
+    #[allow(dead_code)]
     pub username: String,
 }
 
@@ -115,6 +113,7 @@ impl<'r> FromRequest<'r> for Admin {
 
 pub struct Tutor {
     pub id: Uuid,
+    #[allow(dead_code)]
     pub username: String,
 }
 
@@ -144,6 +143,7 @@ impl<'r> FromRequest<'r> for Tutor {
 }
 pub struct Helper {
     pub id: Uuid,
+    #[allow(dead_code)]
     pub username: String,
 }
 #[rocket::async_trait]
@@ -192,3 +192,23 @@ impl<'r> FromRequest<'r> for AuthenticatedUser {
         })
     }
 }
+/*
+#[cfg(test)]
+mod tests {
+    use super::check_password;
+    use super::hash_password;
+
+    #[test]
+    fn it_returns_ok_if_password_matches() {
+        let result = hash_password("hello").unwrap();
+        let result = check_password("hello", &result);
+        assert!(result.is_ok());
+    }
+    #[test]
+    fn it_returns_err_if_password_does_not_matche() {
+        let result = hash_password("hello").unwrap();
+        let result = check_password("hello2", &result);
+        assert!(result.is_err());
+    }
+}
+*/

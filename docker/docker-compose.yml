@@ -1,14 +1,18 @@
 services:
   app:
-    image: ghcr.io/danielhstahl/householdhelper-app:v0.1.2
+    image: ghcr.io/danielhstahl/householdhelper-draid:v0.1.2
     container_name: app
     environment:
       INIT_ADMIN_PASSWORD: [yourpassword]
       LM_STUDIO_ENDPOINT: http://[yourllmip]:8100/ai/llm
       OLLAMA_ENDPOINT: http://[yourllmip]:8100/ai/embedding
-      VECTOR_DATABASE_URL: postgresql://[yourpsqluser]:[yourpsqlpassword]@vectordb:5432
-      USER_DATABASE_URL: postgresql://[yourpsqluser]:[yourpsqlpassword]@vectordb:5432
-      MLFLOW_TRACKING_URL: http://mlflow:5002
+      JWT_SECRET: [yourjwtsecret]
+      #VECTOR_DATABASE_URL: postgresql://[yourpsqluser]:[yourpsqlpassword]@vectordb:5432
+      #USER_DATABASE_URL: postgresql://[yourpsqluser]:[yourpsqlpassword]@vectordb:5432
+      ROCKET_DATABASES: '{draid={url="postgresql://[yourpsqluser]:[yourpsqlpassword]@vectordb:5432/draid"}}'
+      ROCKET_PORT: 8000
+      ROCKET_ADDRESS: 0.0.0.0
+      #MLFLOW_TRACKING_URL: http://mlflow:5002
 
   ui:
     image: ghcr.io/danielhstahl/householdhelper-ui:v0.1.2
@@ -18,22 +22,14 @@ services:
     ports:
       - "8002:8000"
 
-  vectordb:
+  psqldb:
     image: pgvector/pgvector:0.8.0-pg17-trixie
-    container_name: vectordb
+    container_name: psqldb
     environment:
       POSTGRES_PASSWORD: [yourpsqlpassword]
       POSTGRES_USER: [yourpsqluser]
     volumes:
       - "/volume1/docker/postgres:/var/lib/postgresql/data/"
 
-  mlflow:
-    image: ghcr.io/mlflow/mlflow:v3.3.2
-    container_name: mlflow
-    # for exposing outside the container network
-    ports:
-      - "5002:5000"
-    command: mlflow server -h 0.0.0.0
-
 volumes:
-  vectordb:
+  psqldb:
