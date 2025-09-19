@@ -20,9 +20,7 @@ describe("AppBar", () => {
       },
     ]);
     const screen = render(<Stub />);
-    await expect
-      .element(screen.getByText(/Household Droid/i))
-      .toBeInTheDocument();
+    await expect.element(screen.getByText(/Draid/i)).toBeInTheDocument();
   });
 
   it("has correct settings when admin", async () => {
