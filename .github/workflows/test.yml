@@ -42,6 +42,15 @@ jobs:
         env:
           SQLX_OFFLINE: true # needed to keep it from trying to connect to a database
 
+      - name: build musl
+        working-directory: draid
+        run: |
+          curl -L https://github.com/cross-rs/cross/releases/download/v0.2.5/cross-x86_64-unknown-linux-gnu.tar.gz -o cross-x86_64-unknown-linux-gnu.tar.gz
+          tar -xvzf cross-x86_64-unknown-linux-gnu.tar.gz
+          rustup update stable
+          rustup target add x86_64-unknown-linux-musl
+          ./cross build --release --target x86_64-unknown-linux-musl
+
       - name: generate docker
         run: |
           docker build -t ghcr.io/danielhstahl/householdhelper-draid -f docker/draid.Dockerfile .
