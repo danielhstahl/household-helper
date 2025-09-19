@@ -41,11 +41,10 @@ jobs:
           cat lcov.info
         env:
           SQLX_OFFLINE: true # needed to keep it from trying to connect to a database
+
       - name: generate docker
         run: |
           docker build -t ghcr.io/danielhstahl/householdhelper-draid -f docker/draid.Dockerfile .
-        env:
-          SQLX_OFFLINE: true
 
   run_ui_tests:
     name: Run UI tests
