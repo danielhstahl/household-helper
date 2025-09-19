@@ -77,7 +77,7 @@ jobs:
 
       - name: generate docker
         run: |
-          docker build -t ghcr.io/danielhstahl/householdhelper-draid -f docker/draid.Dockerfile .
+          docker build -t ghcr.io/danielhstahl/householdhelper-draid:${{ github.event.release.tag_name }} -f docker/draid.Dockerfile .
 
       - name: Log in to the Container registry
         uses: docker/login-action@65b78e6e13532edd9afa3aa52ac7964289d1a9c1
