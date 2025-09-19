@@ -12,9 +12,6 @@ use async_openai::{
 };
 use std::pin::Pin;
 
-// Create request using builder pattern
-// Every request struct has companion builder struct with same name + Args suffix
-
 pub fn get_llm(api_endpoint: &str) -> Client<OpenAIConfig> {
     Client::with_config(OpenAIConfig::default().with_api_base(format!("{}/v1", api_endpoint)))
 }
@@ -24,7 +21,6 @@ pub fn get_bot(
 ) -> Result<CreateChatCompletionRequest, OpenAIError> {
     CreateChatCompletionRequestArgs::default()
         .model(model_name)
-        .max_tokens(8000_u32)
         .stream(true)
         .messages([ChatCompletionRequestSystemMessageArgs::default()
             .content(system_prompt)
@@ -33,10 +29,9 @@ pub fn get_bot(
         .build()
 }
 
-//unforutnately I think I need to clone the bot each time
 pub async fn chat(
     client: &Client<OpenAIConfig>,
-    mut bot: CreateChatCompletionRequest,
+    mut bot: CreateChatCompletionRequest, //this is cloned for each request
     previous_messages: &[MessageResult],
     new_message: &str,
 ) -> Result<
@@ -52,7 +47,9 @@ pub async fn chat(
     >,
     OpenAIError,
 > {
-    bot.messages.truncate(1); //only keep system prompt
+    // bot.messages only has the values from get_bot.  Since bot is cloned,
+    // new bot.messages created below are dropped after streaming and are
+    // not persisted across requests
 
     for v in previous_messages.iter() {
         bot.messages.push(match v.message_type {
