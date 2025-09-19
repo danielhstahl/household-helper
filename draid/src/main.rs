@@ -262,14 +262,12 @@ async fn get_user<'a>(
 async fn new_session<'a>(
     db: &Db,
     user: auth::AuthenticatedUser, //guard, only authenticated users can access
-) -> Result<Json<StatusResponse>, BadRequest<String>> {
-    psql_users::create_session(&user.id, &db.0)
+) -> Result<Json<SessionDB>, BadRequest<String>> {
+    let session = psql_users::create_session(&user.id, &db.0)
         .await
         .map_err(|e| BadRequest(e.to_string()))?;
 
-    Ok(Json(StatusResponse {
-        status: ResponseStatus::Success,
-    }))
+    Ok(Json(session))
 }
 
 #[delete("/session/<session_id>")]

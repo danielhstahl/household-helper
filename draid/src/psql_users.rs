@@ -50,7 +50,6 @@ struct UserDB {
 }
 #[derive(sqlx::FromRow)]
 struct RoleDB {
-    //id: Uuid,
     role: Role,
     username_id: Uuid,
 }
@@ -102,7 +101,6 @@ pub async fn authenticate_user(
 }
 
 pub async fn get_user(username: &str, pool: &Pool<Postgres>) -> sqlx::Result<UserResponse> {
-    //todo do this in parallel
     let user_db = sqlx::query_as!(
         UserDB,
         r#"

@@ -20,6 +20,7 @@ export const loadSession = async ({ params }: LoaderFunctionArgs) => {
   try {
     const session = await getMostRecentSession(jwt);
     const sessionId = session ? session.id : (await createSession(jwt)).id;
+    //redirect to route that loads loadSessionsAndMessages
     const redirectRoute = getRedirectRoute(params.agent, sessionId);
     return redirect(redirectRoute);
   } catch (error) {
