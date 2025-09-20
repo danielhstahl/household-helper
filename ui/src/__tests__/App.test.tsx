@@ -32,8 +32,6 @@ const createRouter = () => {
 describe("App", () => {
   it("renders", async () => {
     const screen = render(<RouterProvider router={createRouter()} />);
-    await expect
-      .element(screen.getByText(/Household Droid/i))
-      .toBeInTheDocument();
+    await expect.element(screen.getByText(/Draid/i)).toBeInTheDocument();
   });
 });

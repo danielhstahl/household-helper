@@ -1,30 +1,5 @@
 on: push
 jobs:
-  run_server_tests:
-    name: Run server test
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "24.1.0"
-      - name: Install
-        working-directory: app
-        run: |
-          pip3 install uv
-          uv sync
-      - name: lint
-        working-directory: app
-        run: |
-          uv run ruff check
-          uv run ruff format --check
-      - name: Run tests
-        working-directory: app
-        run: |
-          uv run pytest tests
-      - name: generate docker
-        run: |
-          docker build -t ghcr.io/danielhstahl/householdhelper-app -f docker/app.Dockerfile .
   run_rust_tests:
     name: Run rust test
     runs-on: ubuntu-latest

@@ -45,7 +45,7 @@ const AppBarDroid = ({
           sx={{ flexGrow: 1 }}
           style={{ textDecoration: "none", color: "inherit" }}
         >
-          Household Droid
+          Draid
         </Typography>
         {!trigger && isLargerThanSm && (
           <Typography component="div">
