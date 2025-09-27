@@ -95,7 +95,7 @@ fn rocket() -> _ {
     };
     let jwt_secret = env::var("JWT_SECRET").unwrap().into_bytes();
     let model_name = "qwen3-8b";
-    let helper_tools = vec![EchoTool];
+    let helper_tools: Vec<Arc<dyn Tool + Send + Sync>> = vec![Arc::new(EchoTool)];
     let tutor_tools: Vec<Arc<dyn Tool + Send + Sync>> = vec![]; //maybe add simple calculator?
     //happens at startup, so can "safely" unwrap
     let bots = Bots {
@@ -415,5 +415,16 @@ async fn tutor<'a>(
     tutor: auth::Tutor,
 ) -> Result<TextStream![String], BadRequest<String>> {
     let psql_memory = PsqlMemory::new(100, session_id, tutor.id, db.0.clone());
-    chat_with_bot(&llm, psql_memory, bots.tutor_bot.clone(), &prompt.text).await
+    let mut registry = ToolRegistry::new();
+    for tool in bots.tutor_bot.tools.clone() {
+        registry.register(tool);
+    }
+    chat_with_bot(
+        &llm,
+        psql_memory,
+        bots.tutor_bot.completion_request.clone(),
+        registry,
+        &prompt.text,
+    )
+    .await
 }

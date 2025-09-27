@@ -121,7 +121,7 @@ pub trait Tool: Send + Sync {
 #[async_trait::async_trait]
 impl<P> Tool for P
 where
-    P: Deref<Target = dyn Tool> + Send + Sync,
+    P: Deref<Target = dyn Tool + Send + Sync> + Send + Sync,
     // P must also satisfy other bounds you had on T, like Clone if needed
     // The inner dyn Tool must also satisfy Send + Sync for Arc to be safe
 {
@@ -153,7 +153,7 @@ impl std::fmt::Display for ToolError {
 }
 
 pub struct ToolRegistry {
-    map: std::collections::HashMap<&'static str, Box<dyn Tool>>,
+    map: std::collections::HashMap<&'static str, Arc<dyn Tool + Send + Sync>>,
 }
 
 impl ToolRegistry {
@@ -162,8 +162,8 @@ impl ToolRegistry {
             map: Default::default(),
         }
     }
-    pub fn register<T: Tool + 'static>(&mut self, t: T) {
-        self.map.insert(t.name(), Box::new(t));
+    pub fn register<T: Tool + 'static + Send + Sync>(&mut self, t: T) {
+        self.map.insert(t.name(), Arc::new(t));
     }
 }
 
@@ -314,7 +314,7 @@ async fn tool_response(
 }
 
 #[derive(Clone)]
-struct EchoTool;
+pub struct EchoTool;
 
 #[async_trait::async_trait]
 impl Tool for EchoTool {
