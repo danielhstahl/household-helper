@@ -4,7 +4,7 @@ mod auth;
 mod llm;
 mod psql_users;
 
-use llm::{chat, get_bot, get_llm};
+use llm::{EchoTool, chat, get_bot_with_tools, get_llm};
 mod prompts;
 mod psql_memory;
 use async_openai::{Client, config::OpenAIConfig, types::CreateChatCompletionRequest};
@@ -23,7 +23,10 @@ use rocket::tokio::sync::mpsc::{self, Sender};
 use rocket::{Build, Rocket, State, futures};
 use rocket_db_pools::Database;
 use std::env;
+use std::sync::Arc;
 
+use crate::llm::Tool;
+use crate::llm::ToolRegistry;
 use crate::llm::chat_with_tools;
 
 #[derive(Database)]
@@ -60,10 +63,26 @@ async fn run_migrations(rocket: Rocket<Build>) -> fairing::Result {
 struct AiConfig {
     lm_studio_endpoint: String,
 }
-
+#[derive(Clone)]
+struct Bot {
+    completion_request: CreateChatCompletionRequest,
+    tools: Vec<Arc<dyn Tool + Send + Sync>>,
+}
+impl Bot {
+    pub fn new(
+        completion_request: CreateChatCompletionRequest,
+        tools: Vec<Arc<dyn Tool + Send + Sync>>,
+    ) -> Self {
+        Self {
+            completion_request,
+            tools,
+        }
+    }
+}
+#[derive(Clone)]
 struct Bots {
-    helper_bot: CreateChatCompletionRequest,
-    tutor_bot: CreateChatCompletionRequest,
+    helper_bot: Bot,
+    tutor_bot: Bot,
 }
 
 #[launch]
@@ -74,14 +93,20 @@ fn rocket() -> _ {
             Err(_e) => "http://localhost:1234".to_string(),
         },
     };
-
     let jwt_secret = env::var("JWT_SECRET").unwrap().into_bytes();
-
     let model_name = "qwen3-8b";
+    let helper_tools = vec![EchoTool];
+    let tutor_tools: Vec<Arc<dyn Tool + Send + Sync>> = vec![]; //maybe add simple calculator?
     //happens at startup, so can "safely" unwrap
     let bots = Bots {
-        helper_bot: get_bot(&model_name, &HELPER_PROMPT).unwrap(),
-        tutor_bot: get_bot(&model_name, &TUTOR_PROMPT).unwrap(),
+        helper_bot: Bot::new(
+            get_bot_with_tools(&model_name, &HELPER_PROMPT, &helper_tools).unwrap(),
+            helper_tools,
+        ),
+        tutor_bot: Bot::new(
+            get_bot_with_tools(&model_name, &TUTOR_PROMPT, &tutor_tools).unwrap(),
+            tutor_tools,
+        ),
     };
 
     let llm = get_llm(&ai_config.lm_studio_endpoint);
@@ -122,6 +147,7 @@ async fn chat_with_bot(
     llm: &Client<OpenAIConfig>,
     psql_memory: PsqlMemory,
     bot: CreateChatCompletionRequest,
+    tool_registry: ToolRegistry,
     prompt: &str,
 ) -> Result<TextStream![String], BadRequest<String>> {
     let messages = psql_memory
@@ -132,20 +158,21 @@ async fn chat_with_bot(
         .await
         .map_err(|e| BadRequest(e.to_string()))?;
 
-    //yuck...also not good, I need bot's messages to remain...
-    let stream = chat(&llm, bot.clone(), &messages, &prompt)
+    //returns bot with additional messages
+    let (stream, bot) = chat(&llm, bot, &messages, &prompt)
         .await
         .map_err(|e| BadRequest(e.to_string()))?;
 
     let (tx, mut rx) = mpsc::channel::<String>(1);
-    //this bot won't have all the messages...FIX THIS
-    chat_with_tools(&llm, bot, tx, stream)
+
+    //potentially consumes tool_registry
+    chat_with_tools(&llm, bot, tool_registry, tx, stream)
         .await
         .map_err(|e| BadRequest(e.to_string()))?;
-    //tool call will require two streams, and I won't know which until the stream starts
-    // I need to figure out how to conditionally send a textstream to the user
+
     Ok(TextStream! {
         while let Some(chunk) = rx.recv().await {
+            println!("receiving final chunks");
             if let Err(e) = tx_persist_message.send(chunk.clone()).await {
                 eprintln!("Failed to send chunk to background task: {}", e);
             }
@@ -364,7 +391,18 @@ async fn helper<'a>(
     helper: auth::Helper,
 ) -> Result<TextStream![String], BadRequest<String>> {
     let psql_memory = PsqlMemory::new(100, session_id, helper.id, db.0.clone());
-    chat_with_bot(&llm, psql_memory, bots.helper_bot.clone(), &prompt.text).await
+    let mut registry = ToolRegistry::new();
+    for tool in bots.helper_bot.tools.clone() {
+        registry.register(tool);
+    }
+    chat_with_bot(
+        &llm,
+        psql_memory,
+        bots.helper_bot.completion_request.clone(),
+        registry,
+        &prompt.text,
+    )
+    .await
 }
 
 #[post("/tutor?<session_id>", format = "json", data = "<prompt>")]

@@ -7,9 +7,10 @@ use async_openai::{
         ChatCompletionMessageToolCall, ChatCompletionRequestAssistantMessageArgs,
         ChatCompletionRequestMessage, ChatCompletionRequestSystemMessageArgs,
         ChatCompletionRequestToolMessageArgs, ChatCompletionRequestUserMessageArgs,
-        ChatCompletionResponseStream, ChatCompletionToolArgs, ChatCompletionToolChoiceOption,
-        ChatCompletionToolType, CreateChatCompletionRequest, CreateChatCompletionRequestArgs,
-        CreateChatCompletionStreamResponse, FinishReason, FunctionCall, FunctionObjectArgs,
+        ChatCompletionResponseStream, ChatCompletionTool, ChatCompletionToolArgs,
+        ChatCompletionToolChoiceOption, ChatCompletionToolType, CreateChatCompletionRequest,
+        CreateChatCompletionRequestArgs, CreateChatCompletionStreamResponse, FinishReason,
+        FunctionCall, FunctionObjectArgs,
     },
 };
 use futures::StreamExt;
@@ -24,6 +25,7 @@ use rocket::{
 };
 use std::{
     collections::HashMap,
+    ops::Deref,
     pin::Pin,
     sync::{Arc, Mutex},
 };
@@ -31,40 +33,40 @@ use tokio::task;
 pub fn get_llm(api_endpoint: &str) -> Client<OpenAIConfig> {
     Client::with_config(OpenAIConfig::default().with_api_base(format!("{}/v1", api_endpoint)))
 }
-pub fn get_bot(
+pub fn get_bot_with_tools(
     model_name: &str,
     system_prompt: &str,
+    tools: &Vec<Arc<dyn Tool + Send + Sync>>, //&Vec<impl Tool + 'static>,
 ) -> Result<CreateChatCompletionRequest, OpenAIError> {
-    CreateChatCompletionRequestArgs::default()
+    let chat_request = CreateChatCompletionRequestArgs::default()
         .model(model_name)
         .stream(true)
-        .tools(vec![
-            ChatCompletionToolArgs::default()
-                .r#type(ChatCompletionToolType::Function)
-                .function(
-                    FunctionObjectArgs::default()
-                        .name("get_knowledge_base")
-                        .description("Get data from a knowledge base")
-                        .parameters(json!({
-                            "type": "object",
-                            "properties": {
-                                "content": {
-                                    "type": "string",
-                                    "description": "The message content required to search the knowledge base",
-                                },
-                            },
-                            "required": ["content"],
-                        }))
-                        .build()?,
-                )
-                .build()?,
-        ])
-        .tool_choice(ChatCompletionToolChoiceOption::Auto)//let llm choose whether to call a tool
+        .tools(
+            tools
+                .iter()
+                .map(|tool| {
+                    let chat_completion = ChatCompletionToolArgs::default()
+                        .r#type(ChatCompletionToolType::Function)
+                        .function(
+                            FunctionObjectArgs::default()
+                                .name(tool.name())
+                                .description(tool.description())
+                                .parameters(tool.parameters())
+                                .build()?,
+                        )
+                        .build()?;
+                    Ok(chat_completion)
+                })
+                .collect::<Result<Vec<_>, OpenAIError>>()?,
+        )
+        .tool_choice(ChatCompletionToolChoiceOption::Auto) //let llm choose whether to call a tool
         .messages([ChatCompletionRequestSystemMessageArgs::default()
             .content(system_prompt)
             .build()?
             .into()])
-        .build()
+        .build()?;
+
+    Ok(chat_request)
 }
 
 pub async fn chat(
@@ -72,19 +74,7 @@ pub async fn chat(
     mut bot: CreateChatCompletionRequest, //this is cloned for each request
     previous_messages: &[MessageResult],
     new_message: &str,
-) -> Result<
-    Pin<
-        Box<
-            dyn Stream<
-                    Item = Result<
-                        CreateChatCompletionStreamResponse,
-                        async_openai::error::OpenAIError,
-                    >,
-                > + std::marker::Send,
-        >,
-    >,
-    OpenAIError,
-> {
+) -> Result<(ChatCompletionResponseStream, CreateChatCompletionRequest), OpenAIError> {
     // bot.messages only has the values from get_bot.  Since bot is cloned,
     // new bot.messages created below are dropped after streaming and are
     // not persisted across requests
@@ -115,14 +105,38 @@ pub async fn chat(
             .build()?
             .into(),
     );
-    let stream = client.chat().create_stream(bot).await?;
-    Ok(stream)
+    //cloned since create_stream consumes, and we need bot for the next call with tools
+    let stream = client.chat().create_stream(bot.clone()).await?;
+    Ok((stream, bot))
 }
 
 #[async_trait::async_trait]
 pub trait Tool: Send + Sync {
     fn name(&self) -> &'static str;
+    fn description(&self) -> &'static str;
+    fn parameters(&self) -> Value;
     async fn invoke(&self, args: Value) -> anyhow::Result<Value>;
+}
+
+#[async_trait::async_trait]
+impl<P> Tool for P
+where
+    P: Deref<Target = dyn Tool> + Send + Sync,
+    // P must also satisfy other bounds you had on T, like Clone if needed
+    // The inner dyn Tool must also satisfy Send + Sync for Arc to be safe
+{
+    fn name(&self) -> &'static str {
+        self.deref().name()
+    }
+    fn description(&self) -> &'static str {
+        self.deref().description()
+    }
+    fn parameters(&self) -> Value {
+        self.deref().parameters()
+    }
+    async fn invoke(&self, args: Value) -> anyhow::Result<Value> {
+        self.deref().invoke(args).await
+    }
 }
 
 #[derive(Debug)]
@@ -151,31 +165,15 @@ impl ToolRegistry {
     pub fn register<T: Tool + 'static>(&mut self, t: T) {
         self.map.insert(t.name(), Box::new(t));
     }
-    /*pub fn get_tool<T: Tool + 'static>(&self, name: &str)->Result<Box<dyn Tool>, ToolError>{
-        let result= self.map.get(name).ok_or_else(|| ToolError {
-            name: name.to_string()
-        })?;
-        Ok(result)
-    }*/
-
-    pub async fn call(&self, name: &str, args: Value) -> anyhow::Result<Value> {
-        let tool = self.map.get(name).ok_or_else(|| ToolError {
-            name: name.to_string(),
-        })?;
-        tool.invoke(args).await
-    }
 }
 
 pub async fn chat_with_tools(
     client: &Client<OpenAIConfig>,
     bot: CreateChatCompletionRequest,
+    registry: ToolRegistry,
     tx: Sender<String>,
     mut current_stream: ChatCompletionResponseStream,
 ) -> anyhow::Result<()> {
-    //todo, pass this in
-    let mut registry = ToolRegistry::new();
-    registry.register(EchoTool);
-
     //create storage for tool calls
     let mut tool_results: std::collections::HashMap<String, ChatCompletionMessageToolCall> =
         std::collections::HashMap::new();
@@ -233,13 +231,16 @@ pub async fn chat_with_tools(
                     })
                 });
         } else {
+            println!("no tool call, just sending results");
             tx.send(tokens).await?;
         }
     }
     match finish_reason {
         Some(FinishReason::ToolCalls) => {
+            println!("got to finish with tool calls 242");
             let mut stream = tool_response(&client, registry, bot, tool_results).await?;
             while let Some(result) = stream.next().await {
+                println!("inside final stream line 245");
                 let result = result?;
                 let tokens = result
                     .choices
@@ -256,7 +257,7 @@ pub async fn chat_with_tools(
     }
 }
 
-pub async fn tool_response(
+async fn tool_response(
     client: &Client<OpenAIConfig>,
     mut registry: ToolRegistry, //consumes registry
     mut bot: CreateChatCompletionRequest,
@@ -266,9 +267,12 @@ pub async fn tool_response(
         .clone() //only cloned because of assitant_message below.  I'm not sure if assitant_message is even needed
         .into_iter()
         .map(|(id, tool_call)| {
-            let func = registry.map.remove(id.as_str()).ok_or_else(|| ToolError {
-                name: tool_call.function.name,
-            })?;
+            let func = registry
+                .map
+                .remove(tool_call.function.name.as_str())
+                .ok_or_else(|| ToolError {
+                    name: tool_call.function.name,
+                })?;
             let result: task::JoinHandle<(String, Result<Value, anyhow::Error>)> =
                 tokio::spawn(async move {
                     (id, func.invoke(json!(tool_call.function.arguments)).await)
@@ -284,6 +288,7 @@ pub async fn tool_response(
             let v = v?;
             let id = v.0;
             let content = v.1?;
+            println!("function call argument: {}", content);
             let message: ChatCompletionRequestMessage =
                 ChatCompletionRequestToolMessageArgs::default()
                     .content(content.to_string()) //result of tool call, stringified Json
@@ -308,11 +313,28 @@ pub async fn tool_response(
     Ok(client.chat().create_stream(bot).await?)
 }
 
+#[derive(Clone)]
 struct EchoTool;
+
 #[async_trait::async_trait]
 impl Tool for EchoTool {
     fn name(&self) -> &'static str {
-        "echotool"
+        "knowledge_base"
+    }
+    fn description(&self) -> &'static str {
+        "Get data from a knowledge base"
+    }
+    fn parameters(&self) -> Value {
+        json!({
+            "type": "object",
+            "properties": {
+                "content": {
+                    "type": "string",
+                    "description": "The message content required to search the knowledge base",
+                },
+            },
+            "required": ["content"],
+        })
     }
     async fn invoke(&self, args: Value) -> anyhow::Result<Value> {
         Ok(json!({"echo":args}))
