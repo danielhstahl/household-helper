@@ -17,8 +17,11 @@ use futures::StreamExt;
 use futures::TryFutureExt;
 use futures::future::join_all;
 use futures::{Stream, future::TryJoinAll};
-use rocket::tokio::sync::mpsc::{self, Sender};
 use rocket::tokio::{self, task::JoinError};
+use rocket::{
+    serde,
+    tokio::sync::mpsc::{self, Sender},
+};
 use rocket::{
     serde::json::{Value, json},
     tokio::task::JoinHandle,
@@ -30,13 +33,40 @@ use std::{
     sync::{Arc, Mutex},
 };
 use tokio::task;
+
+//TODO make many things PRIVATE
+
 pub fn get_llm(api_endpoint: &str) -> Client<OpenAIConfig> {
     Client::with_config(OpenAIConfig::default().with_api_base(format!("{}/v1", api_endpoint)))
 }
-pub fn get_bot_with_tools(
+
+pub struct Bot {
+    model_name: String,
+    system_prompt: &'static str,
+    llm: Client<OpenAIConfig>,
+    tools: Option<Vec<Arc<dyn Tool + Send + Sync>>>,
+}
+
+impl Bot {
+    pub fn new(
+        model_name: String,
+        system_prompt: &'static str,
+        api_endpoint: &str,
+        tools: Option<Vec<Arc<dyn Tool + Send + Sync>>>,
+    ) -> Self {
+        Self {
+            model_name,
+            system_prompt,
+            llm: get_llm(api_endpoint),
+            tools,
+        }
+    }
+}
+
+pub fn get_req_with_tools(
     model_name: &str,
     system_prompt: &str,
-    tools: &Vec<Arc<dyn Tool + Send + Sync>>, //&Vec<impl Tool + 'static>,
+    tools: &Vec<Arc<dyn Tool + Send + Sync>>,
 ) -> Result<CreateChatCompletionRequest, OpenAIError> {
     let chat_request = CreateChatCompletionRequestArgs::default()
         .model(model_name)
@@ -69,18 +99,29 @@ pub fn get_bot_with_tools(
     Ok(chat_request)
 }
 
-pub async fn chat(
-    client: &Client<OpenAIConfig>,
-    mut bot: CreateChatCompletionRequest, //this is cloned for each request
+pub fn get_req_without_tools(
+    model_name: &str,
+    system_prompt: &str,
+) -> Result<CreateChatCompletionRequest, OpenAIError> {
+    let chat_request = CreateChatCompletionRequestArgs::default()
+        .model(model_name)
+        .stream(true)
+        .messages([ChatCompletionRequestSystemMessageArgs::default()
+            .content(system_prompt)
+            .build()?
+            .into()])
+        .build()?;
+
+    Ok(chat_request)
+}
+
+pub fn construct_messages(
+    mut req: CreateChatCompletionRequest,
     previous_messages: &[MessageResult],
     new_message: &str,
-) -> Result<(ChatCompletionResponseStream, CreateChatCompletionRequest), OpenAIError> {
-    // bot.messages only has the values from get_bot.  Since bot is cloned,
-    // new bot.messages created below are dropped after streaming and are
-    // not persisted across requests
-
+) -> Result<CreateChatCompletionRequest, OpenAIError> {
     for v in previous_messages.iter() {
-        bot.messages.push(match v.message_type {
+        req.messages.push(match v.message_type {
             MessageType::SystemMessage => ChatCompletionRequestSystemMessageArgs::default()
                 .content(v.content.as_str())
                 .build()?
@@ -99,15 +140,28 @@ pub async fn chat(
                 .into(),
         });
     }
-    bot.messages.push(
+    req.messages.push(
         ChatCompletionRequestUserMessageArgs::default()
             .content(new_message)
             .build()?
             .into(),
     );
-    //cloned since create_stream consumes, and we need bot for the next call with tools
-    let stream = client.chat().create_stream(bot.clone()).await?;
-    Ok((stream, bot))
+    Ok(req)
+}
+
+pub async fn chat(
+    client: &Client<OpenAIConfig>,
+    bot: &Bot,
+    previous_messages: &[MessageResult],
+    new_message: &str,
+) -> Result<ChatCompletionResponseStream, OpenAIError> {
+    let req = construct_messages(
+        get_req_without_tools(&bot.model_name, &bot.system_prompt)?,
+        previous_messages,
+        new_message,
+    )?;
+    let stream = client.chat().create_stream(req).await?;
+    Ok(stream)
 }
 
 #[async_trait::async_trait]
@@ -115,7 +169,7 @@ pub trait Tool: Send + Sync {
     fn name(&self) -> &'static str;
     fn description(&self) -> &'static str;
     fn parameters(&self) -> Value;
-    async fn invoke(&self, args: Value) -> anyhow::Result<Value>;
+    async fn invoke(&self, args: String) -> anyhow::Result<Value>;
 }
 
 #[async_trait::async_trait]
@@ -134,7 +188,7 @@ where
     fn parameters(&self) -> Value {
         self.deref().parameters()
     }
-    async fn invoke(&self, args: Value) -> anyhow::Result<Value> {
+    async fn invoke(&self, args: String) -> anyhow::Result<Value> {
         self.deref().invoke(args).await
     }
 }
@@ -168,18 +222,39 @@ impl ToolRegistry {
 }
 
 pub async fn chat_with_tools(
-    client: &Client<OpenAIConfig>,
-    bot: CreateChatCompletionRequest,
-    registry: ToolRegistry,
+    //client: &Client<OpenAIConfig>,
+    bot: &Bot,
     tx: Sender<String>,
-    mut current_stream: ChatCompletionResponseStream,
+    previous_messages: &[MessageResult],
+    new_message: &str,
 ) -> anyhow::Result<()> {
     //create storage for tool calls
-    let mut tool_results: std::collections::HashMap<String, ChatCompletionMessageToolCall> =
+    let mut registry = ToolRegistry::new();
+    let mut tool_results: std::collections::HashMap<(u32, u32), ChatCompletionMessageToolCall> =
         std::collections::HashMap::new();
+    let req = match &bot.tools {
+        Some(tools) => {
+            let req_with_tools = construct_messages(
+                get_req_with_tools(&bot.model_name, &bot.system_prompt, &tools)?,
+                previous_messages,
+                new_message,
+            )?;
+            //clone arc, cheap
+            for tool in tools.clone() {
+                registry.register(tool);
+            }
+            req_with_tools
+        }
+        None => construct_messages(
+            get_req_without_tools(&bot.model_name, &bot.system_prompt)?,
+            previous_messages,
+            new_message,
+        )?,
+    };
 
     let mut finish_reason: Option<FinishReason> = None;
-    while let Some(result) = current_stream.next().await {
+    let mut stream = bot.llm.chat().create_stream(req).await?;
+    while let Some(result) = stream.next().await {
         let result = result?;
         let tokens = result
             .choices
@@ -188,8 +263,7 @@ pub async fn chat_with_tools(
             .map(|s| &**s)
             .collect::<Vec<&str>>()
             .join("");
-        if tokens.is_empty() {
-            //no need to move
+        if tokens.trim().is_empty() {
             finish_reason = result
                 .choices
                 .iter()
@@ -199,11 +273,21 @@ pub async fn chat_with_tools(
             result
                 .choices
                 .into_iter()
-                .filter_map(|chat_choice| chat_choice.delta.tool_calls)
-                .for_each(|tools| {
+                //.filter_map(|chat_choice| chat_choice.delta.tool_calls)
+                //.filter(|chat_choice| chat_choice.delta.tool_calls.is_some())
+                .filter_map(|chat_choice| match chat_choice.delta.tool_calls {
+                    Some(calls) => Some((chat_choice.index, calls)),
+                    None => None,
+                })
+                .for_each(|(chat_choice_index, tools)| {
+                    println!("this is raw tools {:?}", tools);
                     tools.into_iter().for_each(|tool_call_chunk| {
+                        // If tool_results.entry(key) exists already, id will be null.
+                        // But insert_with won't be called in that case
+                        // So there should never be an ID of "123"
                         let id = tool_call_chunk.id.unwrap_or_else(|| "123".to_string());
-                        let tool_call = tool_results.entry(id.clone()).or_insert_with(|| {
+                        let key = (chat_choice_index, tool_call_chunk.index);
+                        let tool_call = tool_results.entry(key).or_insert_with(|| {
                             ChatCompletionMessageToolCall {
                                 id: id,
                                 r#type: ChatCompletionToolType::Function,
@@ -232,13 +316,21 @@ pub async fn chat_with_tools(
                 });
         } else {
             println!("no tool call, just sending results");
+            println!("tokens: {}", tokens);
             tx.send(tokens).await?;
         }
     }
     match finish_reason {
         Some(FinishReason::ToolCalls) => {
             println!("got to finish with tool calls 242");
-            let mut stream = tool_response(&client, registry, bot, tool_results).await?;
+            println!("tools {:?}", tool_results);
+            //no tools since we don't want to call the tools AGAIN
+            let req_no_tools = construct_messages(
+                get_req_without_tools(&bot.model_name, &bot.system_prompt)?,
+                previous_messages,
+                new_message,
+            )?;
+            let mut stream = tool_response(&bot.llm, registry, req_no_tools, tool_results).await?;
             while let Some(result) = stream.next().await {
                 println!("inside final stream line 245");
                 let result = result?;
@@ -249,6 +341,7 @@ pub async fn chat_with_tools(
                     .map(|s| &**s)
                     .collect::<Vec<&str>>()
                     .join("");
+                println!("tokens inside tools: {}", tokens);
                 tx.send(tokens).await?;
             }
             Ok(())
@@ -257,26 +350,26 @@ pub async fn chat_with_tools(
     }
 }
 
-async fn tool_response(
+async fn tool_response<T: Clone>(
     client: &Client<OpenAIConfig>,
     mut registry: ToolRegistry, //consumes registry
-    mut bot: CreateChatCompletionRequest,
-    tools: std::collections::HashMap<String, ChatCompletionMessageToolCall>,
+    mut req: CreateChatCompletionRequest,
+    tools: std::collections::HashMap<T, ChatCompletionMessageToolCall>,
 ) -> anyhow::Result<ChatCompletionResponseStream> {
     let handles: Vec<JoinHandle<(String, Result<Value, anyhow::Error>)>> = tools
-        .clone() //only cloned because of assitant_message below.  I'm not sure if assitant_message is even needed
-        .into_iter()
-        .map(|(id, tool_call)| {
+        .iter()
+        .map(|(_id, tool_call)| {
+            let tool_call_func_name = tool_call.function.name.clone();
+            let tool_call_func_args = tool_call.function.arguments.clone();
+            let id = tool_call.id.clone();
             let func = registry
                 .map
-                .remove(tool_call.function.name.as_str())
+                .remove(tool_call_func_name.as_str())
                 .ok_or_else(|| ToolError {
-                    name: tool_call.function.name,
+                    name: tool_call_func_name,
                 })?;
             let result: task::JoinHandle<(String, Result<Value, anyhow::Error>)> =
-                tokio::spawn(async move {
-                    (id, func.invoke(json!(tool_call.function.arguments)).await)
-                });
+                tokio::spawn(async move { (id, func.invoke(tool_call_func_args).await) });
             Ok(result)
         })
         .collect::<Result<Vec<_>, ToolError>>()?;
@@ -288,7 +381,7 @@ async fn tool_response(
             let v = v?;
             let id = v.0;
             let content = v.1?;
-            println!("function call argument: {}", content);
+            println!("function call response: {}", content);
             let message: ChatCompletionRequestMessage =
                 ChatCompletionRequestToolMessageArgs::default()
                     .content(content.to_string()) //result of tool call, stringified Json
@@ -308,9 +401,9 @@ async fn tool_response(
             )
             .build()?
             .into();
-    bot.messages.push(assistant_message);
-    bot.messages.extend(tool_messages);
-    Ok(client.chat().create_stream(bot).await?)
+    req.messages.push(assistant_message);
+    req.messages.extend(tool_messages);
+    Ok(client.chat().create_stream(req).await?)
 }
 
 #[derive(Clone)]
@@ -336,7 +429,9 @@ impl Tool for EchoTool {
             "required": ["content"],
         })
     }
-    async fn invoke(&self, args: Value) -> anyhow::Result<Value> {
+    async fn invoke(&self, args: String) -> anyhow::Result<Value> {
+        let args: Value = serde::json::from_str(&args)?;
+        //args should have content key, see parameters
         Ok(json!({"echo":args}))
     }
 }

@@ -4,7 +4,7 @@ mod auth;
 mod llm;
 mod psql_users;
 
-use llm::{EchoTool, chat, get_bot_with_tools, get_llm};
+use llm::{EchoTool, get_llm};
 mod prompts;
 mod psql_memory;
 use async_openai::{Client, config::OpenAIConfig, types::CreateChatCompletionRequest};
@@ -25,6 +25,7 @@ use rocket_db_pools::Database;
 use std::env;
 use std::sync::Arc;
 
+use crate::llm::Bot;
 use crate::llm::Tool;
 use crate::llm::ToolRegistry;
 use crate::llm::chat_with_tools;
@@ -63,6 +64,7 @@ async fn run_migrations(rocket: Rocket<Build>) -> fairing::Result {
 struct AiConfig {
     lm_studio_endpoint: String,
 }
+/*
 #[derive(Clone)]
 struct Bot {
     completion_request: CreateChatCompletionRequest,
@@ -78,8 +80,9 @@ impl Bot {
             tools,
         }
     }
-}
-#[derive(Clone)]
+}*/
+
+//#[derive(Clone)]
 struct Bots {
     helper_bot: Bot,
     tutor_bot: Bot,
@@ -96,26 +99,30 @@ fn rocket() -> _ {
     let jwt_secret = env::var("JWT_SECRET").unwrap().into_bytes();
     let model_name = "qwen3-8b";
     let helper_tools: Vec<Arc<dyn Tool + Send + Sync>> = vec![Arc::new(EchoTool)];
-    let tutor_tools: Vec<Arc<dyn Tool + Send + Sync>> = vec![]; //maybe add simple calculator?
+    //let tutor_tools: Vec<Arc<dyn Tool + Send + Sync>> = vec![]; //maybe add simple calculator?
     //happens at startup, so can "safely" unwrap
     let bots = Bots {
         helper_bot: Bot::new(
-            get_bot_with_tools(&model_name, &HELPER_PROMPT, &helper_tools).unwrap(),
-            helper_tools,
+            model_name.to_string(),
+            HELPER_PROMPT,
+            &ai_config.lm_studio_endpoint,
+            Some(helper_tools),
         ),
         tutor_bot: Bot::new(
-            get_bot_with_tools(&model_name, &TUTOR_PROMPT, &tutor_tools).unwrap(),
-            tutor_tools,
+            model_name.to_string(),
+            TUTOR_PROMPT,
+            &ai_config.lm_studio_endpoint,
+            None,
         ),
     };
 
-    let llm = get_llm(&ai_config.lm_studio_endpoint);
+    //let llm = get_llm(&ai_config.lm_studio_endpoint);
 
     rocket::build()
         .attach(Db::init())
         .attach(AdHoc::try_on_ignite("DB Migrations", run_migrations))
-        .manage(ai_config)
-        .manage(llm)
+        //.manage(ai_config)
+        //.manage(llm)
         .manage(bots)
         .manage(jwt_secret)
         .mount(
@@ -144,10 +151,8 @@ struct Prompt<'a> {
 }
 
 async fn chat_with_bot(
-    llm: &Client<OpenAIConfig>,
+    bot: &Bot,
     psql_memory: PsqlMemory,
-    bot: CreateChatCompletionRequest,
-    tool_registry: ToolRegistry,
     prompt: &str,
 ) -> Result<TextStream![String], BadRequest<String>> {
     let messages = psql_memory
@@ -158,15 +163,9 @@ async fn chat_with_bot(
         .await
         .map_err(|e| BadRequest(e.to_string()))?;
 
-    //returns bot with additional messages
-    let (stream, bot) = chat(&llm, bot, &messages, &prompt)
-        .await
-        .map_err(|e| BadRequest(e.to_string()))?;
-
     let (tx, mut rx) = mpsc::channel::<String>(1);
 
-    //potentially consumes tool_registry
-    chat_with_tools(&llm, bot, tool_registry, tx, stream)
+    chat_with_tools(&bot, tx, &messages, &prompt)
         .await
         .map_err(|e| BadRequest(e.to_string()))?;
 
@@ -386,23 +385,11 @@ async fn helper<'a>(
     session_id: Uuid,
     prompt: Json<Prompt<'a>>,
     db: &Db,
-    llm: &State<Client<OpenAIConfig>>,
     bots: &State<Bots>,
     helper: auth::Helper,
 ) -> Result<TextStream![String], BadRequest<String>> {
     let psql_memory = PsqlMemory::new(100, session_id, helper.id, db.0.clone());
-    let mut registry = ToolRegistry::new();
-    for tool in bots.helper_bot.tools.clone() {
-        registry.register(tool);
-    }
-    chat_with_bot(
-        &llm,
-        psql_memory,
-        bots.helper_bot.completion_request.clone(),
-        registry,
-        &prompt.text,
-    )
-    .await
+    chat_with_bot(&bots.helper_bot, psql_memory, &prompt.text).await
 }
 
 #[post("/tutor?<session_id>", format = "json", data = "<prompt>")]
@@ -410,21 +397,9 @@ async fn tutor<'a>(
     session_id: Uuid,
     prompt: Json<Prompt<'a>>,
     db: &Db,
-    llm: &State<Client<OpenAIConfig>>,
     bots: &State<Bots>,
     tutor: auth::Tutor,
 ) -> Result<TextStream![String], BadRequest<String>> {
     let psql_memory = PsqlMemory::new(100, session_id, tutor.id, db.0.clone());
-    let mut registry = ToolRegistry::new();
-    for tool in bots.tutor_bot.tools.clone() {
-        registry.register(tool);
-    }
-    chat_with_bot(
-        &llm,
-        psql_memory,
-        bots.tutor_bot.completion_request.clone(),
-        registry,
-        &prompt.text,
-    )
-    .await
+    chat_with_bot(&bots.tutor_bot, psql_memory, &prompt.text).await
 }
