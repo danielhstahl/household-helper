@@ -1,4 +1,5 @@
 use crate::psql_memory::{MessageResult, MessageType};
+use anyhow::Error;
 use async_openai::{
     Client,
     config::OpenAIConfig,
@@ -7,31 +8,20 @@ use async_openai::{
         ChatCompletionMessageToolCall, ChatCompletionRequestAssistantMessageArgs,
         ChatCompletionRequestMessage, ChatCompletionRequestSystemMessageArgs,
         ChatCompletionRequestToolMessageArgs, ChatCompletionRequestUserMessageArgs,
-        ChatCompletionResponseStream, ChatCompletionTool, ChatCompletionToolArgs,
-        ChatCompletionToolChoiceOption, ChatCompletionToolType, CreateChatCompletionRequest,
-        CreateChatCompletionRequestArgs, CreateChatCompletionStreamResponse, FinishReason,
-        FunctionCall, FunctionObjectArgs,
+        ChatCompletionResponseStream, ChatCompletionToolArgs, ChatCompletionToolChoiceOption,
+        ChatCompletionToolType, CreateChatCompletionRequest, CreateChatCompletionRequestArgs,
+        FinishReason, FunctionCall, FunctionObjectArgs,
     },
 };
 use futures::StreamExt;
-use futures::TryFutureExt;
 use futures::future::join_all;
-use futures::{Stream, future::TryJoinAll};
-use rocket::tokio::{self, task::JoinError};
-use rocket::{
-    serde,
-    tokio::sync::mpsc::{self, Sender},
-};
+use rocket::tokio::{self};
+use rocket::{serde, tokio::sync::mpsc::Sender};
 use rocket::{
     serde::json::{Value, json},
     tokio::task::JoinHandle,
 };
-use std::{
-    collections::HashMap,
-    ops::Deref,
-    pin::Pin,
-    sync::{Arc, Mutex},
-};
+use std::{ops::Deref, sync::Arc};
 use tokio::task;
 
 //TODO make many things PRIVATE
@@ -40,6 +30,7 @@ pub fn get_llm(api_endpoint: &str) -> Client<OpenAIConfig> {
     Client::with_config(OpenAIConfig::default().with_api_base(format!("{}/v1", api_endpoint)))
 }
 
+#[derive(Clone)]
 pub struct Bot {
     model_name: String,
     system_prompt: &'static str,
@@ -222,11 +213,10 @@ impl ToolRegistry {
 }
 
 pub async fn chat_with_tools(
-    //client: &Client<OpenAIConfig>,
-    bot: &Bot,
+    bot: Bot,
     tx: Sender<String>,
     previous_messages: &[MessageResult],
-    new_message: &str,
+    new_message: String,
 ) -> anyhow::Result<()> {
     //create storage for tool calls
     let mut registry = ToolRegistry::new();
@@ -237,7 +227,7 @@ pub async fn chat_with_tools(
             let req_with_tools = construct_messages(
                 get_req_with_tools(&bot.model_name, &bot.system_prompt, &tools)?,
                 previous_messages,
-                new_message,
+                new_message.as_str(),
             )?;
             //clone arc, cheap
             for tool in tools.clone() {
@@ -248,7 +238,7 @@ pub async fn chat_with_tools(
         None => construct_messages(
             get_req_without_tools(&bot.model_name, &bot.system_prompt)?,
             previous_messages,
-            new_message,
+            new_message.as_str(),
         )?,
     };
 
@@ -273,8 +263,6 @@ pub async fn chat_with_tools(
             result
                 .choices
                 .into_iter()
-                //.filter_map(|chat_choice| chat_choice.delta.tool_calls)
-                //.filter(|chat_choice| chat_choice.delta.tool_calls.is_some())
                 .filter_map(|chat_choice| match chat_choice.delta.tool_calls {
                     Some(calls) => Some((chat_choice.index, calls)),
                     None => None,
@@ -297,11 +285,7 @@ pub async fn chat_with_tools(
                                         .as_ref()
                                         .and_then(|f| f.name.clone())
                                         .unwrap_or_default(),
-                                    arguments: "".to_string(), /*tool_call_chunk
-                                                               .function
-                                                               .as_ref()
-                                                               .and_then(|f| f.arguments.clone()) //arguments may stream across multiple stream.next()!!
-                                                               .unwrap_or_default(),*/
+                                    arguments: "".to_string(),
                                 },
                             }
                         });
@@ -328,11 +312,10 @@ pub async fn chat_with_tools(
             let req_no_tools = construct_messages(
                 get_req_without_tools(&bot.model_name, &bot.system_prompt)?,
                 previous_messages,
-                new_message,
+                new_message.as_str(),
             )?;
             let mut stream = tool_response(&bot.llm, registry, req_no_tools, tool_results).await?;
             while let Some(result) = stream.next().await {
-                println!("inside final stream line 245");
                 let result = result?;
                 let tokens = result
                     .choices
@@ -341,7 +324,6 @@ pub async fn chat_with_tools(
                     .map(|s| &**s)
                     .collect::<Vec<&str>>()
                     .join("");
-                println!("tokens inside tools: {}", tokens);
                 tx.send(tokens).await?;
             }
             Ok(())
@@ -381,7 +363,6 @@ async fn tool_response<T: Clone>(
             let v = v?;
             let id = v.0;
             let content = v.1?;
-            println!("function call response: {}", content);
             let message: ChatCompletionRequestMessage =
                 ChatCompletionRequestToolMessageArgs::default()
                     .content(content.to_string()) //result of tool call, stringified Json
@@ -436,33 +417,37 @@ impl Tool for EchoTool {
     }
 }
 
-/*
-async fn call_fn(name: &str, args: &str) -> Result<Value, String> {
-    let mut available_functions: HashMap<&str, fn(&str, &str) -> Value> = HashMap::new();
-    available_functions.insert("get_current_weather", get_current_weather);
+#[derive(Clone)]
+pub struct AddTool;
 
-    let function_args: Value = args.parse().unwrap();
-
-    let location = function_args["location"].as_str().unwrap();
-    let unit = function_args["unit"].as_str().unwrap_or("fahrenheit");
-    let function = available_functions.get(name).unwrap();
-    let function_response = function(location, unit);
-    Ok(function_response)
-}*/
-/*
-fn get_current_weather(location: &str, unit: &str) -> Value {
-    //let mut rng = thread_rng();
-
-    //let temperature: i32 = rng.gen_range(20..=55);
-
-    let forecast = "sunny";
-
-    let weather_info = json!({
-        "location": location,
-        "temperature": 30.to_string(),
-        "unit": unit,
-        "forecast": forecast
-    });
-
-    weather_info
-}*/
+#[async_trait::async_trait]
+impl Tool for AddTool {
+    fn name(&self) -> &'static str {
+        "calculator"
+    }
+    fn description(&self) -> &'static str {
+        "Add some numbers"
+    }
+    fn parameters(&self) -> Value {
+        json!({
+            "type": "object",
+            "properties": {
+                "a": {
+                    "type": "number",
+                    "description": "First number",
+                },
+                "b": {
+                    "type": "number",
+                    "description": "Second number",
+                },
+            },
+            "required": ["a", "b"],
+        })
+    }
+    async fn invoke(&self, args: String) -> anyhow::Result<Value> {
+        let args: Value = serde::json::from_str(&args)?;
+        let result = args["a"].as_number().unwrap().as_f64().unwrap()
+            + args["b"].as_number().unwrap().as_f64().unwrap();
+        Ok(json!({"result":result}))
+    }
+}

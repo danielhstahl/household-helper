@@ -4,11 +4,9 @@ mod auth;
 mod llm;
 mod psql_users;
 
-use llm::{EchoTool, get_llm};
+use llm::{AddTool, Bot, EchoTool, Tool, chat_with_tools};
 mod prompts;
 mod psql_memory;
-use async_openai::{Client, config::OpenAIConfig, types::CreateChatCompletionRequest};
-use futures::StreamExt;
 use prompts::HELPER_PROMPT;
 use prompts::TUTOR_PROMPT;
 use psql_memory::{MessageResult, PsqlMemory, manage_chat_interaction};
@@ -19,16 +17,11 @@ use rocket::http::Status;
 use rocket::response::status::BadRequest;
 use rocket::response::stream::TextStream;
 use rocket::serde::{Deserialize, Serialize, json::Json, uuid::Uuid};
-use rocket::tokio::sync::mpsc::{self, Sender};
-use rocket::{Build, Rocket, State, futures};
+use rocket::tokio::sync::mpsc::{self};
+use rocket::{Build, Rocket, State};
 use rocket_db_pools::Database;
 use std::env;
 use std::sync::Arc;
-
-use crate::llm::Bot;
-use crate::llm::Tool;
-use crate::llm::ToolRegistry;
-use crate::llm::chat_with_tools;
 
 #[derive(Database)]
 #[database("draid")]
@@ -64,25 +57,7 @@ async fn run_migrations(rocket: Rocket<Build>) -> fairing::Result {
 struct AiConfig {
     lm_studio_endpoint: String,
 }
-/*
-#[derive(Clone)]
-struct Bot {
-    completion_request: CreateChatCompletionRequest,
-    tools: Vec<Arc<dyn Tool + Send + Sync>>,
-}
-impl Bot {
-    pub fn new(
-        completion_request: CreateChatCompletionRequest,
-        tools: Vec<Arc<dyn Tool + Send + Sync>>,
-    ) -> Self {
-        Self {
-            completion_request,
-            tools,
-        }
-    }
-}*/
 
-//#[derive(Clone)]
 struct Bots {
     helper_bot: Bot,
     tutor_bot: Bot,
@@ -98,9 +73,8 @@ fn rocket() -> _ {
     };
     let jwt_secret = env::var("JWT_SECRET").unwrap().into_bytes();
     let model_name = "qwen3-8b";
-    let helper_tools: Vec<Arc<dyn Tool + Send + Sync>> = vec![Arc::new(EchoTool)];
-    //let tutor_tools: Vec<Arc<dyn Tool + Send + Sync>> = vec![]; //maybe add simple calculator?
-    //happens at startup, so can "safely" unwrap
+    let helper_tools: Vec<Arc<dyn Tool + Send + Sync>> =
+        vec![Arc::new(EchoTool), Arc::new(AddTool)];
     let bots = Bots {
         helper_bot: Bot::new(
             model_name.to_string(),
@@ -116,13 +90,9 @@ fn rocket() -> _ {
         ),
     };
 
-    //let llm = get_llm(&ai_config.lm_studio_endpoint);
-
     rocket::build()
         .attach(Db::init())
         .attach(AdHoc::try_on_ignite("DB Migrations", run_migrations))
-        //.manage(ai_config)
-        //.manage(llm)
         .manage(bots)
         .manage(jwt_secret)
         .mount(
@@ -151,9 +121,9 @@ struct Prompt<'a> {
 }
 
 async fn chat_with_bot(
-    bot: &Bot,
+    bot: Bot,
     psql_memory: PsqlMemory,
-    prompt: &str,
+    prompt: String,
 ) -> Result<TextStream![String], BadRequest<String>> {
     let messages = psql_memory
         .messages()
@@ -165,37 +135,20 @@ async fn chat_with_bot(
 
     let (tx, mut rx) = mpsc::channel::<String>(1);
 
-    chat_with_tools(&bot, tx, &messages, &prompt)
-        .await
-        .map_err(|e| BadRequest(e.to_string()))?;
-
+    //frustarting...I tried to get bot and prompt to be efficient
+    rocket::tokio::spawn(async move {
+        if let Err(e) = chat_with_tools(bot, tx, &messages, prompt).await {
+            eprintln!("chat_with_tools exploded: {}", e); // Or propagate if you care
+        }
+    });
     Ok(TextStream! {
         while let Some(chunk) = rx.recv().await {
-            println!("receiving final chunks");
+            //println!("receiving final chunks");
             if let Err(e) = tx_persist_message.send(chunk.clone()).await {
                 eprintln!("Failed to send chunk to background task: {}", e);
             }
             yield chunk
         }
-        /*while let Some(result) = stream.next().await {
-            match result {
-                Ok(value) =>  {
-                    // typically only single item in value.choices,
-                    // but if not concatenate them
-                    let tokens = value.choices.iter().filter_map(|chat_choice|{
-                        (&chat_choice.delta.content).as_ref()
-                    }).map(|s| &**s).collect::<Vec<&str>>().join("");
-
-                    if let Err(e) = tx_persist_message.send(tokens.clone()).await {
-                        eprintln!("Failed to send chunk to background task: {}", e);
-                    }
-                    yield tokens
-
-
-                },
-                Err(e) => yield e.to_string()
-            }
-        }*/
     })
 }
 
@@ -389,7 +342,12 @@ async fn helper<'a>(
     helper: auth::Helper,
 ) -> Result<TextStream![String], BadRequest<String>> {
     let psql_memory = PsqlMemory::new(100, session_id, helper.id, db.0.clone());
-    chat_with_bot(&bots.helper_bot, psql_memory, &prompt.text).await
+    chat_with_bot(
+        bots.helper_bot.clone(),
+        psql_memory,
+        prompt.text.to_string(),
+    )
+    .await
 }
 
 #[post("/tutor?<session_id>", format = "json", data = "<prompt>")]
@@ -401,5 +359,5 @@ async fn tutor<'a>(
     tutor: auth::Tutor,
 ) -> Result<TextStream![String], BadRequest<String>> {
     let psql_memory = PsqlMemory::new(100, session_id, tutor.id, db.0.clone());
-    chat_with_bot(&bots.tutor_bot, psql_memory, &prompt.text).await
+    chat_with_bot(bots.tutor_bot.clone(), psql_memory, prompt.text.to_string()).await
 }
