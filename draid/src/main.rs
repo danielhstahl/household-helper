@@ -19,9 +19,12 @@ use rocket::http::Status;
 use rocket::response::status::BadRequest;
 use rocket::response::stream::TextStream;
 use rocket::serde::{Deserialize, Serialize, json::Json, uuid::Uuid};
+use rocket::tokio::sync::mpsc::{self, Sender};
 use rocket::{Build, Rocket, State, futures};
 use rocket_db_pools::Database;
 use std::env;
+
+use crate::llm::chat_with_tools;
 
 #[derive(Database)]
 #[database("draid")]
@@ -56,8 +59,6 @@ async fn run_migrations(rocket: Rocket<Build>) -> fairing::Result {
 
 struct AiConfig {
     lm_studio_endpoint: String,
-    //When adding RAG use this endpoint
-    //ollama_endpoint: String,
 }
 
 struct Bots {
@@ -72,10 +73,6 @@ fn rocket() -> _ {
             Ok(v) => v,
             Err(_e) => "http://localhost:1234".to_string(),
         },
-        /*ollama_endpoint: match env::var("OLLAMA_ENDPOINT") {
-            Ok(v) => v,
-            Err(_e) => "http://localhost:11434".to_string(),
-        },*/
     };
 
     let jwt_secret = env::var("JWT_SECRET").unwrap().into_bytes();
@@ -88,8 +85,6 @@ fn rocket() -> _ {
     };
 
     let llm = get_llm(&ai_config.lm_studio_endpoint);
-
-    //todo, get embeddings for RAG
 
     rocket::build()
         .attach(Db::init())
@@ -133,25 +128,39 @@ async fn chat_with_bot(
         .messages()
         .await
         .map_err(|e| BadRequest(e.to_string()))?;
-    let tx = manage_chat_interaction(&prompt, psql_memory)
+    let tx_persist_message = manage_chat_interaction(&prompt, psql_memory)
         .await
         .map_err(|e| BadRequest(e.to_string()))?;
 
-    let mut stream = chat(&llm, bot, &messages, &prompt)
+    //yuck...also not good, I need bot's messages to remain...
+    let stream = chat(&llm, bot.clone(), &messages, &prompt)
         .await
         .map_err(|e| BadRequest(e.to_string()))?;
 
+    let (tx, mut rx) = mpsc::channel::<String>(1);
+    //this bot won't have all the messages...FIX THIS
+    chat_with_tools(&llm, bot, tx, stream)
+        .await
+        .map_err(|e| BadRequest(e.to_string()))?;
+    //tool call will require two streams, and I won't know which until the stream starts
+    // I need to figure out how to conditionally send a textstream to the user
     Ok(TextStream! {
-        while let Some(result) = stream.next().await {
+        while let Some(chunk) = rx.recv().await {
+            if let Err(e) = tx_persist_message.send(chunk.clone()).await {
+                eprintln!("Failed to send chunk to background task: {}", e);
+            }
+            yield chunk
+        }
+        /*while let Some(result) = stream.next().await {
             match result {
                 Ok(value) =>  {
-                    //typically only single item in value.choices,
+                    // typically only single item in value.choices,
                     // but if not concatenate them
                     let tokens = value.choices.iter().filter_map(|chat_choice|{
                         (&chat_choice.delta.content).as_ref()
                     }).map(|s| &**s).collect::<Vec<&str>>().join("");
 
-                    if let Err(e) = tx.send(tokens.clone()).await {
+                    if let Err(e) = tx_persist_message.send(tokens.clone()).await {
                         eprintln!("Failed to send chunk to background task: {}", e);
                     }
                     yield tokens
@@ -160,7 +169,7 @@ async fn chat_with_bot(
                 },
                 Err(e) => yield e.to_string()
             }
-        }
+        }*/
     })
 }
 

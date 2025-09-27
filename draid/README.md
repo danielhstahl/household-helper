@@ -8,4 +8,5 @@
 * `DATABASE_URL="postgres://postgres:yourpassword@localhost:5432/draid" cargo sqlx database create`
 * `DATABASE_URL="postgres://postgres:yourpassword@localhost:5432/draid" cargo sqlx migrate run --source migrations`
 * `DATABASE_URL="postgres://postgres:yourpassword@localhost:5432/draid" cargo sqlx prepare`
+
 #
