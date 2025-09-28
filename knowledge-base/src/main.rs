@@ -166,6 +166,8 @@ async fn extract_and_write(
     Ok(())
 }
 
+//curl --header "Content-Type: application/json"  -X POST http://127.0.0.1:8001/content/similar --data '{"text": "what did paul graham primary work on?", "num_results": 3}'
+//curl -X POST http://127.0.0.1:8001/content/ingest --data '@paul_graham_essay.txt'
 #[post("/content/ingest", data = "<data>")]
 async fn ingest_content(
     data: Data<'_>,
@@ -203,7 +205,7 @@ async fn ingest_content(
                 result.map_err(|e| BadRequest(e.to_string()))?;
             }
         }
-        Err(e) => {
+        Err(_e) => {
             println!("Already indexed!");
         }
     }

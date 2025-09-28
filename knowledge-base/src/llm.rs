@@ -38,6 +38,3 @@ pub async fn get_embeddings_batch(
     let request = GenerateEmbeddingsRequest::new(client.model.clone(), messages.into());
     Ok(client.ollama.generate_embeddings(request).await?.embeddings)
 }*/
-
-//curl --header "Content-Type: application/json"  -X POST http://127.0.0.1:8000/content/similar --data '{"text": "hello world!", "num_results": 3}'
-//curl -X POST http://127.0.0.1:8000/content/ingest --data '@paul_graham_essay.txt'

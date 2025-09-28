@@ -14,8 +14,15 @@ use async_openai::{
 };
 use futures::StreamExt;
 use futures::future::join_all;
+use reqwest::Client as HttpClient;
+
 use rocket::tokio::{self};
-use rocket::{serde, tokio::sync::mpsc::Sender};
+use rocket::{
+    serde,
+    serde::{Deserialize, Serialize},
+    tokio::sync::mpsc::Sender,
+};
+
 use rocket::{
     serde::json::{Value, json},
     tokio::task::JoinHandle,
@@ -448,5 +455,46 @@ impl Tool for AddTool {
         let result = args["a"].as_number().unwrap().as_f64().unwrap()
             + args["b"].as_number().unwrap().as_f64().unwrap();
         Ok(json!({"result":result}))
+    }
+}
+#[derive(Deserialize, Serialize, Debug)]
+#[serde(crate = "rocket::serde")]
+struct Content {
+    content: String,
+}
+
+#[derive(Clone)]
+pub struct KnowledgeBase;
+
+#[async_trait::async_trait]
+impl Tool for KnowledgeBase {
+    fn name(&self) -> &'static str {
+        "knowledge_base"
+    }
+    fn description(&self) -> &'static str {
+        "Knowledge base containing information on Paul Graham"
+    }
+    fn parameters(&self) -> Value {
+        json!({
+            "type": "object",
+            "properties": {
+                "content": {
+                    "type": "string",
+                    "description": "Search term to send to knowledge base",
+                },
+            },
+            "required": ["content"],
+        })
+    }
+    async fn invoke(&self, args: String) -> anyhow::Result<Value> {
+        let client = HttpClient::new();
+        let kb_url = "http://127.0.0.1:8001/content/similar";
+        let args: Value = serde::json::from_str(&args)?;
+        let content = args["content"].as_str().unwrap();
+        let body = json!({"text":content, "num_results":3});
+        let response = client.post(kb_url).json(&body).send().await?;
+        let result = response.json::<Vec<Content>>().await?;
+        println!("response from kb: {:?}", result);
+        Ok(json!(result))
     }
 }
