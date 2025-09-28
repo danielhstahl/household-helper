@@ -31,6 +31,8 @@ pub async fn get_similar_content(
         .collect();
     Ok(result?)
 }
+
+/*
 pub async fn write_content(
     content: Vec<String>,
     embeddings: Vec<Vec<f32>>,
@@ -56,17 +58,30 @@ pub async fn write_content(
     sqlx_query.execute(pool).await?;
     Ok(())
 }
+*/
 
 pub async fn write_single_content(
+    document_id: i64,
     content: &str,
     embeddings: Vec<f32>,
     pool: &Pool<Postgres>,
 ) -> sqlx::Result<()> {
-    sqlx::query("INSERT INTO vectors (content, embedding) VALUES ($1, $2)")
+    sqlx::query("INSERT INTO vectors (document_id, content, embedding) VALUES ($1, $2, $3)")
+        .bind(&document_id)
         .bind(&content)
         .bind(Vector::from(embeddings))
         .execute(pool)
         .await?;
 
     Ok(())
+}
+
+//will error on index constraint
+pub async fn write_document(document_hash: &str, pool: &Pool<Postgres>) -> sqlx::Result<i64> {
+    let result = sqlx::query("INSERT INTO documents (hash) VALUES ($1) RETURNING id")
+        .bind(&document_hash)
+        .fetch_one(pool)
+        .await?;
+    let id: i64 = result.try_get("id")?;
+    Ok(id)
 }

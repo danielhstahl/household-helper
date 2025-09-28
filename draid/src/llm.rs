@@ -1,5 +1,4 @@
 use crate::psql_memory::{MessageResult, MessageType};
-use anyhow::Error;
 use async_openai::{
     Client,
     config::OpenAIConfig,
@@ -26,7 +25,7 @@ use tokio::task;
 
 //TODO make many things PRIVATE
 
-pub fn get_llm(api_endpoint: &str) -> Client<OpenAIConfig> {
+fn get_llm(api_endpoint: &str) -> Client<OpenAIConfig> {
     Client::with_config(OpenAIConfig::default().with_api_base(format!("{}/v1", api_endpoint)))
 }
 
@@ -54,7 +53,7 @@ impl Bot {
     }
 }
 
-pub fn get_req_with_tools(
+fn get_req_with_tools(
     model_name: &str,
     system_prompt: &str,
     tools: &Vec<Arc<dyn Tool + Send + Sync>>,
@@ -90,7 +89,7 @@ pub fn get_req_with_tools(
     Ok(chat_request)
 }
 
-pub fn get_req_without_tools(
+fn get_req_without_tools(
     model_name: &str,
     system_prompt: &str,
 ) -> Result<CreateChatCompletionRequest, OpenAIError> {
@@ -106,7 +105,7 @@ pub fn get_req_without_tools(
     Ok(chat_request)
 }
 
-pub fn construct_messages(
+fn construct_messages(
     mut req: CreateChatCompletionRequest,
     previous_messages: &[MessageResult],
     new_message: &str,
@@ -140,6 +139,7 @@ pub fn construct_messages(
     Ok(req)
 }
 
+/*
 pub async fn chat(
     client: &Client<OpenAIConfig>,
     bot: &Bot,
@@ -153,7 +153,7 @@ pub async fn chat(
     )?;
     let stream = client.chat().create_stream(req).await?;
     Ok(stream)
-}
+}*/
 
 #[async_trait::async_trait]
 pub trait Tool: Send + Sync {
@@ -306,8 +306,6 @@ pub async fn chat_with_tools(
     }
     match finish_reason {
         Some(FinishReason::ToolCalls) => {
-            println!("got to finish with tool calls 242");
-            println!("tools {:?}", tool_results);
             //no tools since we don't want to call the tools AGAIN
             let req_no_tools = construct_messages(
                 get_req_without_tools(&bot.model_name, &bot.system_prompt)?,
@@ -387,6 +385,7 @@ async fn tool_response<T: Clone>(
     Ok(client.chat().create_stream(req).await?)
 }
 
+/*
 #[derive(Clone)]
 pub struct EchoTool;
 
@@ -416,7 +415,7 @@ impl Tool for EchoTool {
         Ok(json!({"echo":args}))
     }
 }
-
+*/
 #[derive(Clone)]
 pub struct AddTool;
 

@@ -2,23 +2,22 @@
 extern crate rocket;
 
 mod llm;
-use llm::{EmbeddingClient, get_embedding_client, get_embeddings, get_embeddings_batch};
+use llm::{EmbeddingClient, get_embedding_client, get_embeddings};
 mod psql_vectors;
+
 use anyhow;
 use futures::stream::{self, StreamExt};
-use psql_vectors::{SimilarContent, get_similar_content, write_content, write_single_content};
+use psql_vectors::{SimilarContent, get_similar_content, write_document, write_single_content};
 use rocket::data::{Data, ToByteUnit};
 use rocket::fairing::{self, AdHoc};
-use rocket::fs::TempFile;
 use rocket::response::status::BadRequest;
 use rocket::serde::{Deserialize, Serialize, json::Json};
-use rocket::tokio::io::AsyncReadExt;
 use rocket::{Build, Rocket, State};
 use rocket_db_pools::Database;
-use sqlx::{Error, Pool, Postgres, Row, postgres::PgRow};
+use sha256::digest;
+use sqlx::Postgres;
 use std::env;
-use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 use text_splitter::TextSplitter;
 
 #[derive(Database)]
@@ -158,13 +157,12 @@ async fn extract_and_write(
 
 async fn extract_and_write(
     client: EmbeddingClient,
+    document_id: i64,
     chunk: String,
     db: sqlx::Pool<Postgres>,
 ) -> anyhow::Result<()> {
-    //need to clone, behind the scenes the Ollama library was making a copy anyway
     let embeddings = get_embeddings(&client, &chunk).await?;
-    //let embeddings = embeddings.pop().unwrap();
-    write_single_content(&chunk, embeddings, &db).await?;
+    write_single_content(document_id, &chunk, embeddings, &db).await?;
     Ok(())
 }
 
@@ -183,23 +181,31 @@ async fn ingest_content(
         .await
         .map_err(|e| BadRequest(e.to_string()))?
         .into_inner();
-    println!("finished reading content");
-    let chunks: Vec<String> = splitter.chunks(&content).map(|v| v.to_string()).collect();
-    println!("finished chunking content");
-    println!("num chunks: {}", chunks.len());
-    let start = Instant::now();
-    let futures = chunks
-        .into_iter()
-        .map(|chunk| extract_and_write(client.inner().clone(), chunk, db.0.clone()));
-    let results: Vec<anyhow::Result<()>> = stream::iter(futures)
-        .buffer_unordered(100) // Concurrently process up to 100 tasks
-        .collect()
-        .await;
-    let duration = start.elapsed();
-    println!("Time elapsed in writing to vector is: {:?}", duration);
-    println!("finished writing vectors");
-    for result in results {
-        result.map_err(|e| BadRequest(e.to_string()))?;
+    let content_hash = digest(&content);
+    match write_document(&content_hash, &db.0).await {
+        Ok(document_id) => {
+            println!("finished reading content");
+            let chunks: Vec<String> = splitter.chunks(&content).map(|v| v.to_string()).collect();
+            println!("finished chunking content");
+            println!("num chunks: {}", chunks.len());
+            let start = Instant::now();
+            let futures = chunks.into_iter().map(|chunk| {
+                extract_and_write(client.inner().clone(), document_id, chunk, db.0.clone())
+            });
+            let results: Vec<anyhow::Result<()>> = stream::iter(futures)
+                .buffer_unordered(100) // Concurrently process up to 100 tasks
+                .collect()
+                .await;
+            let duration = start.elapsed();
+            println!("Time elapsed in writing to vector is: {:?}", duration);
+            println!("finished writing vectors");
+            for result in results {
+                result.map_err(|e| BadRequest(e.to_string()))?;
+            }
+        }
+        Err(e) => {
+            println!("Already indexed!");
+        }
     }
     Ok(Json(StatusResponse {
         status: ResponseStatus::Success,

@@ -12,6 +12,7 @@ ollama-rs = "0.3.2"
 pgvector = { version = "0.3", features = ["sqlx"] }
 text-splitter = "0.28.0"
 anyhow = "1.0.100"
+sha256 = "1.6.0"
 [dependencies.rocket_db_pools]
 version = "0.2.0"
 features = ["sqlx_postgres"]
