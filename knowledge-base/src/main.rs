@@ -20,8 +20,10 @@ use std::env;
 use std::time::Instant;
 use text_splitter::TextSplitter;
 
+use crate::psql_vectors::{KnowledgeBase, get_knowledge_bases, write_knowledge_base};
+
 #[derive(Database)]
-#[database("draid")]
+#[database("kb")]
 struct Db(rocket_db_pools::sqlx::PgPool);
 
 async fn run_migrations(rocket: Rocket<Build>) -> fairing::Result {
@@ -58,7 +60,10 @@ fn rocket() -> _ {
         .attach(AdHoc::try_on_ignite("DB Migrations", run_migrations))
         .manage(ai_config)
         .manage(embedding_client)
-        .mount("/", routes![ingest_content, similar_content])
+        .mount(
+            "/",
+            routes![ingest_content, similar_content, create_kb, get_kbs],
+        )
 }
 #[derive(Deserialize)]
 #[serde(crate = "rocket::serde")]
@@ -79,8 +84,9 @@ struct StatusResponse {
     status: ResponseStatus,
 }
 
-#[post("/content/similar", format = "json", data = "<prompt>")]
+#[post("/knowledge_base/<kb>/similar", format = "json", data = "<prompt>")]
 async fn similar_content<'a>(
+    kb: i64,
     prompt: Json<Prompt<'a>>,
     db: &Db,
     client: &State<EmbeddingClient>,
@@ -89,7 +95,7 @@ async fn similar_content<'a>(
         .await
         .map_err(|e| BadRequest(e.to_string()))?;
 
-    let result = get_similar_content(embeddings, prompt.num_results, &db.0)
+    let result = get_similar_content(kb, embeddings, prompt.num_results, &db.0)
         .await
         .map_err(|e| BadRequest(e.to_string()))?;
     Ok(Json(result))
@@ -158,18 +164,51 @@ async fn extract_and_write(
 async fn extract_and_write(
     client: EmbeddingClient,
     document_id: i64,
+    kb_id: i64,
     chunk: String,
     db: sqlx::Pool<Postgres>,
 ) -> anyhow::Result<()> {
     let embeddings = get_embeddings(&client, &chunk).await?;
-    write_single_content(document_id, &chunk, embeddings, &db).await?;
+    write_single_content(document_id, kb_id, &chunk, embeddings, &db).await?;
     Ok(())
 }
 
+#[derive(Deserialize)]
+#[serde(crate = "rocket::serde")]
+struct KBRequest<'a> {
+    name: &'a str,
+}
+#[derive(Serialize)]
+#[serde(crate = "rocket::serde")]
+struct KBResponse {
+    id: i64,
+}
+
+#[post("/knowledge_base", format = "json", data = "<data>")]
+async fn create_kb<'a>(
+    data: Json<KBRequest<'a>>,
+    db: &Db,
+) -> Result<Json<KBResponse>, BadRequest<String>> {
+    let id = write_knowledge_base(&data.name, &db)
+        .await
+        .map_err(|e| BadRequest(e.to_string()))?;
+    Ok(Json(KBResponse { id }))
+}
+
+#[get("/knowledge_base")]
+async fn get_kbs(db: &Db) -> Result<Json<Vec<KnowledgeBase>>, BadRequest<String>> {
+    Ok(Json(
+        get_knowledge_bases(&db)
+            .await
+            .map_err(|e| BadRequest(e.to_string()))?,
+    ))
+}
+
 //curl --header "Content-Type: application/json"  -X POST http://127.0.0.1:8001/content/similar --data '{"text": "what did paul graham primary work on?", "num_results": 3}'
-//curl -X POST http://127.0.0.1:8001/content/ingest --data '@paul_graham_essay.txt'
-#[post("/content/ingest", data = "<data>")]
+//curl -X POST http://127.0.0.1:8001/knowledge_base/<kb>/ingest --data '@paul_graham_essay.txt'
+#[post("/knowledge_base/<kb>/ingest", data = "<data>")]
 async fn ingest_content(
+    kb: i64, //category of knowledge base
     data: Data<'_>,
     db: &Db,
     client: &State<EmbeddingClient>,
@@ -192,7 +231,7 @@ async fn ingest_content(
             println!("num chunks: {}", chunks.len());
             let start = Instant::now();
             let futures = chunks.into_iter().map(|chunk| {
-                extract_and_write(client.inner().clone(), document_id, chunk, db.0.clone())
+                extract_and_write(client.inner().clone(), document_id, kb, chunk, db.0.clone())
             });
             let results: Vec<anyhow::Result<()>> = stream::iter(futures)
                 .buffer_unordered(100) // Concurrently process up to 100 tasks
@@ -213,19 +252,3 @@ async fn ingest_content(
         status: ResponseStatus::Success,
     }))
 }
-
-//
-/*let mut stream = data.open(20.mebibytes());
-let mut content = String::new();
-// Loop to read the file in chunks.
-while let Ok(n) = stream.read(&mut buffer).await {
-    // If n is 0, the stream has ended.
-    if n == 0 {
-        break;
-    }
-    let large_chunk = match str::from_utf8(&buffer) {
-        Ok(v) => v,
-        Err(e) => panic!("Invalid UTF-8 sequence: {}", e),
-    };
-    content.push_str(large_chunk);
-}*/

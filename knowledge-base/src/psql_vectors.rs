@@ -7,6 +7,7 @@ pub struct SimilarContent {
     content: String,
 }
 pub async fn get_similar_content(
+    kb: i64,
     embeddings: Vec<f32>,
     num_matches: i16,
     pool: &Pool<Postgres>,
@@ -15,9 +16,11 @@ pub async fn get_similar_content(
     //cosine similarity
     let rows = sqlx::query(
         r#"
-        SELECT content FROM vectors ORDER BY embedding <=> $1 LIMIT $2;
+        SELECT content FROM vectors
+        WHERE kb_id=$1 ORDER BY embedding <=> $2 LIMIT $3;
         "#,
     )
+    .bind(kb)
     .bind(embeddings)
     .bind(num_matches)
     .fetch_all(pool)
@@ -62,26 +65,60 @@ pub async fn write_content(
 
 pub async fn write_single_content(
     document_id: i64,
+    kb_id: i64,
     content: &str,
     embeddings: Vec<f32>,
     pool: &Pool<Postgres>,
 ) -> sqlx::Result<()> {
-    sqlx::query("INSERT INTO vectors (document_id, content, embedding) VALUES ($1, $2, $3)")
-        .bind(&document_id)
-        .bind(&content)
-        .bind(Vector::from(embeddings))
-        .execute(pool)
-        .await?;
+    sqlx::query(
+        "INSERT INTO vectors (document_id, kb_id, content, embedding) VALUES ($1, $2, $3, $4)",
+    )
+    .bind(&document_id)
+    .bind(&kb_id)
+    .bind(&content)
+    .bind(Vector::from(embeddings))
+    .execute(pool)
+    .await?;
 
     Ok(())
 }
 
+//#[derive(sqlx::FromRow)]
+struct IdOnly {
+    id: i64,
+}
+
 //will error on index constraint
 pub async fn write_document(document_hash: &str, pool: &Pool<Postgres>) -> sqlx::Result<i64> {
-    let result = sqlx::query("INSERT INTO documents (hash) VALUES ($1) RETURNING id")
-        .bind(&document_hash)
-        .fetch_one(pool)
+    let result = sqlx::query_as!(
+        IdOnly,
+        r#"INSERT INTO documents (hash) VALUES ($1) RETURNING id"#,
+        document_hash
+    )
+    .fetch_one(pool)
+    .await?;
+    Ok(result.id)
+}
+
+pub async fn write_knowledge_base(name: &str, pool: &Pool<Postgres>) -> sqlx::Result<i64> {
+    let result = sqlx::query_as!(
+        IdOnly,
+        r#"INSERT INTO knowledge_bases (name) VALUES ($1) RETURNING id"#,
+        name,
+    )
+    .fetch_one(pool)
+    .await?;
+    Ok(result.id)
+}
+#[derive(Debug, Serialize)]
+#[serde(crate = "rocket::serde")]
+pub struct KnowledgeBase {
+    id: i64,
+    name: String,
+}
+pub async fn get_knowledge_bases(pool: &Pool<Postgres>) -> sqlx::Result<Vec<KnowledgeBase>> {
+    let result = sqlx::query_as!(KnowledgeBase, r#"SELECT id, name from knowledge_bases"#)
+        .fetch_all(pool)
         .await?;
-    let id: i64 = result.try_get("id")?;
-    Ok(id)
+    Ok(result)
 }
