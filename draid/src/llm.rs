@@ -463,6 +463,7 @@ struct Content {
     content: String,
 }
 
+/*
 #[derive(Clone)]
 pub struct KnowledgeBase;
 
@@ -489,6 +490,43 @@ impl Tool for KnowledgeBase {
     async fn invoke(&self, args: String) -> anyhow::Result<Value> {
         let client = HttpClient::new();
         let kb_url = "http://127.0.0.1:8001/content/similar";
+        let args: Value = serde::json::from_str(&args)?;
+        let content = args["content"].as_str().unwrap();
+        let body = json!({"text":content, "num_results":3});
+        let response = client.post(kb_url).json(&body).send().await?;
+        let result = response.json::<Vec<Content>>().await?;
+        println!("response from kb: {:?}", result);
+        Ok(json!(result))
+    }
+}
+*/
+
+#[derive(Clone)]
+pub struct KnowledgeBasePaulGraham;
+
+#[async_trait::async_trait]
+impl Tool for KnowledgeBasePaulGraham {
+    fn name(&self) -> &'static str {
+        "knowledge_base_paul_graham"
+    }
+    fn description(&self) -> &'static str {
+        "Knowledge base containing information on Paul Graham"
+    }
+    fn parameters(&self) -> Value {
+        json!({
+            "type": "object",
+            "properties": {
+                "content": {
+                    "type": "string",
+                    "description": "Search term to send to knowledge base",
+                },
+            },
+            "required": ["content"],
+        })
+    }
+    async fn invoke(&self, args: String) -> anyhow::Result<Value> {
+        let client = HttpClient::new();
+        let kb_url = "http://127.0.0.1:8001/knowledge_base/1/similar";
         let args: Value = serde::json::from_str(&args)?;
         let content = args["content"].as_str().unwrap();
         let body = json!({"text":content, "num_results":3});

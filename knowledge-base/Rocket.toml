@@ -1,2 +1,2 @@
-[default.databases.draid]
+[default.databases.kb]
 url = "postgresql://postgres:yourpassword@localhost:5432/kb"

@@ -4,7 +4,7 @@ mod auth;
 mod llm;
 mod psql_users;
 
-use llm::{AddTool, Bot, KnowledgeBase, Tool, chat_with_tools};
+use llm::{AddTool, Bot, KnowledgeBasePaulGraham, Tool, chat_with_tools};
 mod prompts;
 mod psql_memory;
 use prompts::HELPER_PROMPT;
@@ -74,7 +74,7 @@ fn rocket() -> _ {
     let jwt_secret = env::var("JWT_SECRET").unwrap().into_bytes();
     let model_name = "qwen3-8b";
     let helper_tools: Vec<Arc<dyn Tool + Send + Sync>> =
-        vec![Arc::new(AddTool), Arc::new(KnowledgeBase)];
+        vec![Arc::new(AddTool), Arc::new(KnowledgeBasePaulGraham)];
     let bots = Bots {
         helper_bot: Bot::new(
             model_name.to_string(),

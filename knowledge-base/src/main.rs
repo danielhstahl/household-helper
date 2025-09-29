@@ -184,6 +184,7 @@ struct KBResponse {
     id: i64,
 }
 
+//curl --header "Content-Type: application/json" -X POST http://127.0.0.1:8001/knowledge_base --data '{"name": "paul_graham"}'
 #[post("/knowledge_base", format = "json", data = "<data>")]
 async fn create_kb<'a>(
     data: Json<KBRequest<'a>>,
@@ -205,7 +206,7 @@ async fn get_kbs(db: &Db) -> Result<Json<Vec<KnowledgeBase>>, BadRequest<String>
 }
 
 //curl --header "Content-Type: application/json"  -X POST http://127.0.0.1:8001/content/similar --data '{"text": "what did paul graham primary work on?", "num_results": 3}'
-//curl -X POST http://127.0.0.1:8001/knowledge_base/<kb>/ingest --data '@paul_graham_essay.txt'
+//curl -X POST http://127.0.0.1:8001/knowledge_base/1/ingest --data '@paul_graham_essay.txt'
 #[post("/knowledge_base/<kb>/ingest", data = "<data>")]
 async fn ingest_content(
     kb: i64, //category of knowledge base
