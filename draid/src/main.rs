@@ -2,11 +2,12 @@
 extern crate rocket;
 mod auth;
 mod llm;
-mod psql_users;
-
-use llm::{AddTool, Bot, KnowledgeBasePaulGraham, Tool, chat_with_tools};
 mod prompts;
 mod psql_memory;
+mod psql_users;
+mod tools;
+
+use llm::{Bot, chat_with_tools};
 use prompts::HELPER_PROMPT;
 use prompts::TUTOR_PROMPT;
 use psql_memory::{MessageResult, PsqlMemory, manage_chat_interaction};
@@ -22,6 +23,7 @@ use rocket::{Build, Rocket, State};
 use rocket_db_pools::Database;
 use std::env;
 use std::sync::Arc;
+use tools::{AddTool, KnowledgeBasePaulGraham, Tool};
 
 #[derive(Database)]
 #[database("draid")]

@@ -2,16 +2,19 @@
 extern crate rocket;
 
 mod llm;
-use llm::{EmbeddingClient, get_embedding_client, get_embeddings};
 mod psql_vectors;
 
 use anyhow;
 use futures::stream::{self, StreamExt};
-use psql_vectors::{SimilarContent, get_similar_content, write_document, write_single_content};
+use llm::{EmbeddingClient, get_embedding_client, get_embeddings};
+use psql_vectors::{
+    KnowledgeBase, SimilarContent, get_knowledge_bases, get_similar_content, write_document,
+    write_knowledge_base, write_single_content,
+};
 use rocket::data::{Data, ToByteUnit};
 use rocket::fairing::{self, AdHoc};
 use rocket::response::status::BadRequest;
-use rocket::serde::{Deserialize, Serialize, json::Json};
+use rocket::serde::{Deserialize, Serialize, json, json::Json};
 use rocket::{Build, Rocket, State};
 use rocket_db_pools::Database;
 use sha256::digest;
@@ -20,8 +23,6 @@ use std::env;
 use std::time::Instant;
 use text_splitter::TextSplitter;
 
-use crate::psql_vectors::{KnowledgeBase, get_knowledge_bases, write_knowledge_base};
-
 #[derive(Database)]
 #[database("kb")]
 struct Db(rocket_db_pools::sqlx::PgPool);
@@ -29,7 +30,21 @@ struct Db(rocket_db_pools::sqlx::PgPool);
 async fn run_migrations(rocket: Rocket<Build>) -> fairing::Result {
     match Db::fetch(&rocket) {
         Some(db) => match sqlx::migrate!("./migrations").run(&**db).await {
-            Ok(_) => Ok(rocket),
+            Ok(_) => {
+                let raw_kb_names = match env::var("KNOWLEDGE_BASE_NAMES") {
+                    Ok(v) => v,
+                    Err(_e) => "[]".to_string(),
+                };
+                let knowledge_base_names: Vec<&str> =
+                    json::from_str(raw_kb_names.as_str()).unwrap();
+                for name in knowledge_base_names {
+                    match write_knowledge_base(name, &**db).await {
+                        Ok(v) => println!("Created knowledge base {} with index {}", name, v),
+                        Err(e) => println!("Failed to create knowledge base: {}", e),
+                    }
+                }
+                Ok(rocket)
+            }
             Err(e) => {
                 error!("Failed to initialize SQLx database: {}", e);
                 Err(rocket)
