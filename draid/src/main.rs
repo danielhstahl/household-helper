@@ -74,7 +74,7 @@ fn rocket() -> _ {
         },
     };
     let jwt_secret = env::var("JWT_SECRET").unwrap().into_bytes();
-    let model_name = "qwen3-8b";
+    let model_name = "qwen/qwen3-4b-thinking-2507";
     let helper_tools: Vec<Arc<dyn Tool + Send + Sync>> =
         vec![Arc::new(AddTool), Arc::new(KnowledgeBasePaulGraham)];
     let bots = Bots {
