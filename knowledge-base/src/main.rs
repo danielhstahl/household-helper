@@ -23,6 +23,8 @@ use std::env;
 use std::time::Instant;
 use text_splitter::TextSplitter;
 
+use crate::psql_vectors::get_knowledge_base;
+
 #[derive(Database)]
 #[database("kb")]
 struct Db(rocket_db_pools::sqlx::PgPool);
@@ -77,7 +79,14 @@ fn rocket() -> _ {
         .manage(embedding_client)
         .mount(
             "/",
-            routes![ingest_content, similar_content, create_kb, get_kbs],
+            routes![
+                similar_kb_by_id,
+                similar_kb_by_name,
+                create_kb,
+                get_kbs,
+                ingest_kb_by_id,
+                ingest_kb_by_name
+            ],
         )
 }
 #[derive(Deserialize)]
@@ -99,9 +108,8 @@ struct StatusResponse {
     status: ResponseStatus,
 }
 
-#[post("/knowledge_base/<kb>/similar", format = "json", data = "<prompt>")]
 async fn similar_content<'a>(
-    kb: i64,
+    kb_id: i64,
     prompt: Json<Prompt<'a>>,
     db: &Db,
     client: &State<EmbeddingClient>,
@@ -110,10 +118,38 @@ async fn similar_content<'a>(
         .await
         .map_err(|e| BadRequest(e.to_string()))?;
 
-    let result = get_similar_content(kb, embeddings, prompt.num_results, &db.0)
+    let result = get_similar_content(kb_id, embeddings, prompt.num_results, &db.0)
         .await
         .map_err(|e| BadRequest(e.to_string()))?;
     Ok(Json(result))
+}
+
+#[post("/knowledge_base/<kb_id>/similar", format = "json", data = "<prompt>")]
+async fn similar_kb_by_id<'a>(
+    kb_id: i64,
+    prompt: Json<Prompt<'a>>,
+    db: &Db,
+    client: &State<EmbeddingClient>,
+) -> Result<Json<Vec<SimilarContent>>, BadRequest<String>> {
+    similar_content(kb_id, prompt, db, client).await
+}
+
+#[post(
+    "/knowledge_base/<kb>/similar",
+    format = "json",
+    data = "<prompt>",
+    rank = 2
+)]
+async fn similar_kb_by_name<'a>(
+    kb: &str,
+    prompt: Json<Prompt<'a>>,
+    db: &Db,
+    client: &State<EmbeddingClient>,
+) -> Result<Json<Vec<SimilarContent>>, BadRequest<String>> {
+    let KnowledgeBase { id, .. } = get_knowledge_base(kb, &db.0)
+        .await
+        .map_err(|e| BadRequest(e.to_string()))?;
+    similar_content(id, prompt, db, client).await
 }
 //oddly, this is slower (!) than the individual writing approach
 /*
@@ -220,11 +256,8 @@ async fn get_kbs(db: &Db) -> Result<Json<Vec<KnowledgeBase>>, BadRequest<String>
     ))
 }
 
-//curl --header "Content-Type: application/json"  -X POST http://127.0.0.1:8001/content/similar --data '{"text": "what did paul graham primary work on?", "num_results": 3}'
-//curl -X POST http://127.0.0.1:8001/knowledge_base/1/ingest --data '@paul_graham_essay.txt'
-#[post("/knowledge_base/<kb>/ingest", data = "<data>")]
 async fn ingest_content(
-    kb: i64, //category of knowledge base
+    kb_id: i64, //category of knowledge base
     data: Data<'_>,
     db: &Db,
     client: &State<EmbeddingClient>,
@@ -247,7 +280,13 @@ async fn ingest_content(
             println!("num chunks: {}", chunks.len());
             let start = Instant::now();
             let futures = chunks.into_iter().map(|chunk| {
-                extract_and_write(client.inner().clone(), document_id, kb, chunk, db.0.clone())
+                extract_and_write(
+                    client.inner().clone(),
+                    document_id,
+                    kb_id,
+                    chunk,
+                    db.0.clone(),
+                )
             });
             let results: Vec<anyhow::Result<()>> = stream::iter(futures)
                 .buffer_unordered(100) // Concurrently process up to 100 tasks
@@ -267,4 +306,29 @@ async fn ingest_content(
     Ok(Json(StatusResponse {
         status: ResponseStatus::Success,
     }))
+}
+
+//curl --header "Content-Type: application/json"  -X POST http://127.0.0.1:8001/content/similar --data '{"text": "what did paul graham primary work on?", "num_results": 3}'
+//curl -X POST http://127.0.0.1:8001/knowledge_base/1/ingest --data '@paul_graham_essay.txt'
+#[post("/knowledge_base/<kb_id>/ingest", data = "<data>")]
+async fn ingest_kb_by_id(
+    kb_id: i64, //category of knowledge base
+    data: Data<'_>,
+    db: &Db,
+    client: &State<EmbeddingClient>,
+) -> Result<Json<StatusResponse>, BadRequest<String>> {
+    ingest_content(kb_id, data, db, client).await
+}
+
+#[post("/knowledge_base/<kb>/ingest", data = "<data>", rank = 2)]
+async fn ingest_kb_by_name(
+    kb: &str, //category of knowledge base
+    data: Data<'_>,
+    db: &Db,
+    client: &State<EmbeddingClient>,
+) -> Result<Json<StatusResponse>, BadRequest<String>> {
+    let KnowledgeBase { id, .. } = get_knowledge_base(kb, &db.0)
+        .await
+        .map_err(|e| BadRequest(e.to_string()))?;
+    ingest_content(id, data, db, client).await
 }

@@ -113,12 +113,23 @@ pub async fn write_knowledge_base(name: &str, pool: &Pool<Postgres>) -> sqlx::Re
 #[derive(Debug, Serialize)]
 #[serde(crate = "rocket::serde")]
 pub struct KnowledgeBase {
-    id: i64,
+    pub id: i64,
     name: String,
 }
 pub async fn get_knowledge_bases(pool: &Pool<Postgres>) -> sqlx::Result<Vec<KnowledgeBase>> {
     let result = sqlx::query_as!(KnowledgeBase, r#"SELECT id, name from knowledge_bases"#)
         .fetch_all(pool)
         .await?;
+    Ok(result)
+}
+
+pub async fn get_knowledge_base(name: &str, pool: &Pool<Postgres>) -> sqlx::Result<KnowledgeBase> {
+    let result = sqlx::query_as!(
+        KnowledgeBase,
+        r#"SELECT id, name from knowledge_bases where name=$1"#,
+        name
+    )
+    .fetch_one(pool)
+    .await?;
     Ok(result)
 }
