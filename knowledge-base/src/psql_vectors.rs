@@ -83,7 +83,6 @@ pub async fn write_single_content(
     Ok(())
 }
 
-//#[derive(sqlx::FromRow)]
 struct IdOnly {
     id: i64,
 }

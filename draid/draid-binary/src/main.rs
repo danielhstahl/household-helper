@@ -7,23 +7,29 @@ mod psql_memory;
 mod psql_users;
 mod tools;
 
+use kb_tool_macro::kb;
 use llm::{Bot, chat_with_tools};
 use prompts::HELPER_PROMPT;
 use prompts::TUTOR_PROMPT;
 use psql_memory::{MessageResult, PsqlMemory, manage_chat_interaction};
 use psql_users::{Role, SessionDB, UserRequest, UserResponse, create_user};
+use reqwest::Client as HttpClient;
 use rocket::fairing::{self, AdHoc};
 use rocket::form::Form;
 use rocket::http::Status;
 use rocket::response::status::BadRequest;
 use rocket::response::stream::TextStream;
-use rocket::serde::{Deserialize, Serialize, json::Json, uuid::Uuid};
+use rocket::serde::{
+    Deserialize, Serialize, json,
+    json::{Json, Value, json},
+    uuid::Uuid,
+};
 use rocket::tokio::sync::mpsc::{self};
 use rocket::{Build, Rocket, State};
 use rocket_db_pools::Database;
 use std::env;
 use std::sync::Arc;
-use tools::{AddTool, KnowledgeBasePaulGraham, Tool};
+use tools::{AddTool, Content, Tool};
 
 #[derive(Database)]
 #[database("draid")]
@@ -75,8 +81,14 @@ fn rocket() -> _ {
     };
     let jwt_secret = env::var("JWT_SECRET").unwrap().into_bytes();
     let model_name = "qwen/qwen3-4b-thinking-2507";
+    // the kb! macro generates code that is "impure"
+    // it depends on std::env for the KB endpoint
+    // The kb! calls must match what is passed to
+    // knowledge-base docker at runtime.
+    // see KNOWLEDGE_BASE_NAMES in docker compose
     let helper_tools: Vec<Arc<dyn Tool + Send + Sync>> =
-        vec![Arc::new(AddTool), Arc::new(KnowledgeBasePaulGraham)];
+        vec![Arc::new(AddTool), kb!("recipes", 3), kb!("gardening", 3)];
+
     let bots = Bots {
         helper_bot: Bot::new(
             model_name.to_string(),
