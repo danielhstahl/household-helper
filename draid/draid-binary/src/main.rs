@@ -74,10 +74,8 @@ struct Bots {
 #[launch]
 fn rocket() -> _ {
     let ai_config = AiConfig {
-        lm_studio_endpoint: match env::var("LM_STUDIO_ENDPOINT") {
-            Ok(v) => v,
-            Err(_e) => "http://localhost:1234".to_string(),
-        },
+        lm_studio_endpoint: env::var("LM_STUDIO_ENDPOINT")
+            .unwrap_or_else(|_e| "http://localhost:1234".to_string()),
     };
     let jwt_secret = env::var("JWT_SECRET").unwrap().into_bytes();
     let model_name = "qwen/qwen3-4b-thinking-2507";
