@@ -1,12 +1,17 @@
 #[macro_use]
 extern crate rocket;
 mod auth;
+mod dbtracing;
 mod llm;
 mod prompts;
 mod psql_memory;
 mod psql_users;
 mod tools;
 
+use dbtracing::{
+    AsyncDbWorker, PSqlLayer, SpanLength, SpanToolUse, get_histogram, get_tool_use,
+    run_async_worker,
+};
 use kb_tool_macro::kb;
 use llm::{Bot, chat_with_tools};
 use prompts::HELPER_PROMPT;
@@ -28,8 +33,11 @@ use rocket::tokio::sync::mpsc::{self};
 use rocket::{Build, Rocket, State};
 use rocket_db_pools::Database;
 use std::env;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use tools::{AddTool, Content, Tool};
+use tracing::level_filters::LevelFilter;
+use tracing::{Instrument, Level, span};
+use tracing_subscriber::{Registry, prelude::*};
 
 #[derive(Database)]
 #[database("draid")]
@@ -62,6 +70,53 @@ async fn run_migrations(rocket: Rocket<Build>) -> fairing::Result {
     }
 }
 
+async fn create_logging(rocket: Rocket<Build>) -> fairing::Result {
+    match Db::fetch(&rocket) {
+        Some(db) => {
+            let (tx, rx) = mpsc::channel(1);
+
+            // 2. Spawn the worker task onto the tokio runtime
+            let worker_handle = rocket::tokio::spawn(run_async_worker(AsyncDbWorker {
+                rx,
+                db_client: db.0.clone(),
+            }));
+
+            let layer = PSqlLayer {
+                tx: Arc::new(Mutex::new(tx)),
+            };
+
+            // Optional: Add an EnvFilter layer for runtime filtering
+            let filter_layer = tracing_subscriber::EnvFilter::builder()
+                .with_default_directive(LevelFilter::INFO.into())
+                .from_env_lossy();
+
+            // 3. Attach the layers to the Registry using .with()
+            let subscriber = Registry::default()
+                .with(filter_layer) // Handles RUST_LOG environment variable filtering
+                .with(layer); // Your custom processing layer
+
+            tracing::subscriber::set_global_default(subscriber)
+                .expect("Failed to set global tracing subscriber");
+            // ... tracing_subscriber::registry().with(layer).init();
+
+            // 4. SHUTDOWN AND FLUSH
+            // ---
+
+            // Signal the worker to stop receiving (drops the sender half)
+            //drop(layer.tx);
+
+            // Block the main thread and wait for the async worker task to finish
+            // processing its queue. This ensures the flush is complete.
+            // Use the handle returned by tokio::spawn
+            /*rocket::tokio::runtime::Handle::current()
+            .block_on(worker_handle)
+            .unwrap();*/
+            Ok(rocket.manage(worker_handle))
+        }
+        None => Err(rocket),
+    }
+}
+
 struct AiConfig {
     lm_studio_endpoint: String,
 }
@@ -71,14 +126,17 @@ struct Bots {
     tutor_bot: Bot,
 }
 
-#[launch]
-fn rocket() -> _ {
+#[rocket::main]
+async fn main() -> Result<(), rocket::Error> {
     let ai_config = AiConfig {
         lm_studio_endpoint: env::var("LM_STUDIO_ENDPOINT")
             .unwrap_or_else(|_e| "http://localhost:1234".to_string()),
     };
     let jwt_secret = env::var("JWT_SECRET").unwrap().into_bytes();
     let model_name = "qwen/qwen3-4b-thinking-2507";
+
+    // 4. Set the subscriber as the global default
+
     // the kb! macro generates code that is "impure"
     // it depends on std::env for the KB endpoint
     // The kb! calls must match what is passed to
@@ -102,9 +160,10 @@ fn rocket() -> _ {
         ),
     };
 
-    rocket::build()
+    let rocket = rocket::build()
         .attach(Db::init())
         .attach(AdHoc::try_on_ignite("DB Migrations", run_migrations))
+        .attach(AdHoc::try_on_ignite("Logging", create_logging))
         .manage(bots)
         .manage(jwt_secret)
         .mount(
@@ -122,9 +181,21 @@ fn rocket() -> _ {
                 delete_session,
                 latest_session,
                 get_sessions,
-                get_messages
+                get_messages,
+                tool_use,
+                histogram
             ],
         )
+        .ignite()
+        .await?;
+    /*let shutdown = rocket.shutdown();
+    tokio::runtime::Handle::current().block_on(worker_handle).unwrap();
+    tokio::spawn(async move {
+        tokio::signal::ctrl_c().await.ok();
+        shutdown.notify();
+    });*/
+    rocket.launch().await?;
+    Ok(())
 }
 #[derive(Deserialize)]
 #[serde(crate = "rocket::serde")]
@@ -147,15 +218,17 @@ async fn chat_with_bot(
 
     let (tx, mut rx) = mpsc::channel::<String>(1);
 
-    //frustarting...I tried to get bot and prompt to be efficient
+    //frustrating that I'm cloning...I tried to get bot and prompt to be efficient
     rocket::tokio::spawn(async move {
-        if let Err(e) = chat_with_tools(bot, tx, &messages, prompt).await {
+        if let Err(e) = chat_with_tools(bot, tx, &messages, prompt)
+            .instrument(span!(Level::INFO, "chat_with_tools", tool_use = false))
+            .await
+        {
             eprintln!("chat_with_tools exploded: {}", e); // Or propagate if you care
         }
     });
     Ok(TextStream! {
         while let Some(chunk) = rx.recv().await {
-            //println!("receiving final chunks");
             if let Err(e) = tx_persist_message.send(chunk.clone()).await {
                 eprintln!("Failed to send chunk to background task: {}", e);
             }
@@ -338,13 +411,7 @@ async fn get_messages(
         .map_err(|e| BadRequest(e.to_string()))?;
     Ok(Json(messages))
 }
-/**
-* Example invocation:
-* curl --header "Content-Type: application/json" \
-  --request POST \
-  --data '{"text":"hello world!"}' \
-  'http://127.0.0.1:8000/helper?session_id=9e186ac2-3912-4250-83d2-d5b779729f52'
-*/
+
 #[post("/helper?<session_id>", format = "json", data = "<prompt>")]
 async fn helper<'a>(
     session_id: Uuid,
@@ -372,4 +439,26 @@ async fn tutor<'a>(
 ) -> Result<TextStream![String], BadRequest<String>> {
     let psql_memory = PsqlMemory::new(100, session_id, tutor.id, db.0.clone());
     chat_with_bot(bots.tutor_bot.clone(), psql_memory, prompt.text.to_string()).await
+}
+
+#[get("/span/length", format = "json")]
+async fn histogram(
+    db: &Db,
+    _admin: auth::Admin,
+) -> Result<Json<Vec<SpanLength>>, BadRequest<String>> {
+    let results = get_histogram(&db.0)
+        .await
+        .map_err(|e| BadRequest(e.to_string()))?;
+    Ok(Json(results))
+}
+
+#[get("/span/tools", format = "json")]
+async fn tool_use(
+    db: &Db,
+    _admin: auth::Admin,
+) -> Result<Json<Vec<SpanToolUse>>, BadRequest<String>> {
+    let results = get_tool_use(&db.0)
+        .await
+        .map_err(|e| BadRequest(e.to_string()))?;
+    Ok(Json(results))
 }

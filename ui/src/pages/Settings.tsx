@@ -1,42 +1,43 @@
-import { useLoaderData, useFetcher } from "react-router";
-import Table, { type Action, ActionEnum } from "../components/TableX";
+//import { useLoaderData, useFetcher, redirect } from "react-router";
 import Grid from "@mui/material/Grid";
-interface User {
-  id: number;
-  username: string;
-  roles: string[];
+import { Outlet } from "react-router";
+import Tabs from "@mui/material/Tabs";
+import Tab from "@mui/material/Tab";
+import { NavLink, useLocation, useNavigation } from "react-router";
+import CircularProgress from "@mui/material/CircularProgress";
+
+function a11yProps(index: number) {
+  return {
+    id: `simple-tab-${index}`,
+    "aria-controls": `simple-tabpanel-${index}`,
+  };
 }
 
-const mapActionToRequest = (actionType: Action) => {
-  switch (actionType) {
-    case ActionEnum.Create:
-      return "POST";
-    case ActionEnum.Update:
-      return "PATCH";
-    case ActionEnum.Delete:
-      return "DELETE";
-  }
-};
-
 const Settings = () => {
-  const users = useLoaderData() as User[];
-  const fetcher = useFetcher();
-  const onChange = (
-    type: Action,
-    id: string | number,
-    username: string,
-    password: string | undefined,
-    roles: string[],
-  ) => {
-    const formData = new FormData();
-    formData.append("data", JSON.stringify({ id, username, password, roles }));
-    fetcher.submit(formData, { method: mapActionToRequest(type) });
-  };
+  const location = useLocation();
+  const [path] = location.pathname.split("/").reverse();
+  const navigation = useNavigation();
+
   return (
     <Grid container spacing={2} style={{ paddingTop: 20 }}>
-      <Grid size={{ xs: 12 }}>
-        <Table users={users} onChange={onChange} />
-      </Grid>
+      <Tabs value={path} aria-label="Settings">
+        <Tab
+          component={NavLink}
+          to="users"
+          value="users"
+          label="Users"
+          {...a11yProps(0)}
+        />
+        <Tab
+          component={NavLink}
+          to="metrics"
+          value="metrics"
+          label="Metrics"
+          {...a11yProps(1)}
+        />
+      </Tabs>
+      {navigation.state === "loading" && <CircularProgress />}
+      <Outlet />
     </Grid>
   );
 };

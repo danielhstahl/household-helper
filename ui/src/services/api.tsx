@@ -202,3 +202,25 @@ export const streamText = (
     onDone();
   };
 };
+
+export const getSpanLength = async (jwt: string) => {
+  const response = await fetch("/api/span/length", {
+    headers: getHeaders(jwt),
+  });
+  const result = await response.json();
+  if (response.ok) {
+    return result;
+  }
+  throw new Error(result.detail);
+};
+
+export const getSpanTools = async (jwt: string) => {
+  const response = await fetch("/api/span/tools", {
+    headers: getHeaders(jwt),
+  });
+  const result = await response.json();
+  if (response.ok) {
+    return result;
+  }
+  throw new Error(result.detail);
+};

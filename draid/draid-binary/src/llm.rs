@@ -16,10 +16,12 @@ use async_openai::{
 };
 use futures::StreamExt;
 use futures::future::join_all;
+use rocket::serde::uuid::Uuid;
 use rocket::tokio::{self, sync::mpsc::Sender};
 use rocket::{serde::json::Value, tokio::task::JoinHandle};
 use std::sync::Arc;
 use tokio::task;
+use tracing::info;
 
 fn get_llm(api_endpoint: &str) -> Client<OpenAIConfig> {
     Client::with_config(OpenAIConfig::default().with_api_base(format!("{}/v1", api_endpoint)))
@@ -167,6 +169,8 @@ pub async fn chat_with_tools(
     previous_messages: &[MessageResult],
     new_message: String,
 ) -> anyhow::Result<()> {
+    let span_id = Uuid::new_v4().to_string();
+    info!(tool_use = false, span_id, "Initiated chat");
     //create storage for tool calls
     let mut registry = ToolRegistry::new();
     let mut tool_results: std::collections::HashMap<(u32, u32), ChatCompletionMessageToolCall> =
@@ -211,7 +215,6 @@ pub async fn chat_with_tools(
                     None => None,
                 })
                 .for_each(|(chat_choice_index, tools)| {
-                    println!("this is raw tools {:?}", tools);
                     tools.into_iter().for_each(|tool_call_chunk| {
                         // If tool_results.entry(key) exists already, id will be null.
                         // But insert_with won't be called in that case
@@ -248,6 +251,7 @@ pub async fn chat_with_tools(
     }
     match finish_reason {
         Some(FinishReason::ToolCalls) => {
+            info!(tool_use = true, span_id, "Finished constructing tool calls");
             //no tools since we don't want to call the tools a second time
             let req_no_tools = construct_messages(
                 get_req_without_tools(&bot.model_name, &bot.system_prompt)?,
@@ -260,9 +264,13 @@ pub async fn chat_with_tools(
                 let tokens = get_final_tokens_from_stream(&result);
                 tx.send(tokens).await?;
             }
+            info!(tool_use = true, span_id, "Completed response");
             Ok(())
         }
-        _ => Ok(()),
+        _ => {
+            info!(tool_use = false, span_id, "Completed response");
+            Ok(())
+        }
     }
 }
 
