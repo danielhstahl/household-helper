@@ -1,5 +1,5 @@
 import Table, { type Action, ActionEnum } from "../components/TableX";
-import { useLoaderData, useFetcher, useNavigation } from "react-router";
+import { useLoaderData, useFetcher } from "react-router";
 import Grid from "@mui/material/Grid";
 interface User {
   id: number;
