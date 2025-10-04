@@ -8,7 +8,6 @@ use futures::stream::StreamExt;
 use rocket::serde::uuid::Uuid;
 use rocket::serde::{Deserialize, Serialize};
 use sqlx::{PgConnection, Type, query, types::chrono};
-//use sqlx::{Pool, Postgres, Type, query};
 use std::{collections::HashMap, fmt};
 fn hash_password(password: &str) -> Result<String, Error> {
     // Generate a secure random salt

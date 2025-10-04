@@ -5,7 +5,6 @@ use rocket::http::Status;
 use rocket::request::{FromRequest, Outcome, Request};
 use rocket::serde::{Deserialize, Serialize, uuid::Uuid};
 use rocket_db_pools::Connection;
-use sqlx::PgConnection;
 use std::fmt;
 use std::time::{SystemTime, UNIX_EPOCH};
 
