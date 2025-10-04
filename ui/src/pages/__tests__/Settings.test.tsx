@@ -1,22 +1,33 @@
 import { describe, it, expect } from "vitest";
 import { render } from "vitest-browser-react";
-import { createRoutesStub } from "react-router";
+import { createRoutesStub, redirect } from "react-router";
 import Settings from "../Settings.tsx";
+import Users from "../../components/Users.tsx";
 
-describe("MainChat", () => {
+describe("Settings", () => {
   it("renders", async () => {
     const Stub = createRoutesStub([
       {
         path: "/",
         Component: Settings,
-        loader: () => [
+        children: [
           {
-            id: 2,
-            username: "hello",
-            roles: ["admin"],
+            loader: () => redirect("users"),
+            index: true,
+          },
+          {
+            path: "users",
+            loader: () => [
+              {
+                id: 2,
+                username: "hello",
+                roles: ["admin"],
+              },
+            ],
+            action: () => {},
+            Component: Users,
           },
         ],
-        action: () => {},
       },
     ]);
     const screen = render(<Stub />);

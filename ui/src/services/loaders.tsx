@@ -6,6 +6,8 @@ import {
   getMessages,
   getUser,
   createSession,
+  getSpanLength,
+  getSpanTools,
 } from "./api.tsx";
 import { getLoggedInJwt, setLoggedInJwt } from "../state/localState.tsx";
 import { getRedirectRoute } from "./routes.tsx";
@@ -85,6 +87,24 @@ export const loadUsers = async () => {
   try {
     const users = await getUsers(jwt);
     return users;
+  } catch (error) {
+    console.log(error);
+    setLoggedInJwt(null);
+    return redirect("/login");
+  }
+};
+
+export const loadMetrics = async () => {
+  const jwt = getLoggedInJwt();
+  if (!jwt) {
+    return redirect("/login");
+  }
+  try {
+    const [spanLength, spanTools] = await Promise.all([
+      getSpanLength(jwt),
+      getSpanTools(jwt),
+    ]);
+    return { spanLength, spanTools };
   } catch (error) {
     console.log(error);
     setLoggedInJwt(null);

@@ -10,16 +10,19 @@ import MainPage from "./pages/MainPage.tsx";
 import MainChat from "./pages/MainChat.tsx";
 import Login from "./pages/Login.tsx";
 import Settings from "./pages/Settings.tsx";
-import { createBrowserRouter, RouterProvider } from "react-router";
+import Metrics from "./components/Metrics.tsx";
+import { createBrowserRouter, redirect, RouterProvider } from "react-router";
 import {
   logoutLoader,
   loadUsers,
   loadSessionsAndMessages,
   loadUser,
   loadSession,
+  loadMetrics,
 } from "./services/loaders.tsx";
 
 import { sessionAction, userAction, loginAction } from "./services/actions.tsx";
+import Users from "./components/Users.tsx";
 
 const router = createBrowserRouter([
   {
@@ -49,8 +52,23 @@ const router = createBrowserRouter([
           {
             path: "settings",
             Component: Settings,
-            loader: loadUsers,
-            action: userAction,
+            children: [
+              {
+                loader: () => redirect("users"),
+                index: true,
+              },
+              {
+                path: "users",
+                loader: loadUsers,
+                action: userAction,
+                Component: Users,
+              },
+              {
+                path: "metrics",
+                loader: loadMetrics,
+                Component: Metrics,
+              },
+            ],
           },
         ],
       },
