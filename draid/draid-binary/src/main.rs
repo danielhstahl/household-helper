@@ -31,6 +31,7 @@ use rocket::serde::{
 };
 use rocket::tokio::sync::mpsc::{self};
 use rocket::{Build, Rocket, State};
+use rocket_db_pools::Connection;
 use rocket_db_pools::Database;
 use std::env;
 use std::sync::{Arc, Mutex};
@@ -53,11 +54,12 @@ async fn run_migrations(rocket: Rocket<Build>) -> fairing::Result {
                     password: Some(&password), //intentinoally don't start up if not set
                     roles: vec![Role::Admin],
                 };
-                if psql_users::get_user(&admin_user.username, &**db)
+                let mut connection = db.0.acquire().await.unwrap();
+                if psql_users::get_user(&admin_user.username, &mut *connection)
                     .await
                     .is_err()
                 {
-                    create_user(&admin_user, &**db).await.unwrap();
+                    create_user(&admin_user, &mut *connection).await.unwrap();
                 };
                 Ok(rocket)
             }
@@ -75,7 +77,7 @@ async fn create_logging(rocket: Rocket<Build>) -> fairing::Result {
         Some(db) => {
             let (tx, rx) = mpsc::channel(1);
 
-            // 2. Spawn the worker task onto the tokio runtime
+            // Spawn the worker task onto the tokio runtime
             let worker_handle = rocket::tokio::spawn(run_async_worker(AsyncDbWorker {
                 rx,
                 db_client: db.0.clone(),
@@ -90,27 +92,13 @@ async fn create_logging(rocket: Rocket<Build>) -> fairing::Result {
                 .with_default_directive(LevelFilter::INFO.into())
                 .from_env_lossy();
 
-            // 3. Attach the layers to the Registry using .with()
             let subscriber = Registry::default()
                 .with(filter_layer) // Handles RUST_LOG environment variable filtering
                 .with(layer); // Your custom processing layer
 
             tracing::subscriber::set_global_default(subscriber)
                 .expect("Failed to set global tracing subscriber");
-            // ... tracing_subscriber::registry().with(layer).init();
 
-            // 4. SHUTDOWN AND FLUSH
-            // ---
-
-            // Signal the worker to stop receiving (drops the sender half)
-            //drop(layer.tx);
-
-            // Block the main thread and wait for the async worker task to finish
-            // processing its queue. This ensures the flush is complete.
-            // Use the handle returned by tokio::spawn
-            /*rocket::tokio::runtime::Handle::current()
-            .block_on(worker_handle)
-            .unwrap();*/
             Ok(rocket.manage(worker_handle))
         }
         None => Err(rocket),
@@ -118,7 +106,7 @@ async fn create_logging(rocket: Rocket<Build>) -> fairing::Result {
 }
 
 struct AiConfig {
-    lm_studio_endpoint: String,
+    open_ai_compatable_endpoint: String,
 }
 
 struct Bots {
@@ -129,11 +117,11 @@ struct Bots {
 #[rocket::main]
 async fn main() -> Result<(), rocket::Error> {
     let ai_config = AiConfig {
-        lm_studio_endpoint: env::var("LM_STUDIO_ENDPOINT")
-            .unwrap_or_else(|_e| "http://localhost:1234".to_string()),
+        open_ai_compatable_endpoint: env::var("OPEN_AI_COMPATABLE_ENDPOINT")
+            .unwrap_or_else(|_e| "http://localhost:11434".to_string()),
     };
     let jwt_secret = env::var("JWT_SECRET").unwrap().into_bytes();
-    let model_name = "qwen/qwen3-4b-thinking-2507";
+    let model_name = "qwen3:4b";
 
     // the kb! macro generates code that is "impure"
     // it depends on std::env for the KB endpoint
@@ -151,13 +139,13 @@ async fn main() -> Result<(), rocket::Error> {
         helper_bot: Bot::new(
             model_name.to_string(),
             HELPER_PROMPT,
-            &ai_config.lm_studio_endpoint,
+            &ai_config.open_ai_compatable_endpoint,
             Some(helper_tools),
         ),
         tutor_bot: Bot::new(
             model_name.to_string(),
             TUTOR_PROMPT,
-            &ai_config.lm_studio_endpoint,
+            &ai_config.open_ai_compatable_endpoint,
             None,
         ),
     };
@@ -190,12 +178,7 @@ async fn main() -> Result<(), rocket::Error> {
         )
         .ignite()
         .await?;
-    /*let shutdown = rocket.shutdown();
-    tokio::runtime::Handle::current().block_on(worker_handle).unwrap();
-    tokio::spawn(async move {
-        tokio::signal::ctrl_c().await.ok();
-        shutdown.notify();
-    });*/
+
     rocket.launch().await?;
     Ok(())
 }
@@ -220,9 +203,10 @@ async fn chat_with_bot(
 
     let (tx, mut rx) = mpsc::channel::<String>(1);
 
+    let span_id = Uuid::new_v4().to_string();
     //frustrating that I'm cloning...I tried to get bot and prompt to be efficient
     rocket::tokio::spawn(async move {
-        if let Err(e) = chat_with_tools(bot, tx, &messages, prompt)
+        if let Err(e) = chat_with_tools(bot, tx, &messages, prompt, span_id)
             .instrument(span!(Level::INFO, "chat_with_tools", tool_use = false))
             .await
         {
@@ -267,10 +251,10 @@ struct StatusResponse {
 #[post("/user", format = "json", data = "<user>")]
 async fn new_user<'a>(
     user: Json<psql_users::UserRequest<'a>>,
-    db: &Db,
+    mut db: Connection<Db>,
     _admin: auth::Admin, //guard, only admins can access this
 ) -> Result<Json<StatusResponse>, BadRequest<String>> {
-    psql_users::create_user(&user, &db.0)
+    psql_users::create_user(&user, &mut db)
         .await
         .map_err(|e| BadRequest(e.to_string()))?;
 
@@ -282,10 +266,10 @@ async fn new_user<'a>(
 #[delete("/user/<id>")]
 async fn delete_user<'a>(
     id: Uuid,
-    db: &Db,
+    mut db: Connection<Db>,
     _admin: auth::Admin, //guard, only admins can access this
 ) -> Result<Json<StatusResponse>, BadRequest<String>> {
-    psql_users::delete_user(&id, &db.0)
+    psql_users::delete_user(&id, &mut db)
         .await
         .map_err(|e| BadRequest(e.to_string()))?;
 
@@ -298,10 +282,10 @@ async fn delete_user<'a>(
 async fn update_user<'a>(
     id: Uuid,
     user: Json<psql_users::UserRequest<'a>>,
-    db: &Db,
+    mut db: Connection<Db>,
     _admin: auth::Admin, //guard, only admins can access this
 ) -> Result<Json<StatusResponse>, BadRequest<String>> {
-    psql_users::patch_user(&id, &user, &db.0)
+    psql_users::patch_user(&id, &user, &mut db)
         .await
         .map_err(|e| BadRequest(e.to_string()))?;
 
@@ -312,10 +296,10 @@ async fn update_user<'a>(
 
 #[get("/user")]
 async fn get_users<'a>(
-    db: &Db,
+    mut db: Connection<Db>,
     _admin: auth::Admin, //guard, only admins can access this
 ) -> Result<Json<Vec<UserResponse>>, BadRequest<String>> {
-    let users = psql_users::get_all_users(&db.0)
+    let users = psql_users::get_all_users(&mut db)
         .await
         .map_err(|e| BadRequest(e.to_string()))?;
 
@@ -324,10 +308,10 @@ async fn get_users<'a>(
 
 #[get("/user/me")]
 async fn get_user<'a>(
-    db: &Db,
+    mut db: Connection<Db>,
     user: auth::AuthenticatedUser,
 ) -> Result<Json<UserResponse>, BadRequest<String>> {
-    let user = psql_users::get_user(&user.username, &db.0)
+    let user = psql_users::get_user(&user.username, &mut db)
         .await
         .map_err(|e| BadRequest(e.to_string()))?;
     Ok(Json(user))
@@ -335,10 +319,10 @@ async fn get_user<'a>(
 
 #[post("/session", format = "json")]
 async fn new_session<'a>(
-    db: &Db,
+    mut db: Connection<Db>,
     user: auth::AuthenticatedUser, //guard, only authenticated users can access
 ) -> Result<Json<SessionDB>, BadRequest<String>> {
-    let session = psql_users::create_session(&user.id, &db.0)
+    let session = psql_users::create_session(&user.id, &mut db)
         .await
         .map_err(|e| BadRequest(e.to_string()))?;
 
@@ -348,10 +332,10 @@ async fn new_session<'a>(
 #[delete("/session/<session_id>")]
 async fn delete_session(
     session_id: Uuid,
-    db: &Db,
+    mut db: Connection<Db>,
     user: auth::AuthenticatedUser, //guard, only authenticated users can access
 ) -> Result<Json<StatusResponse>, BadRequest<String>> {
-    psql_users::delete_session(&session_id, &user.id, &db.0)
+    psql_users::delete_session(&session_id, &user.id, &mut db)
         .await
         .map_err(|e| BadRequest(e.to_string()))?;
 
@@ -362,10 +346,10 @@ async fn delete_session(
 
 #[get("/session", format = "json")]
 async fn get_sessions<'a>(
-    db: &Db,
+    mut db: Connection<Db>,
     user: auth::AuthenticatedUser, //guard, only authenticated users can access
 ) -> Result<Json<Vec<SessionDB>>, BadRequest<String>> {
-    let sessions = psql_users::get_all_sessions(&user.id, &db.0)
+    let sessions = psql_users::get_all_sessions(&user.id, &mut db)
         .await
         .map_err(|e| BadRequest(e.to_string()))?;
 
@@ -374,10 +358,10 @@ async fn get_sessions<'a>(
 
 #[get("/session/recent", format = "json")]
 async fn latest_session<'a>(
-    db: &Db,
+    mut db: Connection<Db>,
     user: auth::AuthenticatedUser, //guard, only authenticated users can access
 ) -> Result<Json<Option<SessionDB>>, BadRequest<String>> {
-    let session = psql_users::get_most_recent_session(&user.id, &db.0)
+    let session = psql_users::get_most_recent_session(&user.id, &mut db)
         .await
         .map_err(|e| BadRequest(e.to_string()))?;
 
@@ -387,10 +371,10 @@ async fn latest_session<'a>(
 #[post("/login", data = "<credentials>")]
 async fn login(
     credentials: Form<AuthRequest<'_>>,
-    db: &Db,
+    mut db: Connection<Db>,
     jwt_secret: &State<Vec<u8>>,
 ) -> Result<Json<AuthResponse>, Status> {
-    psql_users::authenticate_user(&credentials.username, &credentials.password, &db.0)
+    psql_users::authenticate_user(&credentials.username, &credentials.password, &mut db)
         .await
         .map_err(|_e| Status::Unauthorized)?;
 
@@ -445,10 +429,10 @@ async fn tutor<'a>(
 
 #[get("/span/length", format = "json")]
 async fn histogram(
-    db: &Db,
+    mut db: Connection<Db>,
     _admin: auth::Admin,
 ) -> Result<Json<Vec<SpanLength>>, BadRequest<String>> {
-    let results = get_histogram(&db.0)
+    let results = get_histogram(&mut db)
         .await
         .map_err(|e| BadRequest(e.to_string()))?;
     Ok(Json(results))
@@ -456,10 +440,10 @@ async fn histogram(
 
 #[get("/span/tools", format = "json")]
 async fn tool_use(
-    db: &Db,
+    mut db: Connection<Db>,
     _admin: auth::Admin,
 ) -> Result<Json<Vec<SpanToolUse>>, BadRequest<String>> {
-    let results = get_tool_use(&db.0)
+    let results = get_tool_use(&mut db)
         .await
         .map_err(|e| BadRequest(e.to_string()))?;
     Ok(Json(results))

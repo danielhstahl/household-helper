@@ -14,9 +14,8 @@ use async_openai::{
         FinishReason, FunctionCall, FunctionObjectArgs,
     },
 };
-use futures::StreamExt;
 use futures::future::join_all;
-use rocket::serde::uuid::Uuid;
+use futures::{StreamExt, future};
 use rocket::tokio::{self, sync::mpsc::Sender};
 use rocket::{serde::json::Value, tokio::task::JoinHandle};
 use std::sync::Arc;
@@ -163,13 +162,24 @@ fn get_final_tokens_from_stream(stream: &CreateChatCompletionStreamResponse) -> 
         .join("")
 }
 
+fn contains_stop_word(token: &str) -> bool {
+    token.contains("</think>")
+}
+
+fn get_end_of_thinking(item: &Result<CreateChatCompletionStreamResponse, OpenAIError>) -> bool {
+    match item {
+        Ok(item) => contains_stop_word(&get_final_tokens_from_stream(item)),
+        Err(_e) => false,
+    }
+}
+
 pub async fn chat_with_tools(
     bot: Bot,
     tx: Sender<String>,
     previous_messages: &[MessageResult],
     new_message: String,
+    span_id: String,
 ) -> anyhow::Result<()> {
-    let span_id = Uuid::new_v4().to_string();
     info!(tool_use = false, span_id, "Initiated chat");
     //create storage for tool calls
     let mut registry = ToolRegistry::new();
@@ -194,12 +204,18 @@ pub async fn chat_with_tools(
             new_message.as_str(),
         )?,
     };
-
+    //let mut thinking = true;
     let mut finish_reason: Option<FinishReason> = None;
-    let mut stream = bot.llm.chat().create_stream(req).await?;
+    let mut stream = bot
+        .llm
+        .chat()
+        .create_stream(req)
+        .await?
+        .skip_while(|item| future::ready(!get_end_of_thinking(&item)));
     while let Some(result) = stream.next().await {
         let result = result?;
         let tokens = get_final_tokens_from_stream(&result);
+
         if tokens.trim().is_empty() {
             finish_reason = result
                 .choices
@@ -244,6 +260,8 @@ pub async fn chat_with_tools(
                         }
                     })
                 });
+        } else if contains_stop_word(&tokens) {
+            info!(tool_use = false, span_id, "First token");
         } else {
             //no tool call, just send results
             tx.send(tokens).await?;
@@ -258,11 +276,17 @@ pub async fn chat_with_tools(
                 previous_messages,
                 new_message.as_str(),
             )?;
-            let mut stream = tool_response(&bot.llm, registry, req_no_tools, tool_results).await?;
+            let mut stream = tool_response(&bot.llm, registry, req_no_tools, tool_results)
+                .await?
+                .skip_while(|item| future::ready(!get_end_of_thinking(&item)));
             while let Some(result) = stream.next().await {
                 let result = result?;
                 let tokens = get_final_tokens_from_stream(&result);
-                tx.send(tokens).await?;
+                if contains_stop_word(&tokens) {
+                    info!(tool_use = true, span_id, "First token");
+                } else {
+                    tx.send(tokens).await?;
+                }
             }
             info!(tool_use = true, span_id, "Completed response");
             Ok(())
@@ -327,4 +351,20 @@ async fn tool_response<T: Clone>(
     req.messages.push(assistant_message);
     req.messages.extend(tool_messages);
     Ok(client.chat().create_stream(req).await?)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::contains_stop_word;
+
+    #[test]
+    fn it_returns_true_if_contains_stop_word() {
+        let result = contains_stop_word("hello </think>");
+        assert!(result);
+    }
+    #[test]
+    fn it_returns_false_if_does_not_contain_stop_word() {
+        let result = contains_stop_word("hello");
+        assert!(!result);
+    }
 }

@@ -1,7 +1,7 @@
 use rocket::serde::Serialize;
 use rocket::serde::uuid::Uuid;
 use rocket::tokio::sync::mpsc;
-use sqlx::{Pool, Postgres};
+use sqlx::{PgConnection, Pool, Postgres};
 use std::sync::{Arc, Mutex};
 use tracing::Event;
 use tracing::field::{Field, Visit};
@@ -140,7 +140,7 @@ pub struct SpanLength {
     range: String,
     frequency: i64,
 }
-pub async fn get_histogram(pool: &Pool<Postgres>) -> anyhow::Result<Vec<SpanLength>> {
+pub async fn get_histogram(pool: &mut PgConnection) -> anyhow::Result<Vec<SpanLength>> {
     let spans = sqlx::query_as!(
         SpanLength,
         r#"
@@ -178,7 +178,7 @@ pub struct SpanToolUse {
     cnt_spns_without_tools: i64,
     date: chrono::DateTime<chrono::Utc>,
 }
-pub async fn get_tool_use(pool: &Pool<Postgres>) -> anyhow::Result<Vec<SpanToolUse>> {
+pub async fn get_tool_use(pool: &mut PgConnection) -> anyhow::Result<Vec<SpanToolUse>> {
     let spans = sqlx::query_as!(
         SpanToolUse,
         r#"
