@@ -197,6 +197,7 @@ pub async fn get_tool_use(pool: &Pool<Postgres>) -> anyhow::Result<Vec<SpanToolU
                 group by span_id, date_trunc('day', timestamp)
             )
             group by date
+            order by date asc
             "#
     ) //-- where timestamp> NOW()::DATE-EXTRACT(DOW FROM NOW())::INTEGER-7
     .fetch_all(pool)

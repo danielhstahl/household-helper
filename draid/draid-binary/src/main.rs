@@ -34,7 +34,7 @@ use rocket::{Build, Rocket, State};
 use rocket_db_pools::Database;
 use std::env;
 use std::sync::{Arc, Mutex};
-use tools::{AddTool, Content, Tool};
+use tools::{AddTool, Content, TimeTool, Tool};
 use tracing::level_filters::LevelFilter;
 use tracing::{Instrument, Level, span};
 use tracing_subscriber::{Registry, prelude::*};
@@ -135,15 +135,17 @@ async fn main() -> Result<(), rocket::Error> {
     let jwt_secret = env::var("JWT_SECRET").unwrap().into_bytes();
     let model_name = "qwen/qwen3-4b-thinking-2507";
 
-    // 4. Set the subscriber as the global default
-
     // the kb! macro generates code that is "impure"
     // it depends on std::env for the KB endpoint
     // The kb! calls must match what is passed to
     // knowledge-base docker at runtime.
     // see KNOWLEDGE_BASE_NAMES in docker compose
-    let helper_tools: Vec<Arc<dyn Tool + Send + Sync>> =
-        vec![Arc::new(AddTool), kb!("recipes", 3), kb!("gardening", 3)];
+    let helper_tools: Vec<Arc<dyn Tool + Send + Sync>> = vec![
+        Arc::new(AddTool),
+        Arc::new(TimeTool),
+        kb!("recipes", 3),
+        kb!("gardening", 3),
+    ];
 
     let bots = Bots {
         helper_bot: Bot::new(

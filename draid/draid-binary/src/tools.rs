@@ -3,6 +3,7 @@ use rocket::{
     serde::json::{Value, json},
     serde::{Deserialize, Serialize},
 };
+use sqlx::types::chrono;
 use std::{ops::Deref, sync::Arc};
 
 #[async_trait::async_trait]
@@ -96,6 +97,32 @@ impl Tool for AddTool {
         Ok(json!({"result":result}))
     }
 }
+
+#[derive(Clone)]
+pub struct TimeTool;
+
+#[async_trait::async_trait]
+impl Tool for TimeTool {
+    fn name(&self) -> &'static str {
+        "time"
+    }
+    fn description(&self) -> &'static str {
+        "Get current time"
+    }
+    fn parameters(&self) -> Value {
+        json!({
+            "type": "object",
+            "properties": {
+            },
+            "required": [],
+        })
+    }
+    async fn invoke(&self, _args: String) -> anyhow::Result<Value> {
+        let result = chrono::Local::now();
+        Ok(json!({"result":result}))
+    }
+}
+
 #[derive(Deserialize, Serialize, Debug)]
 #[serde(crate = "rocket::serde")]
 pub struct Content {
