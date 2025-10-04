@@ -102,7 +102,7 @@ describe("loginAction", () => {
   it("returns error if not authenticated", async () => {
     const server = setupWorker(
       http.post("/api/login", () => {
-        return HttpResponse.json({ detail: "bad things" }, { status: 404 });
+        return HttpResponse.text("somehtml", { status: 401 });
       }),
     );
     await server.start({ quiet: true });
@@ -119,7 +119,7 @@ describe("loginAction", () => {
       console.log(result.status);
       console.log(result.body);
     }
-    expect(result).toEqual({ error: Error("bad things") });
+    expect(result).toEqual({ error: Error("Unauthorized") });
 
     server.stop();
   });
