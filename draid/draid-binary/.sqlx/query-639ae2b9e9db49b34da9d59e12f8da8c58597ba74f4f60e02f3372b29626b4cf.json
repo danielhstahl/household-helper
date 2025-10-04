@@ -1,0 +1,32 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n            SUM(CASE WHEN used_tools then 1 else 0 end) as \"cnt_spns_with_tools!\",\n            SUM(CASE WHEN not used_tools then 1 else 0 end) as \"cnt_spns_without_tools!\",\n            date as \"date!\" FROM\n            (\n                SELECT CASE WHEN\n                    MAX(CASE WHEN tool_use is true then 1 else 0 END)=1\n                    then true else false END as used_tools,\n                    date_trunc('day', timestamp) as date,\n                span_id from\n                traces\n                where timestamp> date_subtract(NOW(), '7 day'::interval)\n                group by span_id, date_trunc('day', timestamp)\n            )\n            group by date\n            order by date asc\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "cnt_spns_with_tools!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "cnt_spns_without_tools!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "date!",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "639ae2b9e9db49b34da9d59e12f8da8c58597ba74f4f60e02f3372b29626b4cf"
+}

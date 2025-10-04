@@ -27,91 +27,81 @@ export const sendTutor = (text: string, jwt: string, sessionId: string) => {
   });
 };
 
-export const getSessions = (jwt: string) => {
-  return fetch("/api/session", {
+export const getSessions = async (jwt: string) => {
+  const response = await fetch("/api/session", {
     headers: getHeaders(jwt),
-  }).then((response) => {
-    return response.json().then((result) => {
-      if (response.ok) {
-        return result;
-      }
-      throw new Error(result.detail);
-    });
   });
+  if (response.ok) {
+    const result = await response.json();
+    return result;
+  }
+  throw new Error(await response.text());
 };
 
-export const getMostRecentSession = (jwt: string) => {
-  return fetch("/api/session/recent", {
+export const getMostRecentSession = async (jwt: string) => {
+  const response = await fetch("/api/session/recent", {
     headers: getHeaders(jwt),
-  }).then((response) => {
-    return response.json().then((result) => {
-      if (response.ok) {
-        return result;
-      }
-      throw new Error(result.detail);
-    });
   });
+  if (response.ok) {
+    const result = await response.json();
+    return result;
+  }
+  throw new Error(await response.text());
 };
 
-export const createSession = (jwt: string) => {
-  return fetch("/api/session", {
+export const createSession = async (jwt: string) => {
+  const response = await fetch("/api/session", {
     method: "POST",
     headers: getHeaders(jwt),
-  }).then((response) => {
-    return response.json().then((result) => {
-      if (response.ok) {
-        return result;
-      }
-      throw new Error(result.detail);
-    });
   });
+  if (response.ok) {
+    const result = await response.json();
+    return result;
+  }
+  throw new Error(await response.text());
 };
 
-export const deleteSession = (sessionId: string, jwt: string) => {
-  return fetch(`/api/session/${sessionId}`, {
+export const deleteSession = async (sessionId: string, jwt: string) => {
+  const response = await fetch(`/api/session/${sessionId}`, {
     method: "DELETE",
     headers: getHeaders(jwt),
-  }).then((response) => {
-    return response.json().then((result) => {
-      if (response.ok) {
-        return result;
-      }
-      throw new Error(result.detail);
-    });
   });
+  if (response.ok) {
+    const result = await response.json();
+    return result;
+  }
+  throw new Error(await response.text());
 };
 
-export const getMessages = (sessionId: string, jwt: string) => {
-  return fetch(`/api/messages/${sessionId}`, {
+export const getMessages = async (sessionId: string, jwt: string) => {
+  const response = await fetch(`/api/messages/${sessionId}`, {
     headers: getHeaders(jwt),
-  }).then((response) => {
-    return response.json().then((result) => {
-      if (response.ok) {
-        return result;
-      }
-      throw new Error(result.detail);
-    });
   });
+  if (response.ok) {
+    const result = await response.json();
+    return result;
+  }
+  throw new Error(await response.text());
 };
 export const getUser = async (jwt: string) => {
   const response = await fetch("/api/user/me", {
     headers: getHeaders(jwt),
   });
-  const result = await response.json();
   if (response.ok) {
+    const result = await response.json();
     return result;
   }
-  throw new Error(result.detail);
+  throw new Error(await response.text());
 };
 export const getUsers = async (jwt: string) => {
   const response = await fetch("/api/user", {
     headers: getHeaders(jwt),
   });
-  const result = await response.json();
   if (response.ok) {
+    const result = await response.json();
     return result;
   }
-  throw new Error(result.detail);
+  throw new Error(await response.text());
 };
 
 export const createUser = async (
@@ -125,14 +115,14 @@ export const createUser = async (
     body: JSON.stringify({ username, password, roles }),
     headers: getHeaders(jwt),
   });
-  const result = await response.json();
   if (response.ok) {
+    const result = await response.json();
     return result;
   }
-  throw new Error(result.detail);
+  throw new Error(await response.text());
 };
 
-export const updateUser = (
+export const updateUser = async (
   id: number,
   username: string,
   password: string | undefined,
@@ -142,32 +132,28 @@ export const updateUser = (
   const payload = password
     ? { username, password, roles }
     : { username, roles };
-  return fetch(`/api/user/${id}`, {
+  const response = await fetch(`/api/user/${id}`, {
     method: "PATCH",
     body: JSON.stringify(payload),
     headers: getHeaders(jwt),
-  }).then((response) => {
-    return response.json().then((result) => {
-      if (response.ok) {
-        return result;
-      }
-      throw new Error(result.detail);
-    });
   });
+  if (response.ok) {
+    const result = await response.json();
+    return result;
+  }
+  throw new Error(await response.text());
 };
 
-export const deleteUser = (id: number, jwt: string) => {
-  return fetch(`/api/user/${id}`, {
+export const deleteUser = async (id: number, jwt: string) => {
+  const response = await fetch(`/api/user/${id}`, {
     method: "DELETE",
     headers: getHeaders(jwt),
-  }).then((response) => {
-    return response.json().then((result) => {
-      if (response.ok) {
-        return result;
-      }
-      throw new Error(result.detail);
-    });
   });
+  if (response.ok) {
+    const result = await response.json();
+    return result;
+  }
+  throw new Error(await response.text());
 };
 
 export const getToken = async (formData: FormData) => {
@@ -179,11 +165,11 @@ export const getToken = async (formData: FormData) => {
     method: "POST",
     body: data,
   });
-  const result = await response.json();
   if (response.ok) {
+    const result = await response.json();
     return result;
   }
-  throw new Error(result.detail);
+  throw new Error(response.statusText);
 };
 
 export const streamText = (
@@ -207,20 +193,20 @@ export const getSpanLength = async (jwt: string) => {
   const response = await fetch("/api/span/length", {
     headers: getHeaders(jwt),
   });
-  const result = await response.json();
   if (response.ok) {
+    const result = await response.json();
     return result;
   }
-  throw new Error(result.detail);
+  throw new Error(await response.text());
 };
 
 export const getSpanTools = async (jwt: string) => {
   const response = await fetch("/api/span/tools", {
     headers: getHeaders(jwt),
   });
-  const result = await response.json();
   if (response.ok) {
+    const result = await response.json();
     return result;
   }
-  throw new Error(result.detail);
+  throw new Error(await response.text());
 };
