@@ -53,9 +53,8 @@ Change directory to [draid](./draid), and run
 
 ## Deploy
 
-There are two Docker images, one for the UI (static files) and one for the API.  The UI Docker includes an nginx config that needs to point to the address of the App Docker.  These images are built and available at `ghcr.io/danielhstahl/householdhelper-ui:${tag}` and `ghcr.io/danielhstahl/householdhelper-app:${tag}`.  The following environmental variables need to be defined on the app Docker:
-* LM_STUDIO_ENDPOINT (defaults to "http://localhost:1234")
-* OLLAMA_ENDPOINT (defaults to "http://localhost:11434")
+There are three Docker images, one for the UI (static files), one for the API (draid), and one for the knowledge base (kb).  The UI Docker includes an nginx config that needs to point to the address of the API Docker.  These images are built and available at `ghcr.io/danielhstahl/householdhelper-ui:${tag}`, `ghcr.io/danielhstahl/householdhelper-draid:${tag}`, and `ghcr.io/danielhstahl/householdhelper-kb:${tag}`.  The following environmental variables need to be defined on the draid Docker:
+* OPEN_AI_COMPATABLE_ENDPOINT (defaults to "http://localhost:11434")
 * ROCKET_DATABASES (eg, '{draid={url="postgresql://[yourpsqluser]:[yourpsqlpassword]@psqldb:5432/draid"}}')
 * ROCKET_PORT (eg 8000)
 * ROCKET_ADDRESS (eg, 0.0.0.0)
@@ -64,6 +63,10 @@ There are two Docker images, one for the UI (static files) and one for the API. 
 
 In the UI docker:
 * BACKEND_SERVICE.  Needs to be [ip/dns]:[port] of your app docker.
+
+In the KB docker:
+* OLLAMA_ENDPOINT (defaults to "http://localhost:11434")
+* KNOWLEDGE_BASE_NAMES.  JSON array of KB names.
 
 The [docker-compose](./docker/docker-compose.yml) file shows an example of how to orchestrate the containers.
 
