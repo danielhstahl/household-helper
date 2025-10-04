@@ -4,6 +4,8 @@ use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation, deco
 use rocket::http::Status;
 use rocket::request::{FromRequest, Outcome, Request};
 use rocket::serde::{Deserialize, Serialize, uuid::Uuid};
+use rocket_db_pools::Connection;
+use sqlx::PgConnection;
 use std::fmt;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -70,10 +72,16 @@ async fn auth_by_role<'r>(req: &'r Request<'_>) -> Result<UserResponse, AuthErro
         &Validation::new(Algorithm::HS256),
     )
     .map_err(|e| AuthError { msg: e.to_string() })?;
-    let db = req.rocket().state::<Db>().ok_or_else(|| AuthError {
-        msg: "Database does not not exist".to_string(),
-    })?;
-    let calling_user = get_user(&token_data.claims.sub, &db.0)
+
+    let mut db_conn = match req.guard::<Connection<Db>>().await {
+        // Success: Got a connection object
+        Outcome::Success(conn) => Ok(conn),
+        // Error: Connection pool is unavailable (e.g., DB is down)
+        _ => Err(AuthError {
+            msg: "Could not get a connection".to_string(),
+        }),
+    }?;
+    let calling_user = get_user(&token_data.claims.sub, &mut **db_conn)
         .await
         .map_err(|e| AuthError { msg: e.to_string() })?;
     Ok(calling_user)
