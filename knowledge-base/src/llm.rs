@@ -1,20 +1,19 @@
 use ollama_rs::Ollama;
 use ollama_rs::error::OllamaError;
 use ollama_rs::generation::embeddings::request::GenerateEmbeddingsRequest;
-
+use url::{ParseError, Url};
 #[derive(Clone)]
 pub struct EmbeddingClient {
     ollama: Ollama,
     model: String,
 }
-pub fn get_embedding_client(api_endpoint: &str, model: String) -> EmbeddingClient {
-    let parsed_url: Vec<&str> = api_endpoint.split(":").collect();
-    let url = format!("{}:{}", parsed_url[0], parsed_url[1]);
-    let port: u16 = parsed_url[2].parse().unwrap();
-    EmbeddingClient {
-        ollama: Ollama::new(&url, port),
+pub fn get_embedding_client(api_endpoint: &str, model: String) -> anyhow::Result<EmbeddingClient> {
+    let url = Url::parse(api_endpoint)?;
+    let port = url.port().ok_or_else(|| ParseError::InvalidPort)?;
+    Ok(EmbeddingClient {
+        ollama: Ollama::new(url, port),
         model,
-    }
+    })
 }
 
 pub async fn get_embeddings(
