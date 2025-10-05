@@ -58,6 +58,10 @@ fn get_req_with_tools(
     let chat_request = CreateChatCompletionRequestArgs::default()
         .model(model_name)
         .stream(true)
+        //recommended for qwen, see eg https://huggingface.co/Qwen/Qwen3-4B-GGUF#best-practices
+        .temperature(0.6)
+        .presence_penalty(1.5)
+        .top_p(0.95)
         .tools(
             tools
                 .iter()
@@ -93,6 +97,10 @@ fn get_req_without_tools(
     let chat_request = CreateChatCompletionRequestArgs::default()
         .model(model_name)
         .stream(true)
+        //recommended for qwen, see eg https://huggingface.co/Qwen/Qwen3-4B-GGUF#best-practices
+        .temperature(0.6)
+        .presence_penalty(1.5)
+        .top_p(0.95)
         .messages([ChatCompletionRequestSystemMessageArgs::default()
             .content(system_prompt)
             .build()?
