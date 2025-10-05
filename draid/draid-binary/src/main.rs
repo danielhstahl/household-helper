@@ -121,7 +121,8 @@ async fn main() -> Result<(), rocket::Error> {
             .unwrap_or_else(|_e| "http://localhost:11434".to_string()),
     };
     let jwt_secret = env::var("JWT_SECRET").unwrap().into_bytes();
-    let model_name = "qwen3:4b";
+    //Temperature=0.6, TopP=0.95, TopK=20, and MinP=0
+    let model_name = "hf.co/Qwen/Qwen3-4B-GGUF:latest";
 
     // the kb! macro generates code that is "impure"
     // it depends on std::env for the KB endpoint
