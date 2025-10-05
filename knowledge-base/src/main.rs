@@ -70,7 +70,7 @@ fn rocket() -> _ {
     };
 
     let embedding_client =
-        get_embedding_client(&ai_config.ollama_endpoint, "bge-m3:567m".to_string());
+        get_embedding_client(&ai_config.ollama_endpoint, "bge-m3:567m".to_string()).unwrap();
 
     rocket::build()
         .attach(Db::init())
