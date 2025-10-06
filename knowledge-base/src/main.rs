@@ -20,6 +20,7 @@ use rocket_db_pools::Database;
 use sha256::digest;
 use sqlx::Postgres;
 use std::env;
+use std::sync::Arc;
 use std::time::Instant;
 use text_splitter::TextSplitter;
 
@@ -69,10 +70,10 @@ fn rocket() -> _ {
         },
     };
 
-    let embedding_client = EmbeddingClient::new(
+    let embedding_client = Arc::new(EmbeddingClient::new(
         "bge-m3:567m".to_string(),
         &ai_config.open_ai_compatable_endpoint,
-    );
+    ));
 
     rocket::build()
         .attach(Db::init())
@@ -114,7 +115,7 @@ async fn similar_content<'a>(
     kb_id: i64,
     prompt: Json<Prompt<'a>>,
     db: &Db,
-    client: &State<EmbeddingClient>,
+    client: &EmbeddingClient,
 ) -> Result<Json<Vec<SimilarContent>>, BadRequest<String>> {
     let embeddings = get_embeddings(&client, &prompt.text)
         .await
@@ -131,7 +132,7 @@ async fn similar_kb_by_id<'a>(
     kb_id: i64,
     prompt: Json<Prompt<'a>>,
     db: &Db,
-    client: &State<EmbeddingClient>,
+    client: &State<Arc<EmbeddingClient>>,
 ) -> Result<Json<Vec<SimilarContent>>, BadRequest<String>> {
     similar_content(kb_id, prompt, db, client).await
 }
@@ -146,7 +147,7 @@ async fn similar_kb_by_name<'a>(
     kb: &str,
     prompt: Json<Prompt<'a>>,
     db: &Db,
-    client: &State<EmbeddingClient>,
+    client: &State<Arc<EmbeddingClient>>,
 ) -> Result<Json<Vec<SimilarContent>>, BadRequest<String>> {
     let KnowledgeBase { id, .. } = get_knowledge_base(kb, &db.0)
         .await
@@ -215,7 +216,7 @@ async fn extract_and_write(
 */
 
 async fn extract_and_write(
-    client: EmbeddingClient,
+    client: &EmbeddingClient,
     document_id: i64,
     kb_id: i64,
     chunk: String,
@@ -262,7 +263,7 @@ async fn ingest_content(
     kb_id: i64, //category of knowledge base
     data: Data<'_>,
     db: &Db,
-    client: &State<EmbeddingClient>,
+    client: &EmbeddingClient,
 ) -> Result<Json<StatusResponse>, BadRequest<String>> {
     let max_characters = 1000;
     let splitter = TextSplitter::new(max_characters);
@@ -282,14 +283,9 @@ async fn ingest_content(
             println!("num chunks: {}", chunks.len());
             let start = Instant::now();
             let futures = chunks.into_iter().map(|chunk| {
-                extract_and_write(
-                    //TODO put this into a Arc<Mutex>
-                    client.inner().clone(),
-                    document_id,
-                    kb_id,
-                    chunk,
-                    db.0.clone(),
-                )
+                //Rocket automatically derefs State, clone of Arc is cheap
+                //let local_client = client.clone();
+                extract_and_write(&client, document_id, kb_id, chunk, db.0.clone())
             });
             let results: Vec<anyhow::Result<()>> = stream::iter(futures)
                 .buffer_unordered(100) // Concurrently process up to 100 tasks
@@ -318,7 +314,7 @@ async fn ingest_kb_by_id(
     kb_id: i64, //category of knowledge base
     data: Data<'_>,
     db: &Db,
-    client: &State<EmbeddingClient>,
+    client: &State<Arc<EmbeddingClient>>,
 ) -> Result<Json<StatusResponse>, BadRequest<String>> {
     ingest_content(kb_id, data, db, client).await
 }
@@ -328,7 +324,7 @@ async fn ingest_kb_by_name(
     kb: &str, //category of knowledge base
     data: Data<'_>,
     db: &Db,
-    client: &State<EmbeddingClient>,
+    client: &State<Arc<EmbeddingClient>>,
 ) -> Result<Json<StatusResponse>, BadRequest<String>> {
     let KnowledgeBase { id, .. } = get_knowledge_base(kb, &db.0)
         .await
