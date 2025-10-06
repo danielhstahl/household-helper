@@ -121,7 +121,7 @@ async fn main() -> Result<(), rocket::Error> {
             .unwrap_or_else(|_e| "http://localhost:11434".to_string()),
     };
     let jwt_secret = env::var("JWT_SECRET").unwrap().into_bytes();
-    //Temperature=0.6, TopP=0.95, TopK=20, and MinP=0
+    //Temperature=0.6, TopP=0.95, TopK=20, and MinP=0, PresencePenalty=1.5
     let model_name = "hf.co/Qwen/Qwen3-4B-GGUF:latest";
 
     // the kb! macro generates code that is "impure"
@@ -141,13 +141,21 @@ async fn main() -> Result<(), rocket::Error> {
             model_name.to_string(),
             HELPER_PROMPT,
             &ai_config.open_ai_compatable_endpoint,
+            //recommended for qwen, see eg https://huggingface.co/Qwen/Qwen3-4B-GGUF#best-practices
+            Some(0.6),  //temperature
+            Some(1.5),  //presence penalty
+            Some(0.95), //top_p
             Some(helper_tools),
         ),
         tutor_bot: Bot::new(
             model_name.to_string(),
             TUTOR_PROMPT,
             &ai_config.open_ai_compatable_endpoint,
-            None,
+            //recommended for qwen, see eg https://huggingface.co/Qwen/Qwen3-4B-GGUF#best-practices
+            Some(0.6),  //temperature
+            Some(1.5),  //presence penalty
+            Some(0.95), //top_p
+            None,       //no tools
         ),
     };
 

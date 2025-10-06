@@ -10,8 +10,8 @@ use async_openai::{
         ChatCompletionRequestMessage, ChatCompletionRequestSystemMessageArgs,
         ChatCompletionRequestToolMessageArgs, ChatCompletionRequestUserMessageArgs,
         ChatCompletionResponseStream, ChatCompletionToolArgs, ChatCompletionToolChoiceOption,
-        ChatCompletionToolType, CreateChatCompletionRequest, CreateChatCompletionRequestArgs,
-        FinishReason, FunctionCall, FunctionObjectArgs,
+        ChatCompletionToolType, CreateChatCompletionRequest, FinishReason, FunctionCall,
+        FunctionObjectArgs,
     },
 };
 use futures::future::join_all;
@@ -32,6 +32,9 @@ pub struct Bot {
     system_prompt: &'static str,
     llm: Client<OpenAIConfig>,
     tools: Option<Vec<Arc<dyn Tool + Send + Sync>>>,
+    temperature: Option<f32>,
+    presence_penalty: Option<f32>,
+    top_p: Option<f32>,
 }
 
 impl Bot {
@@ -39,73 +42,63 @@ impl Bot {
         model_name: String,
         system_prompt: &'static str,
         api_endpoint: &str,
+        temperature: Option<f32>,
+        presence_penalty: Option<f32>,
+        top_p: Option<f32>,
         tools: Option<Vec<Arc<dyn Tool + Send + Sync>>>,
     ) -> Self {
         Self {
             model_name,
             system_prompt,
             llm: get_llm(api_endpoint),
+            temperature,
+            presence_penalty,
+            top_p,
             tools,
         }
     }
 }
 
-fn get_req_with_tools(
-    model_name: &str,
-    system_prompt: &str,
-    tools: &Vec<Arc<dyn Tool + Send + Sync>>,
+fn get_req(
+    bot: &Bot,
+    tools: &Option<Vec<Arc<dyn Tool + Send + Sync>>>,
 ) -> Result<CreateChatCompletionRequest, OpenAIError> {
-    let chat_request = CreateChatCompletionRequestArgs::default()
-        .model(model_name)
-        .stream(true)
-        //recommended for qwen, see eg https://huggingface.co/Qwen/Qwen3-4B-GGUF#best-practices
-        .temperature(0.6)
-        .presence_penalty(1.5)
-        .top_p(0.95)
-        .tools(
-            tools
-                .iter()
-                .map(|tool| {
-                    let chat_completion = ChatCompletionToolArgs::default()
-                        .r#type(ChatCompletionToolType::Function)
-                        .function(
-                            FunctionObjectArgs::default()
-                                .name(tool.name())
-                                .description(tool.description())
-                                .parameters(tool.parameters())
-                                .build()?,
-                        )
-                        .build()?;
-                    Ok(chat_completion)
-                })
-                .collect::<Result<Vec<_>, OpenAIError>>()?,
-        )
-        .tool_choice(ChatCompletionToolChoiceOption::Auto) //let llm choose whether to call a tool
-        .messages([ChatCompletionRequestSystemMessageArgs::default()
-            .content(system_prompt)
-            .build()?
-            .into()])
-        .build()?;
-
-    Ok(chat_request)
-}
-
-fn get_req_without_tools(
-    model_name: &str,
-    system_prompt: &str,
-) -> Result<CreateChatCompletionRequest, OpenAIError> {
-    let chat_request = CreateChatCompletionRequestArgs::default()
-        .model(model_name)
-        .stream(true)
-        //recommended for qwen, see eg https://huggingface.co/Qwen/Qwen3-4B-GGUF#best-practices
-        .temperature(0.6)
-        .presence_penalty(1.5)
-        .top_p(0.95)
-        .messages([ChatCompletionRequestSystemMessageArgs::default()
-            .content(system_prompt)
-            .build()?
-            .into()])
-        .build()?;
+    let chat_request = CreateChatCompletionRequest {
+        model: bot.model_name.clone(),
+        stream: Some(true),
+        temperature: bot.temperature,
+        presence_penalty: bot.presence_penalty,
+        top_p: bot.top_p,
+        tool_choice: Some(ChatCompletionToolChoiceOption::Auto),
+        tools: match &tools {
+            Some(tools) => Some(
+                tools
+                    .iter()
+                    .map(|tool| {
+                        let chat_completion = ChatCompletionToolArgs::default()
+                            .r#type(ChatCompletionToolType::Function)
+                            .function(
+                                FunctionObjectArgs::default()
+                                    .name(tool.name())
+                                    .description(tool.description())
+                                    .parameters(tool.parameters())
+                                    .build()?,
+                            )
+                            .build()?;
+                        Ok(chat_completion)
+                    })
+                    .collect::<Result<Vec<_>, OpenAIError>>()?,
+            ),
+            None => None,
+        },
+        messages: vec![
+            ChatCompletionRequestSystemMessageArgs::default()
+                .content(bot.system_prompt)
+                .build()?
+                .into(),
+        ],
+        ..Default::default()
+    };
 
     Ok(chat_request)
 }
@@ -152,7 +145,7 @@ pub async fn chat(
     new_message: &str,
 ) -> Result<ChatCompletionResponseStream, OpenAIError> {
     let req = construct_messages(
-        get_req_without_tools(&bot.model_name, &bot.system_prompt)?,
+        get_req(&bot, &None)?,
         previous_messages,
         new_message,
     )?;
@@ -193,26 +186,22 @@ pub async fn chat_with_tools(
     let mut registry = ToolRegistry::new();
     let mut tool_results: std::collections::HashMap<(u32, u32), ChatCompletionMessageToolCall> =
         std::collections::HashMap::new();
-    let req = match &bot.tools {
+    let req = construct_messages(
+        get_req(&bot, &bot.tools)?,
+        previous_messages,
+        new_message.as_str(),
+    )?;
+
+    match &bot.tools {
         Some(tools) => {
-            let req_with_tools = construct_messages(
-                get_req_with_tools(&bot.model_name, &bot.system_prompt, &tools)?,
-                previous_messages,
-                new_message.as_str(),
-            )?;
-            //clone arc, cheap
-            for tool in tools.clone() {
-                registry.register(tool);
+            for tool in tools {
+                //clone arc, cheap
+                registry.register(tool.clone());
             }
-            req_with_tools
         }
-        None => construct_messages(
-            get_req_without_tools(&bot.model_name, &bot.system_prompt)?,
-            previous_messages,
-            new_message.as_str(),
-        )?,
+        None => (),
     };
-    //let mut thinking = true;
+
     let mut finish_reason: Option<FinishReason> = None;
     let mut stream = bot
         .llm
@@ -280,7 +269,7 @@ pub async fn chat_with_tools(
             info!(tool_use = true, span_id, "Finished constructing tool calls");
             //no tools since we don't want to call the tools a second time
             let req_no_tools = construct_messages(
-                get_req_without_tools(&bot.model_name, &bot.system_prompt)?,
+                get_req(&bot, &None)?,
                 previous_messages,
                 new_message.as_str(),
             )?;

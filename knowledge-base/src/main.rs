@@ -6,7 +6,7 @@ mod psql_vectors;
 
 use anyhow;
 use futures::stream::{self, StreamExt};
-use llm::{EmbeddingClient, get_embedding_client, get_embeddings};
+use llm::{EmbeddingClient, get_embeddings};
 use psql_vectors::{
     KnowledgeBase, SimilarContent, get_knowledge_bases, get_similar_content, write_document,
     write_knowledge_base, write_single_content,
@@ -57,20 +57,22 @@ async fn run_migrations(rocket: Rocket<Build>) -> fairing::Result {
 }
 
 struct AiConfig {
-    ollama_endpoint: String,
+    open_ai_compatable_endpoint: String,
 }
 
 #[launch]
 fn rocket() -> _ {
     let ai_config = AiConfig {
-        ollama_endpoint: match env::var("OLLAMA_ENDPOINT") {
+        open_ai_compatable_endpoint: match env::var("OPEN_AI_COMPATABLE_ENDPOINT") {
             Ok(v) => v,
             Err(_e) => "http://localhost:11434".to_string(),
         },
     };
 
-    let embedding_client =
-        get_embedding_client(&ai_config.ollama_endpoint, "bge-m3:567m".to_string()).unwrap();
+    let embedding_client = EmbeddingClient::new(
+        "bge-m3:567m".to_string(),
+        &ai_config.open_ai_compatable_endpoint,
+    );
 
     rocket::build()
         .attach(Db::init())
@@ -281,6 +283,7 @@ async fn ingest_content(
             let start = Instant::now();
             let futures = chunks.into_iter().map(|chunk| {
                 extract_and_write(
+                    //TODO put this into a Arc<Mutex>
                     client.inner().clone(),
                     document_id,
                     kb_id,
@@ -332,3 +335,27 @@ async fn ingest_kb_by_name(
         .map_err(|e| BadRequest(e.to_string()))?;
     ingest_content(id, data, db, client).await
 }
+/*
+#[post("/knowledge_base/<kb_id>/ingest_batch", data = "<data>")]
+async fn ingest_kb_by_id_batch(
+    kb_id: i64, //category of knowledge base
+    data: Data<'_>,
+    db: &Db,
+    client: &State<EmbeddingClient>,
+) -> Result<Json<StatusResponse>, BadRequest<String>> {
+    ingest_content_batch(kb_id, data, db, client).await
+}
+
+#[post("/knowledge_base/<kb>/ingest_batch", data = "<data>", rank = 2)]
+async fn ingest_kb_by_name_batch(
+    kb: &str, //category of knowledge base
+    data: Data<'_>,
+    db: &Db,
+    client: &State<EmbeddingClient>,
+) -> Result<Json<StatusResponse>, BadRequest<String>> {
+    let KnowledgeBase { id, .. } = get_knowledge_base(kb, &db.0)
+        .await
+        .map_err(|e| BadRequest(e.to_string()))?;
+    ingest_content_batch(id, data, db, client).await
+}
+*/
