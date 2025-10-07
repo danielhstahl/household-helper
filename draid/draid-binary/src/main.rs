@@ -44,12 +44,11 @@ use rocket_db_pools::Connection;
 use rocket_db_pools::Database;
 use sha256::digest;
 use sqlx::PgConnection;
-use std::time::Instant;
-use text_splitter::TextSplitter;
-
 use std::env;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
+use std::time::Instant;
+use text_splitter::TextSplitter;
 use tools::{AddTool, Content, TimeTool, Tool};
 use tracing::level_filters::LevelFilter;
 use tracing::{Instrument, Level, span};
@@ -191,10 +190,6 @@ fn generate_bots(
     }
 }
 
-struct AiConfig {
-    open_ai_compatable_endpoint: String,
-}
-
 struct Bots {
     helper_bot: Bot,
     tutor_bot: Bot,
@@ -209,44 +204,11 @@ async fn main() -> Result<(), rocket::Error> {
     //Temperature=0.6, TopP=0.95, TopK=20, and MinP=0, PresencePenalty=1.5
     let model_name = "hf.co/Qwen/Qwen3-4B-GGUF:latest";
 
-    // the kb! macro generates code that is "impure"
-    // it depends on std::env for the KB endpoint
-    // The kb! calls must match what is passed to
-    // knowledge-base docker at runtime.
-    // see KNOWLEDGE_BASE_NAMES in docker compose
-    /*let helper_tools: Vec<Arc<dyn Tool + Send + Sync>> = vec![
-        Arc::new(AddTool),
-        Arc::new(TimeTool),
-        kb!("recipes", 3),
-        kb!("gardening", 3),
-    ];*/
-
-    /*let (kb_arcs, kb_names): (Vec<Arc<dyn Tool + Send + Sync>>, Vec<&str>) =
-    vec![kb!("recipes", 3), kb!("gardening", 3)]
-        .into_iter()
-        .unzip();*/
-    /*let bots = Bots {
-        helper_bot: Bot::new(
-            model_name.to_string(),
-            HELPER_PROMPT,
-            &ai_config.open_ai_compatable_endpoint,
-            //recommended for qwen, see eg https://huggingface.co/Qwen/Qwen3-4B-GGUF#best-practices
-            Some(0.6),  //temperature
-            Some(1.5),  //presence penalty
-            Some(0.95), //top_p
-            Some(helper_tools),
-        ),
-        tutor_bot: Bot::new(
-            model_name.to_string(),
-            TUTOR_PROMPT,
-            &ai_config.open_ai_compatable_endpoint,
-            //recommended for qwen, see eg https://huggingface.co/Qwen/Qwen3-4B-GGUF#best-practices
-            Some(0.6),  //temperature
-            Some(1.5),  //presence penalty
-            Some(0.95), //top_p
-            None,       //no tools
-        ),
-    };*/
+    let embedding_client = Arc::new(EmbeddingClient::new(
+        //"bge-m3:567m".to_string(),
+        "hf.co/mixedbread-ai/mxbai-embed-large-v1".to_string(),
+        &open_ai_compatable_endpoint,
+    ));
 
     let rocket = rocket::build()
         .attach(DBDraid::init())
@@ -263,6 +225,7 @@ async fn main() -> Result<(), rocket::Error> {
         ))
         //.manage(bots)
         .manage(jwt_secret)
+        .manage(embedding_client)
         .mount(
             "/",
             routes![
@@ -280,7 +243,13 @@ async fn main() -> Result<(), rocket::Error> {
                 get_sessions,
                 get_messages,
                 tool_use,
-                histogram
+                histogram,
+                create_kb,
+                similar_kb_by_id,
+                similar_kb_by_name,
+                get_kbs,
+                ingest_kb_by_id,
+                ingest_kb_by_name
             ],
         )
         .ignite()
@@ -674,15 +643,9 @@ async fn ingest_content(
             println!("finished chunking content");
             println!("num chunks: {}", chunks.len());
             let start = Instant::now();
-            //let mut db_pool = db.detach();
-            let futures = chunks.into_iter().map(|chunk| {
-                //Rocket automatically derefs State, clone of Arc is cheap
-                //let local_client = client.clone();
-                //let local_db_pool = db.clone();
-                async move {
-                    let mut conn = db.acquire().await?;
-                    extract_and_write(&client, document_id, kb_id, chunk, &mut conn).await
-                }
+            let futures = chunks.into_iter().map(|chunk| async move {
+                let mut conn = db.acquire().await?;
+                extract_and_write(&client, document_id, kb_id, chunk, &mut conn).await
             });
             let results: Vec<anyhow::Result<()>> = stream::iter(futures)
                 .buffer_unordered(100) // Concurrently process up to 100 tasks

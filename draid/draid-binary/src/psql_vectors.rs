@@ -1,6 +1,6 @@
 use pgvector::Vector;
 use rocket::serde::Serialize;
-use sqlx::{Error, PgConnection, Pool, Postgres, Row, postgres::PgRow};
+use sqlx::{Error, PgConnection, Row, postgres::PgRow};
 #[derive(Debug, Serialize)]
 #[serde(crate = "rocket::serde")]
 pub struct SimilarContent {
