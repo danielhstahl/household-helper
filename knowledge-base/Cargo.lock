@@ -1380,7 +1380,6 @@ dependencies = [
  "sha256",
  "sqlx",
  "text-splitter",
- "url",
 ]
 
 [[package]]

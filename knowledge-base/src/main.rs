@@ -70,6 +70,7 @@ fn rocket() -> _ {
         },
     };
 
+    //hf.co/mixedbread-ai/mxbai-embed-large-v1
     let embedding_client = Arc::new(EmbeddingClient::new(
         "bge-m3:567m".to_string(),
         &ai_config.open_ai_compatable_endpoint,
