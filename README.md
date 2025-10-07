@@ -44,6 +44,15 @@ psql -d postgres
 "CREATE EXTENSION vector;"
 ```
 
+#### Into Docker
+
+```sh
+sudo docker exec -it [imghash] bash
+psql -U [username]
+psql -c "CREATE DATABASE draid;"
+psql -c "CREATE DATABASE kb;"
+```
+
 ### Recommended dev command
 
 Change directory to [draid](./draid), and run

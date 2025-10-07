@@ -13,8 +13,8 @@ services:
     image: ghcr.io/danielhstahl/householdhelper-kb:v0.1.2
     container_name: kb
     environment:
-      OLLAMA_ENDPOINT: http://[yourllmip]:8100/ai/embedding
-      ROCKET_DATABASES: '{draid={url="postgresql://[yourpsqluser]:[yourpsqlpassword]@psqldb:5432/kb"}}'
+      OPEN_AI_COMPATABLE_ENDPOINT: http://[yourllmip]:8100/ai/embedding
+      ROCKET_DATABASES: '{kb={url="postgresql://[yourpsqluser]:[yourpsqlpassword]@psqldb:5432/kb"}}'
       ROCKET_PORT: 8000
       ROCKET_ADDRESS: 0.0.0.0
       KNOWLEDGE_BASE_NAMES: '["recipes","gardening"]'

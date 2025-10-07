@@ -8,12 +8,10 @@ futures = "0.3.31"
 rocket = {version="0.5.1", features=["json", "uuid"]}
 sqlx = { version = "0.7.4", default-features = false, features = ["macros", "migrate", "postgres", "uuid", "chrono"] }
 chrono = { version = "0.4", features = ["serde"] }
-#ollama-rs = {version = "0.3.2", default-features = false}
 pgvector = { version = "0.3", features = ["sqlx"] }
 text-splitter = "0.28.0"
 anyhow = "1.0.100"
 sha256 = "1.6.0"
-url = "2.5.7"
 async-openai = "0.29.3"
 [dependencies.rocket_db_pools]
 version = "0.2.0"
