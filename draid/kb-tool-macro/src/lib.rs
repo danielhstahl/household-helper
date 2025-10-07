@@ -35,8 +35,6 @@ pub fn kb(input: TokenStream) -> TokenStream {
     // format_ident! is crucial for safely constructing identifiers from runtime strings.
     let struct_name = format_ident!("KnowledgeBase{}", name_str);
 
-    //let returned_name = Literal::string(&name_str);
-
     // 3. Generate static string literals for use inside the generated code
     //let name_static_str = Literal::string(&format!("knowledge_base_{}", name_str));
     let description_static_str = Literal::string(&format!(
@@ -50,12 +48,6 @@ pub fn kb(input: TokenStream) -> TokenStream {
             // Generated struct definition
             #[derive(Clone)]
             pub struct #struct_name;
-
-            /*impl KBTrait for #struct_name {
-                fn kb_name(&self)->&'static str{
-                    #returned_name
-                }
-            }*/
 
             // Generated impl block, replacing placeholders with parsed values
             #[async_trait::async_trait]
