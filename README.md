@@ -74,7 +74,7 @@ In the UI docker:
 * BACKEND_SERVICE.  Needs to be [ip/dns]:[port] of your app docker.
 
 In the KB docker:
-* OLLAMA_ENDPOINT (defaults to "http://localhost:11434")
+* OPEN_AI_COMPATABLE_ENDPOINT (defaults to "http://localhost:11434")
 * KNOWLEDGE_BASE_NAMES.  JSON array of KB names.
 
 The [docker-compose](./docker/docker-compose.yml) file shows an example of how to orchestrate the containers.
