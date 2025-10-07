@@ -1,0 +1,137 @@
+use pgvector::Vector;
+use rocket::serde::Serialize;
+use sqlx::{Error, PgConnection, Pool, Postgres, Row, postgres::PgRow};
+#[derive(Debug, Serialize)]
+#[serde(crate = "rocket::serde")]
+pub struct SimilarContent {
+    content: String,
+}
+pub async fn get_similar_content(
+    kb: i64,
+    embeddings: Vec<f32>,
+    num_matches: i16,
+    pool: &mut PgConnection,
+) -> sqlx::Result<Vec<SimilarContent>> {
+    let embeddings = Vector::from(embeddings);
+    //cosine similarity
+    let rows = sqlx::query(
+        r#"
+        SELECT content FROM vectors
+        WHERE kb_id=$1 ORDER BY embedding <=> $2 LIMIT $3;
+        "#,
+    )
+    .bind(kb)
+    .bind(embeddings)
+    .bind(num_matches)
+    .fetch_all(pool)
+    .await?;
+    let result: Result<Vec<_>, Error> = rows
+        .iter()
+        .map(|v: &PgRow| {
+            let content = v.try_get("content")?;
+            Ok(SimilarContent { content })
+        })
+        .collect();
+    Ok(result?)
+}
+
+/*
+pub async fn write_content(
+    content: Vec<String>,
+    embeddings: Vec<Vec<f32>>,
+    pool: &Pool<Postgres>,
+) -> sqlx::Result<()> {
+    let mut query_string = String::from("INSERT INTO vectors (content, embedding) VALUES ");
+
+    // Generate the multi-row `VALUES` placeholders
+    // hilariously hacky...put the numbers in by dollar sign
+    let embedding_placeholders: Vec<String> = (0..content.len())
+        .map(|i| format!("(${}, ${})", 2 * i + 1, 2 * i + 2))
+        .collect();
+
+    query_string.push_str(&embedding_placeholders.join(", "));
+
+    // Create a `Query` object with the dynamic SQL string
+    let mut sqlx_query = sqlx::query(&query_string);
+
+    // Bind each value individually to the query, including the enum
+    for (text, embedding) in content.into_iter().zip(embeddings.into_iter()) {
+        sqlx_query = sqlx_query.bind(text).bind(Vector::from(embedding));
+    }
+    sqlx_query.execute(pool).await?;
+    Ok(())
+}
+*/
+
+pub async fn write_single_content(
+    document_id: i64,
+    kb_id: i64,
+    content: &str,
+    embeddings: Vec<f32>,
+    pool: &mut PgConnection,
+) -> sqlx::Result<()> {
+    sqlx::query(
+        "INSERT INTO vectors (document_id, kb_id, content, embedding) VALUES ($1, $2, $3, $4)",
+    )
+    .bind(&document_id)
+    .bind(&kb_id)
+    .bind(&content)
+    .bind(Vector::from(embeddings))
+    .execute(pool)
+    .await?;
+
+    Ok(())
+}
+
+struct IdOnly {
+    id: i64,
+}
+
+//will error on index constraint
+pub async fn write_document(document_hash: &str, pool: &mut PgConnection) -> sqlx::Result<i64> {
+    let result = sqlx::query_as!(
+        IdOnly,
+        r#"INSERT INTO documents (hash) VALUES ($1) RETURNING id"#,
+        document_hash
+    )
+    .fetch_one(pool)
+    .await?;
+    Ok(result.id)
+}
+
+pub async fn write_knowledge_base(name: &str, pool: &mut PgConnection) -> sqlx::Result<i64> {
+    let result = sqlx::query_as!(
+        IdOnly,
+        r#"INSERT INTO knowledge_bases (name) VALUES ($1) RETURNING id"#,
+        name,
+    )
+    .fetch_one(pool)
+    .await?;
+    Ok(result.id)
+}
+#[derive(Debug, Serialize)]
+#[serde(crate = "rocket::serde")]
+pub struct KnowledgeBase {
+    pub id: i64,
+    name: String,
+}
+pub async fn get_knowledge_bases(pool: &mut PgConnection) -> sqlx::Result<Vec<KnowledgeBase>> {
+    let result = sqlx::query_as!(KnowledgeBase, r#"SELECT id, name from knowledge_bases"#)
+        .fetch_all(pool)
+        .await?;
+    Ok(result)
+}
+
+pub async fn get_knowledge_base(
+    name: &str,
+    pool: &mut PgConnection,
+) -> sqlx::Result<KnowledgeBase> {
+    let result = sqlx::query_as!(
+        KnowledgeBase,
+        r#"SELECT id, name from knowledge_bases where name=$1"#,
+        name
+    )
+    .fetch_one(pool)
+    .await?;
+    Ok(result)
+}

@@ -1,4 +1,4 @@
-use crate::Db;
+use crate::DBDraid;
 use crate::psql_users::{Role, UserResponse, get_user};
 use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation, decode, encode};
 use rocket::http::Status;
@@ -72,7 +72,7 @@ async fn auth_by_role<'r>(req: &'r Request<'_>) -> Result<UserResponse, AuthErro
     )
     .map_err(|e| AuthError { msg: e.to_string() })?;
 
-    let mut db_conn = match req.guard::<Connection<Db>>().await {
+    let mut db_conn = match req.guard::<Connection<DBDraid>>().await {
         // Success: Got a connection object
         Outcome::Success(conn) => Ok(conn),
         // Error: Connection pool is unavailable (e.g., DB is down)
