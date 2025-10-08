@@ -47,9 +47,9 @@ use sqlx::PgConnection;
 use std::env;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
-use std::time::Instant;
 use text_splitter::TextSplitter;
 use tools::{AddTool, Content, TimeTool, Tool};
+use tracing::info;
 use tracing::level_filters::LevelFilter;
 use tracing::{Instrument, Level, span};
 use tracing_subscriber::{Registry, prelude::*};
@@ -627,7 +627,13 @@ async fn ingest_content(
 ) -> Result<Json<StatusResponse>, BadRequest<String>> {
     let max_characters = 1000;
     let splitter = TextSplitter::new(max_characters);
-    println!("started reading content");
+    let span_id = Uuid::new_v4().to_string();
+    info!(
+        tool_use = true,
+        is_kb = true,
+        span_id,
+        "Started ingesting content"
+    );
     let content = data
         .open(20.mebibytes())
         .into_string()
@@ -638,11 +644,20 @@ async fn ingest_content(
     let mut conn = db.acquire().await.map_err(|e| BadRequest(e.to_string()))?;
     match write_document(&content_hash, &mut conn).await {
         Ok(document_id) => {
-            println!("finished reading content");
+            info!(tool_use = true, span_id, "Finished reading content");
             let chunks: Vec<String> = splitter.chunks(&content).map(|v| v.to_string()).collect();
-            println!("finished chunking content");
-            println!("num chunks: {}", chunks.len());
-            let start = Instant::now();
+            info!(
+                tool_use = true,
+                is_kb = true,
+                span_id,
+                "Finished chunking content"
+            );
+            info!(
+                tool_use = true,
+                is_kb = true,
+                span_id,
+                message = format!("Number of chunks {}", chunks.len())
+            );
             let futures = chunks.into_iter().map(|chunk| async move {
                 let mut conn = db.acquire().await?;
                 extract_and_write(&client, document_id, kb_id, chunk, &mut conn).await
@@ -651,15 +666,18 @@ async fn ingest_content(
                 .buffer_unordered(100) // Concurrently process up to 100 tasks
                 .collect()
                 .await;
-            let duration = start.elapsed();
-            println!("Time elapsed in writing to vector is: {:?}", duration);
-            println!("finished writing vectors");
+            info!(
+                tool_use = true,
+                is_kb = true,
+                span_id,
+                "Finished writing vectors"
+            );
             for result in results {
                 result.map_err(|e| BadRequest(e.to_string()))?;
             }
         }
         Err(_e) => {
-            println!("Already indexed!");
+            info!(tool_use = true, is_kb = true, span_id, "Already indexed!");
         }
     }
     Ok(Json(StatusResponse {
@@ -676,7 +694,13 @@ async fn ingest_kb_by_id(
     db: &DBKb,
     client: &State<Arc<EmbeddingClient>>,
 ) -> Result<Json<StatusResponse>, BadRequest<String>> {
-    ingest_content(kb_id, data, db, client).await
+    ingest_content(kb_id, data, db, client)
+        .instrument(span!(
+            Level::INFO,
+            "knowledge_base_ingest",
+            tool_use = false
+        ))
+        .await
 }
 
 #[post("/knowledge_base/<kb>/ingest", data = "<data>", rank = 2)]
@@ -690,5 +714,11 @@ async fn ingest_kb_by_name(
     let KnowledgeBase { id, .. } = get_knowledge_base(kb, &mut conn)
         .await
         .map_err(|e| BadRequest(e.to_string()))?;
-    ingest_content(id, data, db, client).await
+    ingest_content(id, data, db, client)
+        .instrument(span!(
+            Level::INFO,
+            "knowledge_base_ingest",
+            tool_use = false
+        ))
+        .await
 }

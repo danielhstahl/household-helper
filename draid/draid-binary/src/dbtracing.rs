@@ -12,6 +12,7 @@ use tracing_subscriber::Layer;
 pub struct LogMessage {
     span_id: Uuid,
     tool_use: bool,
+    endpoint: String,
     message: String,
 }
 
@@ -44,6 +45,9 @@ impl<S: tracing::Subscriber> Layer<S> for PSqlLayer {
             )
             .unwrap_or_else(|_e| Uuid::new_v4()),
             tool_use: visitor.tool_use.unwrap_or_else(|| false),
+            endpoint: visitor
+                .endpoint
+                .unwrap_or_else(|| "no endpoint provided".to_string()),
             message: visitor.message.unwrap_or_else(|| "no message".to_string()),
         };
 
@@ -59,11 +63,12 @@ pub async fn run_async_worker(mut worker: AsyncDbWorker) -> anyhow::Result<()> {
     while let Some(log_message) = worker.rx.recv().await {
         let _ = sqlx::query!(
             r#"
-            INSERT INTO traces (span_id, tool_use, message, timestamp)
-            VALUES ($1, $2, $3, NOW())
+            INSERT INTO traces (span_id, tool_use, endpoint, message, timestamp)
+            VALUES ($1, $2, $3, $4, NOW())
             "#,
             &log_message.span_id,
             &log_message.tool_use,
+            &log_message.endpoint,
             &log_message.message
         )
         .execute(&worker.db_client)
@@ -77,6 +82,7 @@ struct PsqlVisitor {
     message: Option<String>,
     /// Stores the captured log level.
     tool_use: Option<bool>,
+    endpoint: Option<String>,
     span_id: Option<String>,
     /// Stores any custom fields found.
     custom_fields: Vec<(String, String)>,
@@ -88,6 +94,7 @@ impl PsqlVisitor {
             message: None,
             span_id: None,
             tool_use: None,
+            endpoint: None,
             custom_fields: Vec::new(),
         }
     }
@@ -103,6 +110,9 @@ impl Visit for PsqlVisitor {
             }
             "span_id" => {
                 self.span_id = Some(value.to_string());
+            }
+            "endpoint" => {
+                self.endpoint = Some(value.to_string());
             }
             _ => {
                 self.custom_fields
@@ -125,11 +135,14 @@ impl Visit for PsqlVisitor {
     }
 
     fn record_bool(&mut self, field: &Field, value: bool) {
-        if field.name() == "tool_use" {
-            self.tool_use = Some(value);
-        } else {
-            self.custom_fields
-                .push((field.name().to_string(), value.to_string()));
+        match field.name() {
+            "tool_use" => {
+                self.tool_use = Some(value);
+            }
+            _ => {
+                self.custom_fields
+                    .push((field.name().to_string(), value.to_string()));
+            }
         }
     }
 }
@@ -137,38 +150,86 @@ impl Visit for PsqlVisitor {
 #[derive(Serialize)]
 #[serde(crate = "rocket::serde")]
 pub struct SpanLength {
-    range: String,
-    frequency: i64,
+    span_id: Uuid,
+    diff_in_seconds: f64,
 }
-pub async fn get_histogram(pool: &mut PgConnection) -> anyhow::Result<Vec<SpanLength>> {
+
+fn hist_bin_num(data_size: usize) -> i32 {
+    let bin = (data_size as f32).ln().ceil() as i32;
+    let global_min = 5;
+    let global_max = 20;
+    if bin < global_min {
+        global_min
+    } else if bin > global_max {
+        global_max
+    } else {
+        bin
+    }
+}
+
+#[derive(Serialize)]
+#[serde(crate = "rocket::serde")]
+struct HistogramIncrement {
+    index: i32,
+    range: String,
+    count: usize,
+}
+//spans are sorted by diff_in_seconds ascending
+fn extract_histogram(spans: Vec<SpanLength>) -> Vec<HistogramIncrement> {
+    if spans.is_empty() {
+        return vec![];
+    }
+    let min_value_in_data = spans.first().unwrap().diff_in_seconds;
+    let max_value_in_data = spans.last().unwrap().diff_in_seconds;
+    let num_bins = hist_bin_num(spans.len());
+    let min_value_in_hist = min_value_in_data.floor();
+    let max_value_in_hist = max_value_in_data.ceil();
+    let increment = (max_value_in_hist - min_value_in_hist) / (num_bins as f64 - 1.0);
+    let mut i = 0;
+    let mut j = 0;
+    let mut count_within_bin = 0;
+    let mut histogram: Vec<HistogramIncrement> = vec![];
+    while i < num_bins && j < spans.len() {
+        let left_bin = min_value_in_hist + (i as f64) * increment;
+        let right_bin = left_bin + increment;
+        if spans[j].diff_in_seconds < right_bin {
+            count_within_bin += 1;
+        } else {
+            histogram.push(HistogramIncrement {
+                index: i,
+                range: format!("{:.2}-{:.2}", left_bin, right_bin),
+                count: count_within_bin,
+            });
+            i += 1;
+            count_within_bin = 0;
+        }
+        j += 1;
+    }
+    histogram
+}
+
+pub async fn get_histogram(
+    pool: &mut PgConnection,
+    endpoint: &str,
+) -> anyhow::Result<Vec<HistogramIncrement>> {
     let spans = sqlx::query_as!(
         SpanLength,
         r#"
-            SELECT
-            int4range(
-                30*(buckets-1),
-                30*buckets,
-                '[]'
-            )::TEXT as "range!: String",
-            frequency as "frequency!" FROM
-            (
-                SELECT width_bucket(diff_in_seconds, 0, 180, 8) as buckets,
-                count(span_id) as frequency
-                FROM
-                (
-                    SELECT COALESCE(EXTRACT(EPOCH FROM (MAX(timestamp) - MIN(timestamp))), 0)::double precision as diff_in_seconds,
-                    span_id from
-                    traces
-                    where timestamp> date_subtract(NOW(), '7 day'::interval)
-                    group by span_id
-                ) group by buckets
-            ) t
-            ORDER BY buckets asc
-            "#
+        SELECT COALESCE(EXTRACT(EPOCH FROM (MAX(timestamp) - MIN(timestamp))), 0)::double precision as diff_in_seconds,
+        span_id from
+        traces
+        where timestamp> date_subtract(NOW(), '7 day'::interval)
+        and endpoint=$1
+        group by span_id
+        order by diff_in_seconds asc
+        "#,
+        endpoint
     )
     .fetch_all(pool)
     .await?;
-    Ok(spans)
+    let histogram = extract_histogram(spans);
+
+    Ok(histogram)
 }
 
 #[derive(Serialize)]
@@ -178,7 +239,10 @@ pub struct SpanToolUse {
     cnt_spns_without_tools: i64,
     date: chrono::DateTime<chrono::Utc>,
 }
-pub async fn get_tool_use(pool: &mut PgConnection) -> anyhow::Result<Vec<SpanToolUse>> {
+pub async fn get_tool_use(
+    pool: &mut PgConnection,
+    endpoint: &str,
+) -> anyhow::Result<Vec<SpanToolUse>> {
     let spans = sqlx::query_as!(
         SpanToolUse,
         r#"
@@ -194,13 +258,34 @@ pub async fn get_tool_use(pool: &mut PgConnection) -> anyhow::Result<Vec<SpanToo
                 span_id from
                 traces
                 where timestamp> date_subtract(NOW(), '7 day'::interval)
+                and endpoint=$1
                 group by span_id, date_trunc('day', timestamp)
             )
             group by date
             order by date asc
-            "#
+            "#,
+        endpoint
     ) //-- where timestamp> NOW()::DATE-EXTRACT(DOW FROM NOW())::INTEGER-7
     .fetch_all(pool)
     .await?;
     Ok(spans)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::extract_histogram;
+    use super::hist_bin_num;
+
+    #[test]
+    fn it_returns_ok_if_password_matches() {
+        let result = hash_password("hello").unwrap();
+        let result = check_password("hello", &result);
+        assert!(result.is_ok());
+    }
+    #[test]
+    fn it_returns_err_if_password_does_not_matche() {
+        let result = hash_password("hello").unwrap();
+        let result = check_password("hello2", &result);
+        assert!(result.is_err());
+    }
 }
