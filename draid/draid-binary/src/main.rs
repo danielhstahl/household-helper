@@ -11,7 +11,7 @@ mod psql_vectors;
 mod tools;
 
 use dbtracing::{
-    AsyncDbWorker, PSqlLayer, SpanLength, SpanToolUse, get_histogram, get_tool_use,
+    AsyncDbWorker, HistogramIncrement, PSqlLayer, SpanToolUse, get_histogram, get_tool_use,
     run_async_worker,
 };
 use embedding::{EmbeddingClient, get_embeddings};
@@ -510,23 +510,25 @@ async fn tutor<'a>(
     chat_with_bot(bots.tutor_bot.clone(), psql_memory, prompt.text.to_string()).await
 }
 
-#[get("/span/length", format = "json")]
+#[get("/telemetry/latency/<endpoint>", format = "json")]
 async fn histogram(
+    endpoint: &str,
     mut db: Connection<DBDraid>,
     _admin: auth::Admin,
-) -> Result<Json<Vec<SpanLength>>, BadRequest<String>> {
-    let results = get_histogram(&mut db)
+) -> Result<Json<Vec<HistogramIncrement>>, BadRequest<String>> {
+    let results = get_histogram(&mut db, &endpoint)
         .await
         .map_err(|e| BadRequest(e.to_string()))?;
     Ok(Json(results))
 }
 
-#[get("/span/tools", format = "json")]
+#[get("/span/tools/<endpoint>", format = "json")]
 async fn tool_use(
+    endpoint: &str,
     mut db: Connection<DBDraid>,
     _admin: auth::Admin,
 ) -> Result<Json<Vec<SpanToolUse>>, BadRequest<String>> {
-    let results = get_tool_use(&mut db)
+    let results = get_tool_use(&mut db, &endpoint)
         .await
         .map_err(|e| BadRequest(e.to_string()))?;
     Ok(Json(results))

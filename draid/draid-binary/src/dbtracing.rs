@@ -169,7 +169,7 @@ fn hist_bin_num(data_size: usize) -> i32 {
 
 #[derive(Serialize)]
 #[serde(crate = "rocket::serde")]
-struct HistogramIncrement {
+pub struct HistogramIncrement {
     index: i32,
     range: String,
     count: usize,
@@ -215,7 +215,7 @@ pub async fn get_histogram(
     let spans = sqlx::query_as!(
         SpanLength,
         r#"
-        SELECT COALESCE(EXTRACT(EPOCH FROM (MAX(timestamp) - MIN(timestamp))), 0)::double precision as diff_in_seconds,
+        SELECT COALESCE(EXTRACT(EPOCH FROM (MAX(timestamp) - MIN(timestamp))), 0)::double precision as diff_in_seconds!,
         span_id from
         traces
         where timestamp> date_subtract(NOW(), '7 day'::interval)
