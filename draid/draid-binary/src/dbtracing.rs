@@ -167,7 +167,7 @@ fn hist_bin_num(data_size: usize) -> i32 {
     }
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 #[serde(crate = "rocket::serde")]
 pub struct HistogramIncrement {
     index: i32,
@@ -175,37 +175,31 @@ pub struct HistogramIncrement {
     count: usize,
 }
 //spans are sorted by diff_in_seconds ascending
-fn extract_histogram(spans: Vec<SpanLength>) -> Vec<HistogramIncrement> {
+fn extract_histogram(spans: &[SpanLength]) -> Vec<HistogramIncrement> {
     if spans.is_empty() {
         return vec![];
     }
     let min_value_in_data = spans.first().unwrap().diff_in_seconds;
     let max_value_in_data = spans.last().unwrap().diff_in_seconds;
     let num_bins = hist_bin_num(spans.len());
-    let min_value_in_hist = min_value_in_data.floor();
-    let max_value_in_hist = max_value_in_data.ceil();
-    let increment = (max_value_in_hist - min_value_in_hist) / (num_bins as f64 - 1.0);
-    let mut i = 0;
-    let mut j = 0;
-    let mut count_within_bin = 0;
-    let mut histogram: Vec<HistogramIncrement> = vec![];
-    while i < num_bins && j < spans.len() {
-        let left_bin = min_value_in_hist + (i as f64) * increment;
-        let right_bin = left_bin + increment;
-        if spans[j].diff_in_seconds < right_bin {
-            count_within_bin += 1;
-        } else {
-            histogram.push(HistogramIncrement {
-                index: i,
-                range: format!("{:.2}-{:.2}", left_bin, right_bin),
-                count: count_within_bin,
-            });
-            i += 1;
-            count_within_bin = 0;
-        }
-        j += 1;
-    }
-    histogram
+    let min_value_in_hist = min_value_in_data.floor() - 1.0; //ensure that it is below on exact "integers"
+    let max_value_in_hist = max_value_in_data.ceil() + 1.0; //ensure that it is above on exact "integers"
+    let increment = (max_value_in_hist - min_value_in_hist) / (num_bins as f64);
+    let ranges: Vec<HistogramIncrement> = (0..num_bins)
+        .map(|i| {
+            let left_bin = min_value_in_hist + (i as f64) * increment;
+            (i, left_bin, left_bin + increment)
+        })
+        .map(|(i, left, right)| HistogramIncrement {
+            index: i,
+            range: format!("{:.2}-{:.2}", left, right),
+            count: spans //o(n^2), but super clear that this is correct
+                .iter()
+                .filter(|v| left <= v.diff_in_seconds && v.diff_in_seconds < right)
+                .count(),
+        })
+        .collect();
+    ranges
 }
 
 pub async fn get_histogram(
@@ -215,19 +209,22 @@ pub async fn get_histogram(
     let spans = sqlx::query_as!(
         SpanLength,
         r#"
-        SELECT COALESCE(EXTRACT(EPOCH FROM (MAX(timestamp) - MIN(timestamp))), 0)::double precision as diff_in_seconds!,
-        span_id from
-        traces
-        where timestamp> date_subtract(NOW(), '7 day'::interval)
-        and endpoint=$1
-        group by span_id
-        order by diff_in_seconds asc
+        SELECT diff_in_seconds as "diff_in_seconds!", span_id FROM
+        (
+            SELECT COALESCE(EXTRACT(EPOCH FROM (MAX(timestamp) - MIN(timestamp))), 0)::double precision as diff_in_seconds,
+            span_id from
+            traces
+            where timestamp> date_subtract(NOW(), '7 day'::interval)
+            and endpoint=$1
+            group by span_id
+            order by diff_in_seconds asc
+        )
         "#,
         endpoint
     )
     .fetch_all(pool)
     .await?;
-    let histogram = extract_histogram(spans);
+    let histogram = extract_histogram(&spans);
 
     Ok(histogram)
 }
@@ -273,19 +270,177 @@ pub async fn get_tool_use(
 
 #[cfg(test)]
 mod tests {
+    use uuid::Uuid;
+
+    use crate::dbtracing::HistogramIncrement;
+
+    use super::SpanLength;
     use super::extract_histogram;
     use super::hist_bin_num;
 
     #[test]
-    fn it_returns_ok_if_password_matches() {
-        let result = hash_password("hello").unwrap();
-        let result = check_password("hello", &result);
-        assert!(result.is_ok());
+    fn it_gets_correct_hist_bin_when_small() {
+        let result = hist_bin_num(4);
+        assert!(result == 5);
     }
     #[test]
-    fn it_returns_err_if_password_does_not_matche() {
-        let result = hash_password("hello").unwrap();
-        let result = check_password("hello2", &result);
-        assert!(result.is_err());
+    fn it_gets_correct_hist_bin_when_large() {
+        let result = hist_bin_num(10000000000);
+        assert!(result == 20);
+    }
+    #[test]
+    fn it_gets_correct_hist_bin_when_middle() {
+        let result = hist_bin_num(1000);
+        assert!(result == 7);
+    }
+    #[test]
+    fn it_returns_correctly_composes_histogram() {
+        let spans = vec![
+            SpanLength {
+                span_id: Uuid::new_v4(),
+                diff_in_seconds: 3.5,
+            },
+            SpanLength {
+                span_id: Uuid::new_v4(),
+                diff_in_seconds: 3.5,
+            },
+            SpanLength {
+                span_id: Uuid::new_v4(),
+                diff_in_seconds: 4.5,
+            },
+            SpanLength {
+                span_id: Uuid::new_v4(),
+                diff_in_seconds: 4.5,
+            },
+            SpanLength {
+                span_id: Uuid::new_v4(),
+                diff_in_seconds: 5.5,
+            },
+            SpanLength {
+                span_id: Uuid::new_v4(),
+                diff_in_seconds: 5.5,
+            },
+            SpanLength {
+                span_id: Uuid::new_v4(),
+                diff_in_seconds: 5.5,
+            },
+        ];
+        let result = extract_histogram(&spans);
+        let expectation = vec![
+            HistogramIncrement {
+                index: 0,
+                range: "2.00-3.00".to_string(),
+                count: 0,
+            },
+            HistogramIncrement {
+                index: 1,
+                range: "3.00-4.00".to_string(),
+                count: 2,
+            },
+            HistogramIncrement {
+                index: 2,
+                range: "4.00-5.00".to_string(),
+                count: 2,
+            },
+            HistogramIncrement {
+                index: 3,
+                range: "5.00-6.00".to_string(),
+                count: 3,
+            },
+            HistogramIncrement {
+                index: 4,
+                range: "6.00-7.00".to_string(),
+                count: 0,
+            },
+        ];
+        for (res, exp) in result.iter().zip(expectation) {
+            assert!(res.count == exp.count);
+            assert!(res.range == exp.range);
+        }
+    }
+    #[test]
+    fn it_returns_correctly_histogram_with_zero_elements() {
+        let spans = vec![];
+        let result = extract_histogram(&spans);
+        assert!(result.is_empty());
+    }
+    #[test]
+    fn it_returns_correctly_composes_histogram_with_one_element() {
+        let spans = vec![SpanLength {
+            span_id: Uuid::new_v4(),
+            diff_in_seconds: 2.5,
+        }];
+        let result = extract_histogram(&spans);
+        let expectation = vec![
+            HistogramIncrement {
+                index: 0,
+                range: "1.00-1.60".to_string(),
+                count: 0,
+            },
+            HistogramIncrement {
+                index: 1,
+                range: "1.60-2.20".to_string(),
+                count: 0,
+            },
+            HistogramIncrement {
+                index: 2,
+                range: "2.20-2.80".to_string(),
+                count: 1,
+            },
+            HistogramIncrement {
+                index: 3,
+                range: "2.80-3.40".to_string(),
+                count: 0,
+            },
+            HistogramIncrement {
+                index: 4,
+                range: "3.40-4.00".to_string(),
+                count: 0,
+            },
+        ];
+        for (res, exp) in result.iter().zip(expectation) {
+            assert!(res.count == exp.count);
+            assert!(res.range == exp.range);
+        }
+    }
+    #[test]
+    fn it_returns_correctly_composes_histogram_with_one_element_at_integer() {
+        let spans = vec![SpanLength {
+            span_id: Uuid::new_v4(),
+            diff_in_seconds: 2.0,
+        }];
+        let result = extract_histogram(&spans);
+        let expectation = vec![
+            HistogramIncrement {
+                index: 0,
+                range: "1.00-1.40".to_string(),
+                count: 0,
+            },
+            HistogramIncrement {
+                index: 1,
+                range: "1.40-1.80".to_string(),
+                count: 0,
+            },
+            HistogramIncrement {
+                index: 2,
+                range: "1.80-2.20".to_string(),
+                count: 1,
+            },
+            HistogramIncrement {
+                index: 3,
+                range: "2.20-2.60".to_string(),
+                count: 0,
+            },
+            HistogramIncrement {
+                index: 4,
+                range: "2.60-3.00".to_string(),
+                count: 0,
+            },
+        ];
+        for (res, exp) in result.iter().zip(expectation) {
+            println!("result {:?}", res);
+            assert!(res.count == exp.count);
+            assert!(res.range == exp.range);
+        }
     }
 }

@@ -181,7 +181,12 @@ pub async fn chat_with_tools(
     new_message: String,
     span_id: String,
 ) -> anyhow::Result<()> {
-    info!(tool_use = false, span_id, "Initiated chat");
+    info!(
+        tool_use = false,
+        endpoint = "query",
+        span_id,
+        "Initiated chat"
+    );
     //create storage for tool calls
     let mut registry = ToolRegistry::new();
     let mut tool_results: std::collections::HashMap<(u32, u32), ChatCompletionMessageToolCall> =
@@ -258,7 +263,7 @@ pub async fn chat_with_tools(
                     })
                 });
         } else if contains_stop_word(&tokens) {
-            info!(tool_use = false, span_id, "First token");
+            info!(tool_use = false, endpoint = "query", span_id, "First token");
         } else {
             //no tool call, just send results
             tx.send(tokens).await?;
@@ -266,7 +271,12 @@ pub async fn chat_with_tools(
     }
     match finish_reason {
         Some(FinishReason::ToolCalls) => {
-            info!(tool_use = true, span_id, "Finished constructing tool calls");
+            info!(
+                tool_use = true,
+                endpoint = "query",
+                span_id,
+                "Finished constructing tool calls"
+            );
             //no tools since we don't want to call the tools a second time
             let req_no_tools = construct_messages(
                 get_req(&bot, &None)?,
@@ -280,16 +290,26 @@ pub async fn chat_with_tools(
                 let result = result?;
                 let tokens = get_final_tokens_from_stream(&result);
                 if contains_stop_word(&tokens) {
-                    info!(tool_use = true, span_id, "First token");
+                    info!(tool_use = true, endpoint = "query", span_id, "First token");
                 } else {
                     tx.send(tokens).await?;
                 }
             }
-            info!(tool_use = true, span_id, "Completed response");
+            info!(
+                tool_use = true,
+                endpoint = "query",
+                span_id,
+                "Completed response"
+            );
             Ok(())
         }
         _ => {
-            info!(tool_use = false, span_id, "Completed response");
+            info!(
+                tool_use = false,
+                endpoint = "query",
+                span_id,
+                "Completed response"
+            );
             Ok(())
         }
     }

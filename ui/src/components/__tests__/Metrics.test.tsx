@@ -11,13 +11,21 @@ describe("Metrics", () => {
         Component: Metrics,
 
         loader: () => ({
-          spanLength: [
+          queryLatency: [
             {
+              index: 0,
               range: "hi",
-              frequency: 1,
+              count: 1,
             },
           ],
-          spanTools: [
+          ingestionLatency: [
+            {
+              index: 0,
+              range: "2-3",
+              count: 3,
+            },
+          ],
+          queryTools: [
             {
               cnt_spns_with_tools: 2,
               cnt_spns_without_tools: 3,

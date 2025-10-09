@@ -189,8 +189,8 @@ export const streamText = (
   };
 };
 
-export const getSpanLength = async (jwt: string) => {
-  const response = await fetch("/api/span/length", {
+export const getQueryLatency = async (jwt: string) => {
+  const response = await fetch("/api/telemetry/latency/query", {
     headers: getHeaders(jwt),
   });
   if (response.ok) {
@@ -200,8 +200,19 @@ export const getSpanLength = async (jwt: string) => {
   throw new Error(await response.text());
 };
 
-export const getSpanTools = async (jwt: string) => {
-  const response = await fetch("/api/span/tools", {
+export const getIngestionLatency = async (jwt: string) => {
+  const response = await fetch("/api/telemetry/latency/ingest", {
+    headers: getHeaders(jwt),
+  });
+  if (response.ok) {
+    const result = await response.json();
+    return result;
+  }
+  throw new Error(await response.text());
+};
+
+export const getQueryTools = async (jwt: string) => {
+  const response = await fetch("/api/telemetry/tools/query", {
     headers: getHeaders(jwt),
   });
   if (response.ok) {

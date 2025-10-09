@@ -58,10 +58,6 @@ use tracing_subscriber::{Registry, prelude::*};
 #[database("draid")]
 struct DBDraid(rocket_db_pools::sqlx::PgPool);
 
-#[derive(Database)]
-#[database("kb")]
-struct DBKb(rocket_db_pools::sqlx::PgPool);
-
 async fn run_migrations_draid(rocket: Rocket<Build>) -> fairing::Result {
     match DBDraid::fetch(&rocket) {
         Some(db) => match sqlx::migrate!("./migrations").run(&**db).await {
@@ -81,18 +77,6 @@ async fn run_migrations_draid(rocket: Rocket<Build>) -> fairing::Result {
                 };
                 Ok(rocket)
             }
-            Err(e) => {
-                error!("Failed to initialize SQLx database: {}", e);
-                Err(rocket)
-            }
-        },
-        None => Err(rocket),
-    }
-}
-async fn run_migrations_kb(rocket: Rocket<Build>) -> fairing::Result {
-    match DBKb::fetch(&rocket) {
-        Some(db) => match sqlx::migrate!("./migrations-vector").run(&**db).await {
-            Ok(_) => Ok(rocket),
             Err(e) => {
                 error!("Failed to initialize SQLx database: {}", e);
                 Err(rocket)
@@ -141,7 +125,7 @@ fn generate_bots(
 ) -> impl FnOnce(Rocket<Build>) -> Pin<Box<dyn Future<Output = fairing::Result> + Send>> {
     move |rocket: Rocket<Build>| {
         Box::pin(async move {
-            match DBKb::fetch(&rocket) {
+            match DBDraid::fetch(&rocket) {
                 Some(db) => {
                     let mut connection = db.0.acquire().await.unwrap();
                     let kb_arcs: Vec<Arc<dyn Tool + Send + Sync>> =
@@ -212,12 +196,10 @@ async fn main() -> Result<(), rocket::Error> {
 
     let rocket = rocket::build()
         .attach(DBDraid::init())
-        .attach(DBKb::init())
         .attach(AdHoc::try_on_ignite(
             "DBDraid Migrations",
             run_migrations_draid,
         ))
-        .attach(AdHoc::try_on_ignite("DBKb Migrations", run_migrations_kb))
         .attach(AdHoc::try_on_ignite("Logging", create_logging))
         .attach(AdHoc::try_on_ignite(
             "Bots",
@@ -244,7 +226,6 @@ async fn main() -> Result<(), rocket::Error> {
                 get_messages,
                 tool_use,
                 histogram,
-                create_kb,
                 similar_kb_by_id,
                 similar_kb_by_name,
                 get_kbs,
@@ -290,7 +271,12 @@ async fn chat_with_bot(
     //frustrating that I'm cloning...I tried to get bot and prompt to be efficient
     rocket::tokio::spawn(async move {
         if let Err(e) = chat_with_tools(bot, tx, &messages, prompt, span_id)
-            .instrument(span!(Level::INFO, "chat_with_tools", tool_use = false))
+            .instrument(span!(
+                Level::INFO,
+                "chat_with_tools",
+                endpoint = "query",
+                tool_use = false
+            ))
             .await
         {
             eprintln!("chat_with_tools exploded: {}", e); // Or propagate if you care
@@ -522,7 +508,7 @@ async fn histogram(
     Ok(Json(results))
 }
 
-#[get("/span/tools/<endpoint>", format = "json")]
+#[get("/telemetry/tools/<endpoint>", format = "json")]
 async fn tool_use(
     endpoint: &str,
     mut db: Connection<DBDraid>,
@@ -537,7 +523,7 @@ async fn tool_use(
 async fn similar_content<'a>(
     kb_id: i64,
     prompt: Json<PromptKb<'a>>,
-    mut db: Connection<DBKb>,
+    mut db: Connection<DBDraid>,
     client: &EmbeddingClient,
 ) -> Result<Json<Vec<SimilarContent>>, BadRequest<String>> {
     let embeddings = get_embeddings(&client, &prompt.text)
@@ -554,7 +540,7 @@ async fn similar_content<'a>(
 async fn similar_kb_by_id<'a>(
     kb_id: i64,
     prompt: Json<PromptKb<'a>>,
-    db: Connection<DBKb>,
+    db: Connection<DBDraid>,
     client: &State<Arc<EmbeddingClient>>,
 ) -> Result<Json<Vec<SimilarContent>>, BadRequest<String>> {
     similar_content(kb_id, prompt, db, client).await
@@ -569,7 +555,7 @@ async fn similar_kb_by_id<'a>(
 async fn similar_kb_by_name<'a>(
     kb: &str,
     prompt: Json<PromptKb<'a>>,
-    mut db: Connection<DBKb>,
+    mut db: Connection<DBDraid>,
     client: &State<Arc<EmbeddingClient>>,
 ) -> Result<Json<Vec<SimilarContent>>, BadRequest<String>> {
     let KnowledgeBase { id, .. } = get_knowledge_base(kb, &mut db)
@@ -589,31 +575,10 @@ async fn extract_and_write(
     Ok(())
 }
 
-#[derive(Deserialize)]
-#[serde(crate = "rocket::serde")]
-struct KBRequest<'a> {
-    name: &'a str,
-}
-#[derive(Serialize)]
-#[serde(crate = "rocket::serde")]
-struct KBResponse {
-    id: i64,
-}
-
-//curl --header "Content-Type: application/json" -X POST http://127.0.0.1:8001/knowledge_base --data '{"name": "paul_graham"}'
-#[post("/knowledge_base", format = "json", data = "<data>")]
-async fn create_kb<'a>(
-    data: Json<KBRequest<'a>>,
-    mut db: Connection<DBKb>,
-) -> Result<Json<KBResponse>, BadRequest<String>> {
-    let id = write_knowledge_base(&data.name, &mut db)
-        .await
-        .map_err(|e| BadRequest(e.to_string()))?;
-    Ok(Json(KBResponse { id }))
-}
-
 #[get("/knowledge_base")]
-async fn get_kbs(mut db: Connection<DBKb>) -> Result<Json<Vec<KnowledgeBase>>, BadRequest<String>> {
+async fn get_kbs(
+    mut db: Connection<DBDraid>,
+) -> Result<Json<Vec<KnowledgeBase>>, BadRequest<String>> {
     Ok(Json(
         get_knowledge_bases(&mut db)
             .await
@@ -624,7 +589,7 @@ async fn get_kbs(mut db: Connection<DBKb>) -> Result<Json<Vec<KnowledgeBase>>, B
 async fn ingest_content(
     kb_id: i64, //category of knowledge base
     data: Data<'_>,
-    db: &DBKb,
+    db: &DBDraid,
     client: &EmbeddingClient,
 ) -> Result<Json<StatusResponse>, BadRequest<String>> {
     let max_characters = 1000;
@@ -646,17 +611,22 @@ async fn ingest_content(
     let mut conn = db.acquire().await.map_err(|e| BadRequest(e.to_string()))?;
     match write_document(&content_hash, &mut conn).await {
         Ok(document_id) => {
-            info!(tool_use = true, span_id, "Finished reading content");
+            info!(
+                tool_use = true,
+                endpoint = "ingest",
+                span_id,
+                "Finished reading content"
+            );
             let chunks: Vec<String> = splitter.chunks(&content).map(|v| v.to_string()).collect();
             info!(
                 tool_use = true,
-                is_kb = true,
+                endpoint = "ingest",
                 span_id,
                 "Finished chunking content"
             );
             info!(
                 tool_use = true,
-                is_kb = true,
+                endpoint = "ingest",
                 span_id,
                 message = format!("Number of chunks {}", chunks.len())
             );
@@ -670,7 +640,7 @@ async fn ingest_content(
                 .await;
             info!(
                 tool_use = true,
-                is_kb = true,
+                endpoint = "ingest",
                 span_id,
                 "Finished writing vectors"
             );
@@ -679,7 +649,12 @@ async fn ingest_content(
             }
         }
         Err(_e) => {
-            info!(tool_use = true, is_kb = true, span_id, "Already indexed!");
+            info!(
+                tool_use = true,
+                endpoint = "ingest",
+                span_id,
+                "Already indexed!"
+            );
         }
     }
     Ok(Json(StatusResponse {
@@ -693,14 +668,16 @@ async fn ingest_content(
 async fn ingest_kb_by_id(
     kb_id: i64, //category of knowledge base
     data: Data<'_>,
-    db: &DBKb,
+    db: &DBDraid,
     client: &State<Arc<EmbeddingClient>>,
+    _admin: auth::Admin,
 ) -> Result<Json<StatusResponse>, BadRequest<String>> {
     ingest_content(kb_id, data, db, client)
         .instrument(span!(
             Level::INFO,
             "knowledge_base_ingest",
-            tool_use = false
+            tool_use = false,
+            endpoint = "ingest",
         ))
         .await
 }
@@ -709,8 +686,9 @@ async fn ingest_kb_by_id(
 async fn ingest_kb_by_name(
     kb: &str, //category of knowledge base
     data: Data<'_>,
-    db: &DBKb,
+    db: &DBDraid,
     client: &State<Arc<EmbeddingClient>>,
+    _admin: auth::Admin,
 ) -> Result<Json<StatusResponse>, BadRequest<String>> {
     let mut conn = db.acquire().await.map_err(|e| BadRequest(e.to_string()))?;
     let KnowledgeBase { id, .. } = get_knowledge_base(kb, &mut conn)
@@ -720,7 +698,8 @@ async fn ingest_kb_by_name(
         .instrument(span!(
             Level::INFO,
             "knowledge_base_ingest",
-            tool_use = false
+            tool_use = false,
+            endpoint = "ingest",
         ))
         .await
 }

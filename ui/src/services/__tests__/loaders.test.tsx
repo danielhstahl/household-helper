@@ -4,6 +4,7 @@ import {
   loadUser,
   logoutLoader,
   loadUsers,
+  loadMetrics,
 } from "../loaders.tsx";
 import { setLoggedInJwt } from "../../state/localState.tsx";
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -262,5 +263,92 @@ describe("logoutLoader", () => {
     setLoggedInJwt("dummyjwt");
     const result = logoutLoader();
     expect(result.headers.get("Location")).toEqual("/login");
+  });
+});
+
+describe("loadMetrics", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    vi.clearAllMocks();
+  });
+  it("redirects to login if no jwt", async () => {
+    setLoggedInJwt(null);
+    const server = setupWorker(
+      http.get("/api/telemetry/latency/:endpoint", () => {
+        return HttpResponse.json([
+          {
+            index: 0,
+            range: "2-3",
+            count: 3,
+          },
+        ]);
+      }),
+      http.get("/api/telemetry/tools/:endpoint", () => {
+        return HttpResponse.json([
+          {
+            cnt_spns_with_tools: 3,
+            cnt_spns_without_tools: 4,
+            date: new Date().toUTCString(),
+          },
+        ]);
+      }),
+    );
+    await server.start({ quiet: true });
+    const result = await loadMetrics();
+    expect(result instanceof Response);
+    if (result instanceof Response) {
+      expect(result.headers.get("Location")).toEqual("/login");
+    }
+    server.stop();
+  });
+  it("returns metrics if jwt", async () => {
+    setLoggedInJwt("dummyjwt");
+    const server = setupWorker(
+      http.get("/api/telemetry/latency/:endpoint", () => {
+        return HttpResponse.json([
+          {
+            index: 0,
+            range: "2-3",
+            count: 3,
+          },
+        ]);
+      }),
+      http.get("/api/telemetry/tools/:endpoint", () => {
+        return HttpResponse.json([
+          {
+            cnt_spns_with_tools: 3,
+            cnt_spns_without_tools: 4,
+            date: new Date().toUTCString(),
+          },
+        ]);
+      }),
+    );
+    await server.start({ quiet: true });
+    const result = await loadMetrics();
+    console.log(result);
+    expect(result).toEqual({
+      queryLatency: [
+        {
+          index: 0,
+          range: "2-3",
+          count: 3,
+        },
+      ],
+      ingestionLatency: [
+        {
+          index: 0,
+          range: "2-3",
+          count: 3,
+        },
+      ],
+      queryTools: [
+        {
+          cnt_spns_with_tools: 3,
+          cnt_spns_without_tools: 4,
+          date: new Date().toUTCString(),
+        },
+      ],
+    });
+    server.stop();
   });
 });
