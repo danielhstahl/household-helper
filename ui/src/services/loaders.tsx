@@ -12,7 +12,7 @@ import {
 } from "./api.tsx";
 import { getLoggedInJwt, setLoggedInJwt } from "../state/localState.tsx";
 import { getRedirectRoute } from "./routes.tsx";
-import { type Message } from "../components/Output.tsx";
+import { type Message } from "./models.tsx";
 
 // --- Route Loaders ---
 export const loadSession = async ({ params }: LoaderFunctionArgs) => {

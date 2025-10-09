@@ -9,11 +9,7 @@ import AddIcon from "@mui/icons-material/Add";
 import Button from "@mui/material/Button";
 import Typography from "@mui/material/Typography";
 import { NavLink, Form, useLocation, useFetcher } from "react-router";
-
-interface Session {
-  id: string;
-  session_start: string;
-}
+import { type Session } from "../services/models.tsx";
 interface Props {
   sessions: Session[];
   selectedSessionId: string;

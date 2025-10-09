@@ -24,8 +24,10 @@ describe("sessionAction", () => {
       params: { agent: "helper" },
       context: {},
     });
-
-    expect(result.headers.get("Location")).toEqual("/login");
+    expect(result instanceof Response);
+    if (result instanceof Response) {
+      expect(result.headers.get("Location")).toEqual("/login");
+    }
 
     server.stop();
   });
@@ -45,8 +47,10 @@ describe("sessionAction", () => {
       context: {},
     });
 
-    expect(result.headers.get("Location")).toEqual("/helper/session123");
-
+    expect(result instanceof Response);
+    if (result instanceof Response) {
+      expect(result.headers.get("Location")).toEqual("/helper/session123");
+    }
     server.stop();
   });
   it("returns deletes session if DELETE and JWT", async () => {
@@ -155,7 +159,10 @@ describe("userAction", () => {
       context: {},
     });
 
-    expect(result.headers.get("Location")).toEqual("/login");
+    expect(result instanceof Response);
+    if (result instanceof Response) {
+      expect(result.headers.get("Location")).toEqual("/login");
+    }
 
     server.stop();
   });

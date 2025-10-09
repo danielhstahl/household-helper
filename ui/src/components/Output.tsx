@@ -10,22 +10,7 @@ import rehypeKatex from "rehype-katex";
 import "katex/dist/katex.min.css";
 import remarkGfm from "remark-gfm"; // For GitHub-flavored Markdown (tables, strikethrough, etc.)
 import { memo } from "react";
-
-export const MessageTypeEnum = {
-  human: "human",
-  ai: "ai",
-  system: "system",
-  tool: "tool",
-} as const;
-
-export type MessageType =
-  (typeof MessageTypeEnum)[keyof typeof MessageTypeEnum];
-
-export interface Message {
-  message_type: MessageType;
-  content: string;
-  timestamp: string;
-}
+import { MessageTypeEnum, type Message } from "../services/models";
 
 interface OutputProps {
   messages: Message[];

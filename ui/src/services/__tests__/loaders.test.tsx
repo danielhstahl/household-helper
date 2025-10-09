@@ -10,7 +10,7 @@ import { setLoggedInJwt } from "../../state/localState.tsx";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { http, HttpResponse } from "msw";
 import { setupWorker } from "msw/browser";
-import { MessageTypeEnum } from "../../components/Output.tsx";
+import { MessageTypeEnum } from "../models.tsx";
 describe("loadSession", () => {
   beforeEach(() => {
     localStorage.clear();
@@ -193,7 +193,10 @@ describe("loadUser", () => {
     );
     await server.start({ quiet: true });
     const result = await loadUser();
-    expect(result.headers.get("Location")).toEqual("/login");
+    expect(result instanceof Response);
+    if (result instanceof Response) {
+      expect(result.headers.get("Location")).toEqual("/login");
+    }
     server.stop();
   });
   it("returns user if jwt", async () => {
@@ -228,7 +231,10 @@ describe("loadUsers", () => {
     );
     await server.start({ quiet: true });
     const result = await loadUsers();
-    expect(result.headers.get("Location")).toEqual("/login");
+    expect(result instanceof Response);
+    if (result instanceof Response) {
+      expect(result.headers.get("Location")).toEqual("/login");
+    }
     server.stop();
   });
   it("returns users if jwt", async () => {
@@ -325,7 +331,6 @@ describe("loadMetrics", () => {
     );
     await server.start({ quiet: true });
     const result = await loadMetrics();
-    console.log(result);
     expect(result).toEqual({
       queryLatency: [
         {
