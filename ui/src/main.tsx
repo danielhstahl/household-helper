@@ -80,10 +80,6 @@ const router = createBrowserRouter([
                 loader: loadKnowledgeBase,
                 Component: KnowledgeBaseUpload,
               },
-              {
-                path: "knowledgebase/:kbId",
-                action: uploadFile,
-              },
             ],
           },
         ],

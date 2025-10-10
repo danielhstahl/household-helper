@@ -263,7 +263,7 @@ export async function uploadFileToKnowledgeBase(
 ): Promise<StatusResponse> {
   const response = await fetch(`/api/knowledge_base/${kbId}/ingest`, {
     method: "POST",
-    headers: getHeaders(jwt),
+    headers: { Authorization: `Bearer ${jwt}` },
     body: formData,
   });
   if (response.ok) {

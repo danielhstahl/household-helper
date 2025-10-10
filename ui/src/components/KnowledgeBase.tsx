@@ -1,4 +1,4 @@
-import { useLoaderData, useFetcher, useLocation } from "react-router";
+import { useLoaderData, useNavigate } from "react-router";
 import Grid from "@mui/material/Grid";
 import Typography from "@mui/material/Typography";
 import type { KnowledgeBase } from "../services/models";
@@ -8,6 +8,9 @@ import Button from "@mui/material/Button";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
 import CardActions from "@mui/material/CardActions";
+import { uploadFileToKnowledgeBase } from "../services/api";
+import { getLoggedInJwt } from "../state/localState";
+import { useState } from "react";
 const VisuallyHiddenInput = styled("input")({
   clip: "rect(0 0 0 0)",
   clipPath: "inset(50%)",
@@ -24,23 +27,27 @@ interface CardProps {
   kbName: string;
 }
 const KnowledgeBaseCard = ({ kbId, kbName }: CardProps) => {
-  const { pathname } = useLocation();
-  const fetcher = useFetcher();
+  const navigate = useNavigate();
+  const [loading, setIsLoading] = useState(false);
   const uploadFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files !== null) {
       const formData = new FormData();
       for (const file of files) {
+        console.log(file);
+        console.log(file instanceof File);
         formData.append("file", file);
       }
-      fetcher.submit(formData, {
-        action: `${pathname}/${kbId}`,
-        method: "POST",
-      });
+      const jwt = getLoggedInJwt();
+      if (!jwt) {
+        return navigate("/login");
+      }
+      setIsLoading(true);
+      uploadFileToKnowledgeBase(kbId, formData, jwt).finally(() =>
+        setIsLoading(false),
+      );
     }
   };
-  console.log(fetcher.data);
-  console.log(fetcher.state);
   return (
     <Card variant="outlined">
       <CardContent>
@@ -60,7 +67,7 @@ const KnowledgeBaseCard = ({ kbId, kbName }: CardProps) => {
           variant="contained"
           tabIndex={-1}
           startIcon={<CloudUpload />}
-          loading={fetcher.state !== "idle"}
+          loading={loading}
         >
           Upload files
           <VisuallyHiddenInput type="file" onChange={uploadFile} multiple />
