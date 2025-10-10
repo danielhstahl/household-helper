@@ -48,3 +48,8 @@ export interface Session {
 export interface SessionDB extends Session {
   username_id: string;
 }
+
+export interface KnowledgeBase {
+  id: number;
+  name: string;
+}
