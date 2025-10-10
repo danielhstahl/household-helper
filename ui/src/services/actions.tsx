@@ -62,7 +62,6 @@ export const uploadFile = async ({ request, params }: ActionFunctionArgs) => {
   }
   const formData = await request.formData();
   const kbId = parseInt(params.kbId!);
-  console.log(kbId);
   try {
     await uploadFileToKnowledgeBase(kbId, formData, jwt);
   } catch (error) {

@@ -71,21 +71,6 @@ const KnowledgeBaseCard = ({ kbId, kbName }: CardProps) => {
 };
 const KnowledgeBaseUpload = () => {
   const knowledgeBases = useLoaderData() as KnowledgeBase[];
-  /*const fetcher = useFetcher();
-  const uploadFile =
-    (kbId: number) => (e: React.ChangeEvent<HTMLInputElement>) => {
-      const files = e.target.files;
-      if (files !== null) {
-        const formData = new FormData();
-        for (const file in files) {
-          formData.append("file", file);
-        }
-        fetcher.submit(formData, {
-          action: `/knowledgebase/${kbId}`,
-          method: "POST",
-        });
-      }
-      };*/
   return (
     <>
       {knowledgeBases.map(({ name, id }) => (

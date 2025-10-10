@@ -71,7 +71,7 @@ const router = createBrowserRouter([
                 Component: Users,
               },
               {
-                path: "metrics", //loadKnowledgeBase
+                path: "metrics",
                 loader: loadMetrics,
                 Component: Metrics,
               },
