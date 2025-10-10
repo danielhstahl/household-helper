@@ -60,7 +60,7 @@ const KnowledgeBaseCard = ({ kbId, kbName }: CardProps) => {
           variant="contained"
           tabIndex={-1}
           startIcon={<CloudUpload />}
-          loading={fetcher.state === "loading"}
+          loading={fetcher.state !== "idle"}
         >
           Upload files
           <VisuallyHiddenInput type="file" onChange={uploadFile} multiple />
