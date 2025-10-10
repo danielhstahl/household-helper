@@ -6,7 +6,6 @@ import {
   deleteUser,
   createSession,
   deleteSession,
-  uploadFileToKnowledgeBase,
 } from "./api.tsx";
 import { getLoggedInJwt, setLoggedInJwt } from "../state/localState.tsx";
 import { getRedirectRoute } from "./routes.tsx";
@@ -49,21 +48,6 @@ export const loginAction = async ({ request }: ActionFunctionArgs) => {
     )) as AccessToken;
     setLoggedInJwt(accessToken);
     return redirect("/");
-  } catch (error) {
-    console.log(error);
-    return { error };
-  }
-};
-
-export const uploadFile = async ({ request, params }: ActionFunctionArgs) => {
-  const jwt = getLoggedInJwt();
-  if (!jwt) {
-    return redirect("/login");
-  }
-  const formData = await request.formData();
-  const kbId = parseInt(params.kbId!);
-  try {
-    await uploadFileToKnowledgeBase(kbId, formData, jwt);
   } catch (error) {
     console.log(error);
     return { error };
