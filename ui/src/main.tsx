@@ -22,12 +22,7 @@ import {
   loadKnowledgeBase,
 } from "./services/loaders.tsx";
 
-import {
-  sessionAction,
-  userAction,
-  loginAction,
-  uploadFile,
-} from "./services/actions.tsx";
+import { sessionAction, userAction, loginAction } from "./services/actions.tsx";
 import Users from "./components/Users.tsx";
 import KnowledgeBaseUpload from "./components/KnowledgeBase.tsx";
 
