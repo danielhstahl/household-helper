@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT diff_in_seconds as \"diff_in_seconds!\", span_id FROM\n        (\n            SELECT COALESCE(EXTRACT(EPOCH FROM (MAX(timestamp) - MIN(timestamp))), 0)::double precision as diff_in_seconds,\n            span_id from\n            traces\n            where timestamp> date_subtract(NOW(), '7 day'::interval)\n            and endpoint=$1\n            group by span_id\n            order by diff_in_seconds asc\n        )\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "diff_in_seconds!",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 1,
+        "name": "span_id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      null,
+      false
+    ]
+  },
+  "hash": "7c5b0407106f656ae868edfb921d90fb33b5f59511fcb5c589fc628bd38c6cc3"
+}

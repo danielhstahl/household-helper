@@ -6,12 +6,13 @@ import {
   getMessages,
   getUser,
   createSession,
-  getSpanLength,
-  getSpanTools,
+  getQueryLatency,
+  getQueryTools,
+  getIngestionLatency,
 } from "./api.tsx";
 import { getLoggedInJwt, setLoggedInJwt } from "../state/localState.tsx";
 import { getRedirectRoute } from "./routes.tsx";
-import { type Message } from "../components/Output.tsx";
+import { type Message } from "./models.tsx";
 
 // --- Route Loaders ---
 export const loadSession = async ({ params }: LoaderFunctionArgs) => {
@@ -100,11 +101,12 @@ export const loadMetrics = async () => {
     return redirect("/login");
   }
   try {
-    const [spanLength, spanTools] = await Promise.all([
-      getSpanLength(jwt),
-      getSpanTools(jwt),
+    const [queryLatency, ingestionLatency, queryTools] = await Promise.all([
+      getQueryLatency(jwt),
+      getIngestionLatency(jwt),
+      getQueryTools(jwt),
     ]);
-    return { spanLength, spanTools };
+    return { queryLatency, ingestionLatency, queryTools };
   } catch (error) {
     console.log(error);
     setLoggedInJwt(null);

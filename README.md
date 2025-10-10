@@ -26,7 +26,6 @@ echo | sudo apt install postgresql-15-pgvector
 sudo service postgresql start
 sudo -u postgres psql -c "ALTER USER postgres PASSWORD 'yourpassword';"
 sudo -u postgres psql -c "CREATE DATABASE draid;"
-sudo -u postgres psql -c "CREATE DATABASE kb;"
 ```
 
 #### Mac
@@ -38,9 +37,8 @@ brew install pgvector
 brew services start postgresql@17
 psql -d postgres -c "ALTER USER postgres PASSWORD 'yourpassword';"
 psql -d postgres -c "CREATE DATABASE draid;"
-psql -d postgres -c "CREATE DATABASE kb;"
 psql -d postgres
-\c kb
+\c driad
 "CREATE EXTENSION vector;"
 ```
 
@@ -50,19 +48,18 @@ psql -d postgres
 sudo docker exec -it [imghash] bash
 psql -U [username]
 psql -c "CREATE DATABASE draid;"
-psql -c "CREATE DATABASE kb;"
 ```
 
 ### Recommended dev command
 
 Change directory to [draid](./draid), and run
 
-`INIT_ADMIN_PASSWORD=[yourinitpassword] USER_DATABASE_URL=postgresql://postgres:[yourpassword]@localhost:5432 cargo run`
+`INIT_ADMIN_PASSWORD=[yourinitpassword] USER_DATABASE_URL=postgresql://postgres:[yourpassword]@localhost:5432 JWT_SECRET=[yourjwtsecret] cargo run`
 
 
 ## Deploy
 
-There are three Docker images, one for the UI (static files), one for the API (draid), and one for the knowledge base (kb).  The UI Docker includes an nginx config that needs to point to the address of the API Docker.  These images are built and available at `ghcr.io/danielhstahl/householdhelper-ui:${tag}`, `ghcr.io/danielhstahl/householdhelper-draid:${tag}`, and `ghcr.io/danielhstahl/householdhelper-kb:${tag}`.  The following environmental variables need to be defined on the draid Docker:
+There are two Docker images, one for the UI (static files), and one for the API (draid).  The UI Docker includes an nginx config that needs to point to the address of the API Docker.  These images are built and available at `ghcr.io/danielhstahl/householdhelper-ui:${tag}`, `ghcr.io/danielhstahl/householdhelper-draid:${tag}`.  The following environmental variables need to be defined on the draid Docker:
 * OPEN_AI_COMPATABLE_ENDPOINT (defaults to "http://localhost:11434")
 * ROCKET_DATABASES (eg, '{draid={url="postgresql://[yourpsqluser]:[yourpsqlpassword]@psqldb:5432/draid"}}')
 * ROCKET_PORT (eg 8000)
@@ -73,9 +70,6 @@ There are three Docker images, one for the UI (static files), one for the API (d
 In the UI docker:
 * BACKEND_SERVICE.  Needs to be [ip/dns]:[port] of your app docker.
 
-In the KB docker:
-* OPEN_AI_COMPATABLE_ENDPOINT (defaults to "http://localhost:11434")
-* KNOWLEDGE_BASE_NAMES.  JSON array of KB names.
 
 The [docker-compose](./docker/docker-compose.yml) file shows an example of how to orchestrate the containers.
 

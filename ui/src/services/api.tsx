@@ -1,3 +1,14 @@
+import type {
+  QueryLatency,
+  QueryTools,
+  Token,
+  UserResponse,
+  Message,
+  SessionDB,
+} from "./models";
+interface StatusResponse {
+  status: string;
+}
 const buildUrl = (base: string, sessionId: string | undefined) => {
   return sessionId
     ? `${base}?` +
@@ -27,7 +38,7 @@ export const sendTutor = (text: string, jwt: string, sessionId: string) => {
   });
 };
 
-export const getSessions = async (jwt: string) => {
+export async function getSessions(jwt: string): Promise<SessionDB[]> {
   const response = await fetch("/api/session", {
     headers: getHeaders(jwt),
   });
@@ -36,9 +47,9 @@ export const getSessions = async (jwt: string) => {
     return result;
   }
   throw new Error(await response.text());
-};
+}
 
-export const getMostRecentSession = async (jwt: string) => {
+export async function getMostRecentSession(jwt: string): Promise<SessionDB> {
   const response = await fetch("/api/session/recent", {
     headers: getHeaders(jwt),
   });
@@ -47,9 +58,9 @@ export const getMostRecentSession = async (jwt: string) => {
     return result;
   }
   throw new Error(await response.text());
-};
+}
 
-export const createSession = async (jwt: string) => {
+export async function createSession(jwt: string): Promise<SessionDB> {
   const response = await fetch("/api/session", {
     method: "POST",
     headers: getHeaders(jwt),
@@ -59,9 +70,12 @@ export const createSession = async (jwt: string) => {
     return result;
   }
   throw new Error(await response.text());
-};
+}
 
-export const deleteSession = async (sessionId: string, jwt: string) => {
+export async function deleteSession(
+  sessionId: string,
+  jwt: string,
+): Promise<StatusResponse> {
   const response = await fetch(`/api/session/${sessionId}`, {
     method: "DELETE",
     headers: getHeaders(jwt),
@@ -71,9 +85,12 @@ export const deleteSession = async (sessionId: string, jwt: string) => {
     return result;
   }
   throw new Error(await response.text());
-};
+}
 
-export const getMessages = async (sessionId: string, jwt: string) => {
+export async function getMessages(
+  sessionId: string,
+  jwt: string,
+): Promise<Message[]> {
   const response = await fetch(`/api/messages/${sessionId}`, {
     headers: getHeaders(jwt),
   });
@@ -82,8 +99,8 @@ export const getMessages = async (sessionId: string, jwt: string) => {
     return result;
   }
   throw new Error(await response.text());
-};
-export const getUser = async (jwt: string) => {
+}
+export async function getUser(jwt: string): Promise<UserResponse> {
   const response = await fetch("/api/user/me", {
     headers: getHeaders(jwt),
   });
@@ -92,8 +109,8 @@ export const getUser = async (jwt: string) => {
     return result;
   }
   throw new Error(await response.text());
-};
-export const getUsers = async (jwt: string) => {
+}
+export async function getUsers(jwt: string): Promise<UserResponse[]> {
   const response = await fetch("/api/user", {
     headers: getHeaders(jwt),
   });
@@ -102,14 +119,14 @@ export const getUsers = async (jwt: string) => {
     return result;
   }
   throw new Error(await response.text());
-};
+}
 
-export const createUser = async (
+export async function createUser(
   username: string,
   password: string,
   roles: string[],
   jwt: string,
-) => {
+): Promise<StatusResponse> {
   const response = await fetch("/api/user", {
     method: "POST",
     body: JSON.stringify({ username, password, roles }),
@@ -120,15 +137,15 @@ export const createUser = async (
     return result;
   }
   throw new Error(await response.text());
-};
+}
 
-export const updateUser = async (
+export async function updateUser(
   id: number,
   username: string,
   password: string | undefined,
   roles: string[],
   jwt: string,
-) => {
+): Promise<StatusResponse> {
   const payload = password
     ? { username, password, roles }
     : { username, roles };
@@ -142,9 +159,12 @@ export const updateUser = async (
     return result;
   }
   throw new Error(await response.text());
-};
+}
 
-export const deleteUser = async (id: number, jwt: string) => {
+export async function deleteUser(
+  id: number,
+  jwt: string,
+): Promise<StatusResponse> {
   const response = await fetch(`/api/user/${id}`, {
     method: "DELETE",
     headers: getHeaders(jwt),
@@ -154,9 +174,9 @@ export const deleteUser = async (id: number, jwt: string) => {
     return result;
   }
   throw new Error(await response.text());
-};
+}
 
-export const getToken = async (formData: FormData) => {
+export async function getToken(formData: FormData): Promise<Token> {
   //https://github.com/microsoft/TypeScript/issues/30584#issuecomment-1865354582
   const data = new URLSearchParams(
     formData as unknown as Record<string, string>,
@@ -170,7 +190,7 @@ export const getToken = async (formData: FormData) => {
     return result;
   }
   throw new Error(response.statusText);
-};
+}
 
 export const streamText = (
   onNewText: (_: string) => void,
@@ -189,8 +209,8 @@ export const streamText = (
   };
 };
 
-export const getSpanLength = async (jwt: string) => {
-  const response = await fetch("/api/span/length", {
+export async function getQueryLatency(jwt: string): Promise<QueryLatency[]> {
+  const response = await fetch("/api/telemetry/latency/query", {
     headers: getHeaders(jwt),
   });
   if (response.ok) {
@@ -198,10 +218,12 @@ export const getSpanLength = async (jwt: string) => {
     return result;
   }
   throw new Error(await response.text());
-};
+}
 
-export const getSpanTools = async (jwt: string) => {
-  const response = await fetch("/api/span/tools", {
+export async function getIngestionLatency(
+  jwt: string,
+): Promise<QueryLatency[]> {
+  const response = await fetch("/api/telemetry/latency/ingest", {
     headers: getHeaders(jwt),
   });
   if (response.ok) {
@@ -209,4 +231,15 @@ export const getSpanTools = async (jwt: string) => {
     return result;
   }
   throw new Error(await response.text());
-};
+}
+
+export async function getQueryTools(jwt: string): Promise<QueryTools[]> {
+  const response = await fetch("/api/telemetry/tools/query", {
+    headers: getHeaders(jwt),
+  });
+  if (response.ok) {
+    const result = await response.json();
+    return result;
+  }
+  throw new Error(await response.text());
+}

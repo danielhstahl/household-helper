@@ -1,0 +1,50 @@
+export type QueryLatency = {
+  index: number;
+  range: string;
+  count: number;
+};
+export type QueryTools = {
+  cnt_spns_with_tools: number;
+  cnt_spns_without_tools: number;
+  date: Date;
+};
+export type TelemetryMetrics = {
+  queryLatency: readonly QueryLatency[];
+  ingestionLatency: readonly QueryLatency[];
+  queryTools: readonly QueryTools[];
+};
+
+export interface Token {
+  access_token: string;
+}
+
+export interface UserResponse {
+  id: string;
+  username: string;
+  roles: string[]; //check is role has a type
+}
+
+export const MessageTypeEnum = {
+  human: "human",
+  ai: "ai",
+  system: "system",
+  tool: "tool",
+} as const;
+
+export type MessageType =
+  (typeof MessageTypeEnum)[keyof typeof MessageTypeEnum];
+
+export interface Message {
+  message_type: MessageType;
+  content: string;
+  timestamp: string;
+}
+
+export interface Session {
+  id: string;
+  session_start: string;
+}
+
+export interface SessionDB extends Session {
+  username_id: string;
+}

@@ -4,12 +4,13 @@ import {
   loadUser,
   logoutLoader,
   loadUsers,
+  loadMetrics,
 } from "../loaders.tsx";
 import { setLoggedInJwt } from "../../state/localState.tsx";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { http, HttpResponse } from "msw";
 import { setupWorker } from "msw/browser";
-import { MessageTypeEnum } from "../../components/Output.tsx";
+import { MessageTypeEnum } from "../models.tsx";
 describe("loadSession", () => {
   beforeEach(() => {
     localStorage.clear();
@@ -192,7 +193,10 @@ describe("loadUser", () => {
     );
     await server.start({ quiet: true });
     const result = await loadUser();
-    expect(result.headers.get("Location")).toEqual("/login");
+    expect(result instanceof Response);
+    if (result instanceof Response) {
+      expect(result.headers.get("Location")).toEqual("/login");
+    }
     server.stop();
   });
   it("returns user if jwt", async () => {
@@ -227,7 +231,10 @@ describe("loadUsers", () => {
     );
     await server.start({ quiet: true });
     const result = await loadUsers();
-    expect(result.headers.get("Location")).toEqual("/login");
+    expect(result instanceof Response);
+    if (result instanceof Response) {
+      expect(result.headers.get("Location")).toEqual("/login");
+    }
     server.stop();
   });
   it("returns users if jwt", async () => {
@@ -262,5 +269,91 @@ describe("logoutLoader", () => {
     setLoggedInJwt("dummyjwt");
     const result = logoutLoader();
     expect(result.headers.get("Location")).toEqual("/login");
+  });
+});
+
+describe("loadMetrics", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    vi.clearAllMocks();
+  });
+  it("redirects to login if no jwt", async () => {
+    setLoggedInJwt(null);
+    const server = setupWorker(
+      http.get("/api/telemetry/latency/:endpoint", () => {
+        return HttpResponse.json([
+          {
+            index: 0,
+            range: "2-3",
+            count: 3,
+          },
+        ]);
+      }),
+      http.get("/api/telemetry/tools/:endpoint", () => {
+        return HttpResponse.json([
+          {
+            cnt_spns_with_tools: 3,
+            cnt_spns_without_tools: 4,
+            date: new Date().toUTCString(),
+          },
+        ]);
+      }),
+    );
+    await server.start({ quiet: true });
+    const result = await loadMetrics();
+    expect(result instanceof Response);
+    if (result instanceof Response) {
+      expect(result.headers.get("Location")).toEqual("/login");
+    }
+    server.stop();
+  });
+  it("returns metrics if jwt", async () => {
+    setLoggedInJwt("dummyjwt");
+    const server = setupWorker(
+      http.get("/api/telemetry/latency/:endpoint", () => {
+        return HttpResponse.json([
+          {
+            index: 0,
+            range: "2-3",
+            count: 3,
+          },
+        ]);
+      }),
+      http.get("/api/telemetry/tools/:endpoint", () => {
+        return HttpResponse.json([
+          {
+            cnt_spns_with_tools: 3,
+            cnt_spns_without_tools: 4,
+            date: new Date().toUTCString(),
+          },
+        ]);
+      }),
+    );
+    await server.start({ quiet: true });
+    const result = await loadMetrics();
+    expect(result).toEqual({
+      queryLatency: [
+        {
+          index: 0,
+          range: "2-3",
+          count: 3,
+        },
+      ],
+      ingestionLatency: [
+        {
+          index: 0,
+          range: "2-3",
+          count: 3,
+        },
+      ],
+      queryTools: [
+        {
+          cnt_spns_with_tools: 3,
+          cnt_spns_without_tools: 4,
+          date: new Date().toUTCString(),
+        },
+      ],
+    });
+    server.stop();
   });
 });

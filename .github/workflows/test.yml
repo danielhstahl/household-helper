@@ -30,36 +30,6 @@ jobs:
         run: |
           docker build -t ghcr.io/danielhstahl/householdhelper-draid -f docker/draid.Dockerfile .
 
-  run_kb_tests:
-    name: Run kb test
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install Rust
-        run: rustup update stable
-      - name: Install cargo-llvm-cov
-        uses: taiki-e/install-action@cargo-llvm-cov
-      - name: Generate code coverage
-        working-directory: knowledge-base
-        run: |
-          cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info
-          cat lcov.info
-        env:
-          SQLX_OFFLINE: true # needed to keep it from trying to connect to a database
-
-      - name: build musl
-        working-directory: knowledge-base
-        run: |
-          curl -L https://github.com/cross-rs/cross/releases/download/v0.2.5/cross-x86_64-unknown-linux-gnu.tar.gz -o cross-x86_64-unknown-linux-gnu.tar.gz
-          tar -xvzf cross-x86_64-unknown-linux-gnu.tar.gz
-          rustup update stable
-          rustup target add x86_64-unknown-linux-musl
-          ./cross build --release --target x86_64-unknown-linux-musl
-
-      - name: generate docker
-        run: |
-          docker build -t ghcr.io/danielhstahl/householdhelper-kb -f docker/kb.Dockerfile .
-
   run_ui_tests:
     name: Run UI tests
     runs-on: ubuntu-latest

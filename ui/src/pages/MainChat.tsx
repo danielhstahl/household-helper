@@ -1,10 +1,8 @@
 import { useEffect, useState } from "react";
 import Chat from "../components/Chat.tsx";
 import AgentSelection from "../components/AgentSelection.tsx";
-import Output, {
-  MessageTypeEnum,
-  type Message,
-} from "../components/Output.tsx";
+import Output from "../components/Output.tsx";
+import { MessageTypeEnum, type Message } from "../services/models.tsx";
 import { streamText } from "../services/api.tsx";
 import { invokeAgent, type AgentSelections } from "../state/selectAgent.tsx";
 import { getLoggedInJwt } from "../state/localState.tsx";

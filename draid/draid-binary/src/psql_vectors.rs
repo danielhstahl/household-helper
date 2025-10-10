@@ -1,6 +1,6 @@
 use pgvector::Vector;
 use rocket::serde::Serialize;
-use sqlx::{Error, Pool, Postgres, Row, postgres::PgRow};
+use sqlx::{Error, PgConnection, Row, postgres::PgRow};
 #[derive(Debug, Serialize)]
 #[serde(crate = "rocket::serde")]
 pub struct SimilarContent {
@@ -10,7 +10,7 @@ pub async fn get_similar_content(
     kb: i64,
     embeddings: Vec<f32>,
     num_matches: i16,
-    pool: &Pool<Postgres>,
+    pool: &mut PgConnection,
 ) -> sqlx::Result<Vec<SimilarContent>> {
     let embeddings = Vector::from(embeddings);
     //cosine similarity
@@ -68,7 +68,7 @@ pub async fn write_single_content(
     kb_id: i64,
     content: &str,
     embeddings: Vec<f32>,
-    pool: &Pool<Postgres>,
+    pool: &mut PgConnection,
 ) -> sqlx::Result<()> {
     sqlx::query(
         "INSERT INTO vectors (document_id, kb_id, content, embedding) VALUES ($1, $2, $3, $4)",
@@ -88,7 +88,7 @@ struct IdOnly {
 }
 
 //will error on index constraint
-pub async fn write_document(document_hash: &str, pool: &Pool<Postgres>) -> sqlx::Result<i64> {
+pub async fn write_document(document_hash: &str, pool: &mut PgConnection) -> sqlx::Result<i64> {
     let result = sqlx::query_as!(
         IdOnly,
         r#"INSERT INTO documents (hash) VALUES ($1) RETURNING id"#,
@@ -99,7 +99,7 @@ pub async fn write_document(document_hash: &str, pool: &Pool<Postgres>) -> sqlx:
     Ok(result.id)
 }
 
-pub async fn write_knowledge_base(name: &str, pool: &Pool<Postgres>) -> sqlx::Result<i64> {
+pub async fn write_knowledge_base(name: &str, pool: &mut PgConnection) -> sqlx::Result<i64> {
     let result = sqlx::query_as!(
         IdOnly,
         r#"INSERT INTO knowledge_bases (name) VALUES ($1) RETURNING id"#,
@@ -115,14 +115,17 @@ pub struct KnowledgeBase {
     pub id: i64,
     name: String,
 }
-pub async fn get_knowledge_bases(pool: &Pool<Postgres>) -> sqlx::Result<Vec<KnowledgeBase>> {
+pub async fn get_knowledge_bases(pool: &mut PgConnection) -> sqlx::Result<Vec<KnowledgeBase>> {
     let result = sqlx::query_as!(KnowledgeBase, r#"SELECT id, name from knowledge_bases"#)
         .fetch_all(pool)
         .await?;
     Ok(result)
 }
 
-pub async fn get_knowledge_base(name: &str, pool: &Pool<Postgres>) -> sqlx::Result<KnowledgeBase> {
+pub async fn get_knowledge_base(
+    name: &str,
+    pool: &mut PgConnection,
+) -> sqlx::Result<KnowledgeBase> {
     let result = sqlx::query_as!(
         KnowledgeBase,
         r#"SELECT id, name from knowledge_bases where name=$1"#,

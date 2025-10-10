@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { render } from "vitest-browser-react";
-import Output, { MessageTypeEnum } from "../Output.tsx";
+import Output from "../Output.tsx";
+import { MessageTypeEnum } from "../../services/models.tsx";
 
 describe("Output", () => {
   it("renders", async () => {
