@@ -1,6 +1,6 @@
 services:
   app:
-    image: ghcr.io/danielhstahl/householdhelper-draid:v0.1.2
+    image: ghcr.io/danielhstahl/householdhelper-draid:v0.4.1
     container_name: app
     environment:
       INIT_ADMIN_PASSWORD: [yourpassword]
@@ -12,7 +12,7 @@ services:
       KNOWLEDGE_BASE_ENDPOINT: "http://127.0.0.1:8000"
 
   ui:
-    image: ghcr.io/danielhstahl/householdhelper-ui:v0.1.2
+    image: ghcr.io/danielhstahl/householdhelper-ui:v0.4.1
     environment:
       BACKEND_SERVICE: app:8000
     # for exposing outside the container network

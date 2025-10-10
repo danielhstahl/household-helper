@@ -283,9 +283,10 @@ pub async fn chat_with_tools(
                 previous_messages,
                 new_message.as_str(),
             )?;
-            let mut stream = tool_response(&bot.llm, registry, req_no_tools, tool_results)
-                .await?
-                .skip_while(|item| future::ready(!get_end_of_thinking(&item)));
+            let mut stream =
+                tool_response(&bot.llm, registry, req_no_tools, tool_results, &span_id)
+                    .await?
+                    .skip_while(|item| future::ready(!get_end_of_thinking(&item)));
             while let Some(result) = stream.next().await {
                 let result = result?;
                 let tokens = get_final_tokens_from_stream(&result);
@@ -320,12 +321,22 @@ async fn tool_response<T: Clone>(
     mut registry: ToolRegistry, //consumes registry
     mut req: CreateChatCompletionRequest,
     tools: std::collections::HashMap<T, ChatCompletionMessageToolCall>,
+    span_id: &str,
 ) -> anyhow::Result<ChatCompletionResponseStream> {
     let handles: Vec<JoinHandle<(String, Result<Value, anyhow::Error>)>> = tools
         .iter()
         .map(|(_id, tool_call)| {
             let tool_call_func_name = tool_call.function.name.clone();
             let tool_call_func_args = tool_call.function.arguments.clone();
+            info!(
+                tool_use = true,
+                endpoint = "query",
+                span_id,
+                message = format!(
+                    "tool call {} with args {}",
+                    tool_call_func_name, tool_call_func_args
+                )
+            );
             let id = tool_call.id.clone();
             let func = registry
                 .map
@@ -346,6 +357,12 @@ async fn tool_response<T: Clone>(
             let v = v?;
             let id = v.0;
             let content = v.1?;
+            info!(
+                tool_use = true,
+                endpoint = "query",
+                span_id,
+                message = format!("tool call result: {}", content)
+            );
             let message: ChatCompletionRequestMessage =
                 ChatCompletionRequestToolMessageArgs::default()
                     .content(content.to_string()) //result of tool call, stringified Json
