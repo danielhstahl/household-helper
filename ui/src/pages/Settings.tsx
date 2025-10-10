@@ -1,4 +1,3 @@
-//import { useLoaderData, useFetcher, redirect } from "react-router";
 import Grid from "@mui/material/Grid";
 import { Outlet } from "react-router";
 import Tabs from "@mui/material/Tabs";
@@ -19,7 +18,7 @@ const Settings = () => {
   const navigation = useNavigation();
 
   return (
-    <Grid container spacing={2} style={{ paddingTop: 20 }}>
+    <>
       <Tabs value={path} aria-label="Settings">
         <Tab
           component={NavLink}
@@ -35,10 +34,19 @@ const Settings = () => {
           label="Metrics"
           {...a11yProps(1)}
         />
+        <Tab
+          component={NavLink}
+          to="knowledgebase"
+          value="knowledgebase"
+          label="Knowledge Base"
+          {...a11yProps(2)}
+        />
       </Tabs>
       {navigation.state === "loading" && <CircularProgress />}
-      <Outlet />
-    </Grid>
+      <Grid container spacing={2} style={{ paddingTop: 20 }}>
+        <Outlet />
+      </Grid>
+    </>
   );
 };
 export default Settings;

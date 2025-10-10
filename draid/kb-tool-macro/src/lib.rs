@@ -75,7 +75,7 @@ pub fn kb(input: TokenStream) -> TokenStream {
                     let client = HttpClient::new();
 
                     let kb_endpoint = env::var("KNOWLEDGE_BASE_ENDPOINT")
-                            .unwrap_or_else(|_e| "http://127.0.0.1:8001".to_string());
+                            .unwrap_or_else(|_e| "http://127.0.0.1:8000".to_string());
                     // The string literal is embedded in the format! call
                     let kb_url = format!("{}/knowledge_base/{}/similar",
                                          kb_endpoint,

@@ -5,6 +5,7 @@ import type {
   UserResponse,
   Message,
   SessionDB,
+  KnowledgeBase,
 } from "./models";
 interface StatusResponse {
   status: string;
@@ -236,6 +237,34 @@ export async function getIngestionLatency(
 export async function getQueryTools(jwt: string): Promise<QueryTools[]> {
   const response = await fetch("/api/telemetry/tools/query", {
     headers: getHeaders(jwt),
+  });
+  if (response.ok) {
+    const result = await response.json();
+    return result;
+  }
+  throw new Error(await response.text());
+}
+
+export async function getKnowledgeBases(jwt: string): Promise<KnowledgeBase> {
+  const response = await fetch("/api/knowledge_base", {
+    headers: getHeaders(jwt),
+  });
+  if (response.ok) {
+    const result = await response.json();
+    return result;
+  }
+  throw new Error(await response.text());
+}
+
+export async function uploadFileToKnowledgeBase(
+  kbId: number,
+  formData: FormData,
+  jwt: string,
+): Promise<StatusResponse> {
+  const response = await fetch(`/api/knowledge_base/${kbId}/ingest`, {
+    method: "POST",
+    headers: getHeaders(jwt),
+    body: formData,
   });
   if (response.ok) {
     const result = await response.json();

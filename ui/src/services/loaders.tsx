@@ -9,6 +9,7 @@ import {
   getQueryLatency,
   getQueryTools,
   getIngestionLatency,
+  getKnowledgeBases,
 } from "./api.tsx";
 import { getLoggedInJwt, setLoggedInJwt } from "../state/localState.tsx";
 import { getRedirectRoute } from "./routes.tsx";
@@ -107,6 +108,20 @@ export const loadMetrics = async () => {
       getQueryTools(jwt),
     ]);
     return { queryLatency, ingestionLatency, queryTools };
+  } catch (error) {
+    console.log(error);
+    setLoggedInJwt(null);
+    return redirect("/login");
+  }
+};
+
+export const loadKnowledgeBase = async () => {
+  const jwt = getLoggedInJwt();
+  if (!jwt) {
+    return redirect("/login");
+  }
+  try {
+    return await getKnowledgeBases(jwt);
   } catch (error) {
     console.log(error);
     setLoggedInJwt(null);

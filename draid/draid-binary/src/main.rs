@@ -181,7 +181,10 @@ struct Bots {
 
 #[rocket::main]
 async fn main() -> Result<(), rocket::Error> {
-    let open_ai_compatable_endpoint = env::var("OPEN_AI_COMPATABLE_ENDPOINT")
+    let open_ai_compatable_endpoint_chat = env::var("OPEN_AI_COMPATABLE_ENDPOINT_CHAT")
+        .unwrap_or_else(|_e| "http://localhost:11434".to_string());
+
+    let open_ai_compatable_endpoint_embedding = env::var("OPEN_AI_COMPATABLE_ENDPOINT_EMBEDDING")
         .unwrap_or_else(|_e| "http://localhost:11434".to_string());
 
     let jwt_secret = env::var("JWT_SECRET").unwrap().into_bytes();
@@ -191,9 +194,11 @@ async fn main() -> Result<(), rocket::Error> {
     let embedding_client = Arc::new(EmbeddingClient::new(
         //"bge-m3:567m".to_string(),
         "hf.co/mixedbread-ai/mxbai-embed-large-v1".to_string(),
-        &open_ai_compatable_endpoint,
+        &open_ai_compatable_endpoint_embedding,
     ));
-
+    env::vars().for_each(|v| {
+        println!("env var name: {}, value: {}", v.0, v.1);
+    });
     let rocket = rocket::build()
         .attach(DBDraid::init())
         .attach(AdHoc::try_on_ignite(
@@ -203,9 +208,8 @@ async fn main() -> Result<(), rocket::Error> {
         .attach(AdHoc::try_on_ignite("Logging", create_logging))
         .attach(AdHoc::try_on_ignite(
             "Bots",
-            generate_bots(open_ai_compatable_endpoint, model_name.to_string()),
+            generate_bots(model_name.to_string(), open_ai_compatable_endpoint_chat),
         ))
-        //.manage(bots)
         .manage(jwt_secret)
         .manage(embedding_client)
         .mount(
@@ -235,7 +239,6 @@ async fn main() -> Result<(), rocket::Error> {
         )
         .ignite()
         .await?;
-
     rocket.launch().await?;
     Ok(())
 }

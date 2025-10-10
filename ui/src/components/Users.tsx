@@ -17,7 +17,7 @@ const mapActionToRequest = (actionType: Action) => {
   }
 };
 const Users = () => {
-  const fetcher = useFetcher();
+  const fetcher = useFetcher<typeof useLoaderData>();
   const users = useLoaderData() as User[];
 
   const onChange = (

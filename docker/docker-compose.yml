@@ -9,6 +9,7 @@ services:
       ROCKET_DATABASES: '{draid={url="postgresql://[yourpsqluser]:[yourpsqlpassword]@psqldb:5432/draid"}}'
       ROCKET_PORT: 8000
       ROCKET_ADDRESS: 0.0.0.0
+      KNOWLEDGE_BASE_ENDPOINT: "http://127.0.0.1:8000"
 
   ui:
     image: ghcr.io/danielhstahl/householdhelper-ui:v0.1.2
