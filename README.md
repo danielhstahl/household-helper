@@ -26,7 +26,6 @@ echo | sudo apt install postgresql-15-pgvector
 sudo service postgresql start
 sudo -u postgres psql -c "ALTER USER postgres PASSWORD 'yourpassword';"
 sudo -u postgres psql -c "CREATE DATABASE draid;"
-sudo -u postgres psql -c "CREATE DATABASE kb;"
 ```
 
 #### Mac
@@ -38,9 +37,8 @@ brew install pgvector
 brew services start postgresql@17
 psql -d postgres -c "ALTER USER postgres PASSWORD 'yourpassword';"
 psql -d postgres -c "CREATE DATABASE draid;"
-psql -d postgres -c "CREATE DATABASE kb;"
 psql -d postgres
-\c kb
+\c driad
 "CREATE EXTENSION vector;"
 ```
 
@@ -50,7 +48,6 @@ psql -d postgres
 sudo docker exec -it [imghash] bash
 psql -U [username]
 psql -c "CREATE DATABASE draid;"
-psql -c "CREATE DATABASE kb;"
 ```
 
 ### Recommended dev command

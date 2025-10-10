@@ -2,21 +2,7 @@ import { BarChart } from "@mui/x-charts/BarChart";
 import { useLoaderData } from "react-router";
 import Grid from "@mui/material/Grid";
 import Typography from "@mui/material/Typography";
-type SpanLength = {
-  index: number;
-  range: string;
-  count: number;
-};
-type SpanTools = {
-  cnt_spns_with_tools: number;
-  cnt_spns_without_tools: number;
-  date: Date;
-};
-type TelemetryMetrics = {
-  queryLatency: readonly SpanLength[];
-  ingestionLatency: readonly SpanTools[];
-  queryTools: readonly SpanTools[];
-};
+import type { TelemetryMetrics } from "../services/models";
 const centerStyle = { display: "flex", justifyContent: "center" };
 const Metrics = () => {
   const { queryLatency, ingestionLatency, queryTools } =
