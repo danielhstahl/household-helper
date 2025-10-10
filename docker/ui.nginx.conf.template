@@ -29,5 +29,9 @@ http {
             # While sometimes useful, it can interfere with certain clients or protocols.
             chunked_transfer_encoding off;
         }
+        location /api/[0-9a-z]+/similar {
+            deny all;
+            return 403 "This API has been blocked";
+        }
     }
 }

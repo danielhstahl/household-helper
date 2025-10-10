@@ -255,3 +255,20 @@ export async function getKnowledgeBases(jwt: string): Promise<KnowledgeBase> {
   }
   throw new Error(await response.text());
 }
+
+export async function uploadFileToKnowledgeBase(
+  kbId: number,
+  formData: FormData,
+  jwt: string,
+): Promise<StatusResponse> {
+  const response = await fetch(`/api/knowledge_base/${kbId}/ingest`, {
+    method: "POST",
+    headers: getHeaders(jwt),
+    body: formData,
+  });
+  if (response.ok) {
+    const result = await response.json();
+    return result;
+  }
+  throw new Error(await response.text());
+}

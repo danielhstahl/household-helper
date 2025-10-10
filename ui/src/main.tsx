@@ -19,10 +19,17 @@ import {
   loadUser,
   loadSession,
   loadMetrics,
+  loadKnowledgeBase,
 } from "./services/loaders.tsx";
 
-import { sessionAction, userAction, loginAction } from "./services/actions.tsx";
+import {
+  sessionAction,
+  userAction,
+  loginAction,
+  uploadFile,
+} from "./services/actions.tsx";
 import Users from "./components/Users.tsx";
+import KnowledgeBaseUpload from "./components/KnowledgeBase.tsx";
 
 const router = createBrowserRouter([
   {
@@ -64,9 +71,18 @@ const router = createBrowserRouter([
                 Component: Users,
               },
               {
-                path: "metrics",
+                path: "metrics", //loadKnowledgeBase
                 loader: loadMetrics,
                 Component: Metrics,
+              },
+              {
+                path: "knowledgebase",
+                loader: loadKnowledgeBase,
+                Component: KnowledgeBaseUpload,
+              },
+              {
+                path: "knowledgebase/:kbId",
+                action: uploadFile,
               },
             ],
           },
