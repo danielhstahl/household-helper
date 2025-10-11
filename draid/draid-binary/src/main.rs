@@ -23,13 +23,13 @@ use prompts::TUTOR_PROMPT;
 use psql_memory::{MessageResult, PsqlMemory, manage_chat_interaction};
 use psql_users::{Role, SessionDB, UserRequest, UserResponse, create_user};
 use psql_vectors::{
-    KnowledgeBase, SimilarContent, get_knowledge_base, get_knowledge_bases, get_similar_content,
-    write_document, write_knowledge_base, write_single_content,
+    KnowledgeBase, get_docs_with_similar_content, get_knowledge_base, get_knowledge_bases,
+    write_chunk_content, write_document, write_knowledge_base,
 };
 use reqwest::Client as HttpClient;
-use rocket::data::{Data, ToByteUnit};
 use rocket::fairing::{self, AdHoc};
 use rocket::form::Form;
+use rocket::fs::TempFile;
 use rocket::http::Status;
 use rocket::response::status::BadRequest;
 use rocket::response::stream::TextStream;
@@ -38,6 +38,7 @@ use rocket::serde::{
     json::{Json, Value, json},
     uuid::Uuid,
 };
+use rocket::tokio::io::AsyncReadExt;
 use rocket::tokio::sync::mpsc::{self};
 use rocket::{Build, Rocket, State};
 use rocket_db_pools::Connection;
@@ -48,7 +49,7 @@ use std::env;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 use text_splitter::TextSplitter;
-use tools::{AddTool, Content, TimeTool, Tool};
+use tools::{AddTool, TimeTool, Tool};
 use tracing::info;
 use tracing::level_filters::LevelFilter;
 use tracing::{Instrument, Level, span};
@@ -196,9 +197,6 @@ async fn main() -> Result<(), rocket::Error> {
         "hf.co/mixedbread-ai/mxbai-embed-large-v1".to_string(),
         &open_ai_compatable_endpoint_embedding,
     ));
-    env::vars().for_each(|v| {
-        println!("env var name: {}, value: {}", v.0, v.1);
-    });
     let rocket = rocket::build()
         .attach(DBDraid::init())
         .attach(AdHoc::try_on_ignite(
@@ -528,12 +526,12 @@ async fn similar_content<'a>(
     prompt: Json<PromptKb<'a>>,
     mut db: Connection<DBDraid>,
     client: &EmbeddingClient,
-) -> Result<Json<Vec<SimilarContent>>, BadRequest<String>> {
+) -> Result<Json<Vec<String>>, BadRequest<String>> {
     let embeddings = get_embeddings(&client, &prompt.text)
         .await
         .map_err(|e| BadRequest(e.to_string()))?;
 
-    let result = get_similar_content(kb_id, embeddings, prompt.num_results, &mut db)
+    let result = get_docs_with_similar_content(kb_id, embeddings, prompt.num_results, &mut db)
         .await
         .map_err(|e| BadRequest(e.to_string()))?;
     Ok(Json(result))
@@ -545,7 +543,7 @@ async fn similar_kb_by_id<'a>(
     prompt: Json<PromptKb<'a>>,
     db: Connection<DBDraid>,
     client: &State<Arc<EmbeddingClient>>,
-) -> Result<Json<Vec<SimilarContent>>, BadRequest<String>> {
+) -> Result<Json<Vec<String>>, BadRequest<String>> {
     similar_content(kb_id, prompt, db, client).await
 }
 
@@ -560,7 +558,7 @@ async fn similar_kb_by_name<'a>(
     prompt: Json<PromptKb<'a>>,
     mut db: Connection<DBDraid>,
     client: &State<Arc<EmbeddingClient>>,
-) -> Result<Json<Vec<SimilarContent>>, BadRequest<String>> {
+) -> Result<Json<Vec<String>>, BadRequest<String>> {
     let KnowledgeBase { id, .. } = get_knowledge_base(kb, &mut db)
         .await
         .map_err(|e| BadRequest(e.to_string()))?;
@@ -574,7 +572,7 @@ async fn extract_and_write(
     mut db: &mut PgConnection,
 ) -> anyhow::Result<()> {
     let embeddings = get_embeddings(&client, &chunk).await?;
-    write_single_content(document_id, kb_id, &chunk, embeddings, &mut db).await?;
+    write_chunk_content(document_id, kb_id, &chunk, embeddings, &mut db).await?;
     Ok(())
 }
 
@@ -591,7 +589,7 @@ async fn get_kbs(
 
 async fn ingest_content(
     kb_id: i64, //category of knowledge base
-    data: Data<'_>,
+    file: &mut TempFile<'_>,
     db: &DBDraid,
     client: &EmbeddingClient,
 ) -> Result<Json<StatusResponse>, BadRequest<String>> {
@@ -604,15 +602,17 @@ async fn ingest_content(
         span_id,
         "Started ingesting content"
     );
-    let content = data
-        .open(20.mebibytes())
-        .into_string()
+    let mut content = String::new();
+    file.open()
         .await
         .map_err(|e| BadRequest(e.to_string()))?
-        .into_inner();
+        .read_to_string(&mut content)
+        .await
+        .map_err(|e| BadRequest(e.to_string()))?;
+
     let content_hash = digest(&content);
     let mut conn = db.acquire().await.map_err(|e| BadRequest(e.to_string()))?;
-    match write_document(&content_hash, &mut conn).await {
+    match write_document(&content_hash, &content, &mut conn).await {
         Ok(document_id) => {
             info!(
                 tool_use = true,
@@ -665,17 +665,22 @@ async fn ingest_content(
     }))
 }
 
-//curl --header "Content-Type: application/json"  -X POST http://127.0.0.1:8001/content/similar --data '{"text": "what did paul graham primary work on?", "num_results": 3}'
-//curl -X POST http://127.0.0.1:8001/knowledge_base/1/ingest --data '@paul_graham_essay.txt'
-#[post("/knowledge_base/<kb_id>/ingest", data = "<data>")]
+#[derive(FromForm)]
+pub struct FileWrapper<'r> {
+    // This MUST match the client-side name: formData.append("file", file)
+    pub file: TempFile<'r>,
+}
+
+#[post("/knowledge_base/<kb_id>/ingest", data = "<form>")]
 async fn ingest_kb_by_id(
     kb_id: i64, //category of knowledge base
-    data: Data<'_>,
+    mut form: Form<FileWrapper<'_>>,
     db: &DBDraid,
     client: &State<Arc<EmbeddingClient>>,
     _admin: auth::Admin,
 ) -> Result<Json<StatusResponse>, BadRequest<String>> {
-    ingest_content(kb_id, data, db, client)
+    let file_data = &mut form.file;
+    ingest_content(kb_id, file_data, db, client)
         .instrument(span!(
             Level::INFO,
             "knowledge_base_ingest",
@@ -685,10 +690,10 @@ async fn ingest_kb_by_id(
         .await
 }
 
-#[post("/knowledge_base/<kb>/ingest", data = "<data>", rank = 2)]
+#[post("/knowledge_base/<kb>/ingest", data = "<form>", rank = 2)]
 async fn ingest_kb_by_name(
     kb: &str, //category of knowledge base
-    data: Data<'_>,
+    mut form: Form<FileWrapper<'_>>,
     db: &DBDraid,
     client: &State<Arc<EmbeddingClient>>,
     _admin: auth::Admin,
@@ -697,7 +702,8 @@ async fn ingest_kb_by_name(
     let KnowledgeBase { id, .. } = get_knowledge_base(kb, &mut conn)
         .await
         .map_err(|e| BadRequest(e.to_string()))?;
-    ingest_content(id, data, db, client)
+    let file_data = &mut form.file;
+    ingest_content(id, file_data, db, client)
         .instrument(span!(
             Level::INFO,
             "knowledge_base_ingest",

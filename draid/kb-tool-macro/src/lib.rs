@@ -88,7 +88,7 @@ pub fn kb(input: TokenStream) -> TokenStream {
                     let body = json!({"text": content, "num_results": #num_results_lit});
 
                     let response = client.post(kb_url).json(&body).send().await?;
-                    let result = response.json::<Vec<Content>>().await?;
+                    let result = response.json::<Vec<String>>().await?;
 
                     Ok(json!({"result": result}))
                 }

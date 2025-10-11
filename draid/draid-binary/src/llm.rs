@@ -316,6 +316,9 @@ pub async fn chat_with_tools(
     }
 }
 
+fn get_truncation_index(content: &String) -> usize {
+    std::cmp::min(50, content.len())
+}
 async fn tool_response<T: Clone>(
     client: &Client<OpenAIConfig>,
     mut registry: ToolRegistry, //consumes registry
@@ -347,16 +350,18 @@ async fn tool_response<T: Clone>(
         .map(|v| {
             let v = v?;
             let id = v.0;
-            let content = v.1?;
+            let content = v.1?.to_string();
+
+            let truncate_content_for_log: usize = get_truncation_index(&content);
             info!(
                 tool_use = true,
                 endpoint = "query",
                 span_id,
-                message = format!("tool call result: {}", content)
+                message = format!("tool call result: {}", &content[..truncate_content_for_log])
             );
             let message: ChatCompletionRequestMessage =
                 ChatCompletionRequestToolMessageArgs::default()
-                    .content(content.to_string()) //result of tool call, stringified Json
+                    .content(content) //result of tool call, stringified Json
                     .tool_call_id(id)
                     .build()?
                     .into();

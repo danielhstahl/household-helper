@@ -2,7 +2,7 @@ import AppBar from "@mui/material/AppBar";
 import Toolbar from "@mui/material/Toolbar";
 import Typography from "@mui/material/Typography";
 import MenuItem from "@mui/material/MenuItem";
-import Select from "@mui/material/Select";
+import Select, { type SelectChangeEvent } from "@mui/material/Select";
 import LightMode from "@mui/icons-material/LightMode";
 import DarkMode from "@mui/icons-material/DarkMode";
 import IconButton from "@mui/material/IconButton";
@@ -17,7 +17,7 @@ import { useTheme } from "@mui/material";
 import useScrollTrigger from "@mui/material/useScrollTrigger";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import { useColorScheme } from "@mui/material/styles";
-import { NavLink } from "react-router";
+import { NavLink, useNavigate } from "react-router";
 
 const AppBarDroid = ({
   threshold,
@@ -31,6 +31,11 @@ const AppBarDroid = ({
   sessionId: string;
 }) => {
   const theme = useTheme();
+  const navigate = useNavigate();
+  const handleSelectChange = (event: SelectChangeEvent<string>) => {
+    const agent = event.target.value;
+    navigate(`/${agent}/${sessionId}`);
+  };
   const trigger = useScrollTrigger({ threshold, disableHysteresis: true });
   const isLargerThanSm = useMediaQuery(theme.breakpoints.up("md"));
   const isLargerThanXS = useMediaQuery(theme.breakpoints.up("sm"));
@@ -68,23 +73,14 @@ const AppBarDroid = ({
                 color: theme.palette.common.white,
               },
             }}
+            onChange={handleSelectChange}
           >
-            <NavLink
-              to={`/${AgentSelectionsEnum.HELPER}/${sessionId}`}
-              style={{ textDecoration: "none", color: "inherit" }}
-            >
-              <MenuItem value={AgentSelectionsEnum.HELPER}>
-                {getAgentName(AgentSelectionsEnum.HELPER)}
-              </MenuItem>
-            </NavLink>
-            <NavLink
-              to={`/${AgentSelectionsEnum.TUTOR}/${sessionId}`}
-              style={{ textDecoration: "none", color: "inherit" }}
-            >
-              <MenuItem value={AgentSelectionsEnum.TUTOR}>
-                {getAgentName(AgentSelectionsEnum.TUTOR)}
-              </MenuItem>
-            </NavLink>
+            <MenuItem value={AgentSelectionsEnum.HELPER}>
+              {getAgentName(AgentSelectionsEnum.HELPER)}
+            </MenuItem>
+            <MenuItem value={AgentSelectionsEnum.TUTOR}>
+              {getAgentName(AgentSelectionsEnum.TUTOR)}
+            </MenuItem>
           </Select>
         )}
         <IconButton
