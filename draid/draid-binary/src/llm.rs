@@ -328,15 +328,6 @@ async fn tool_response<T: Clone>(
         .map(|(_id, tool_call)| {
             let tool_call_func_name = tool_call.function.name.clone();
             let tool_call_func_args = tool_call.function.arguments.clone();
-            info!(
-                tool_use = true,
-                endpoint = "query",
-                span_id,
-                message = format!(
-                    "tool call {} with args {}",
-                    tool_call_func_name, tool_call_func_args
-                )
-            );
             let id = tool_call.id.clone();
             let func = registry
                 .map
