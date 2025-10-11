@@ -287,13 +287,22 @@ pub async fn chat_with_tools(
                 tool_response(&bot.llm, registry, req_no_tools, tool_results, &span_id)
                     .await?
                     .skip_while(|item| future::ready(!get_end_of_thinking(&item)));
+            println!("Got passed tool_response");
             while let Some(result) = stream.next().await {
                 let result = result?;
                 let tokens = get_final_tokens_from_stream(&result);
                 if contains_stop_word(&tokens) {
                     info!(tool_use = true, endpoint = "query", span_id, "First token");
                 } else {
-                    tx.send(tokens).await?;
+                    //tx.send(tokens).await?;
+                    match tx.send(tokens).await {
+                        Ok(_) => {} // Success
+                        Err(e) => {
+                            println!("this is an error! {}", e);
+                            // This stops the function from processing the rest of the stream
+                            return Ok(());
+                        }
+                    }
                 }
             }
             info!(
@@ -380,7 +389,16 @@ async fn tool_response<T: Clone>(
             .into();
     req.messages.push(assistant_message);
     req.messages.extend(tool_messages);
-    Ok(client.chat().create_stream(req).await?)
+
+    match client.chat().create_stream(req).await {
+        Ok(v) => Ok(v), // Success
+        Err(e) => {
+            println!("Error in create_stream! {}", e);
+            // This stops the function from processing the rest of the stream
+            Err(anyhow::Error::new(e))
+        }
+    }
+    //Ok(client.chat().create_stream(req).await?)
 }
 
 #[cfg(test)]
