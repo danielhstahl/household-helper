@@ -1,23 +1,25 @@
 use pgvector::Vector;
 use rocket::serde::Serialize;
 use sqlx::{Error, PgConnection, Row, postgres::PgRow};
-#[derive(Debug, Serialize)]
-#[serde(crate = "rocket::serde")]
-pub struct SimilarContent {
-    content: String,
-}
-pub async fn get_similar_content(
+
+//if top num_matches are all in same document, will only return one document
+pub async fn get_docs_with_similar_content(
     kb: i64,
     embeddings: Vec<f32>,
     num_matches: i16,
     pool: &mut PgConnection,
-) -> sqlx::Result<Vec<SimilarContent>> {
+) -> sqlx::Result<Vec<String>> {
     let embeddings = Vector::from(embeddings);
     //cosine similarity
     let rows = sqlx::query(
         r#"
-        SELECT content FROM vectors
-        WHERE kb_id=$1 ORDER BY embedding <=> $2 LIMIT $3;
+        SELECT content FROM
+        (
+            SELECT DISTINCT document_id FROM (
+                SELECT document_id FROM vectors
+                WHERE kb_id=$1 ORDER BY embedding <=> $2 LIMIT $3
+            )
+        ) t1 INNER JOIN content t2 on t1.document_id=t2.document_id;
         "#,
     )
     .bind(kb)
@@ -29,7 +31,7 @@ pub async fn get_similar_content(
         .iter()
         .map(|v: &PgRow| {
             let content = v.try_get("content")?;
-            Ok(SimilarContent { content })
+            Ok(content)
         })
         .collect();
     Ok(result?)
@@ -63,10 +65,10 @@ pub async fn write_content(
 }
 */
 
-pub async fn write_single_content(
+pub async fn write_chunk_content(
     document_id: i64,
     kb_id: i64,
-    content: &str,
+    content: &str, //only for debugging, not exposed to anything
     embeddings: Vec<f32>,
     pool: &mut PgConnection,
 ) -> sqlx::Result<()> {
@@ -88,13 +90,24 @@ struct IdOnly {
 }
 
 //will error on index constraint
-pub async fn write_document(document_hash: &str, pool: &mut PgConnection) -> sqlx::Result<i64> {
+pub async fn write_document(
+    document_hash: &str,
+    document_content: &str,
+    pool: &mut PgConnection,
+) -> sqlx::Result<i64> {
     let result = sqlx::query_as!(
         IdOnly,
         r#"INSERT INTO documents (hash) VALUES ($1) RETURNING id"#,
         document_hash
     )
-    .fetch_one(pool)
+    .fetch_one(&mut *pool)
+    .await?;
+    sqlx::query!(
+        r#"INSERT INTO content (document_id, content) VALUES ($1, $2)"#,
+        result.id,
+        document_content,
+    )
+    .execute(pool)
     .await?;
     Ok(result.id)
 }

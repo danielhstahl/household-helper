@@ -8,8 +8,13 @@ import Button from "@mui/material/Button";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
 import CardActions from "@mui/material/CardActions";
-import { uploadFileToKnowledgeBase } from "../services/api";
+import {
+  uploadFileToKnowledgeBase,
+  type StatusResponse,
+} from "../services/api";
 import { getLoggedInJwt } from "../state/localState";
+import Snackbar from "@mui/material/Snackbar";
+import Alert from "@mui/material/Alert";
 import { useState } from "react";
 const VisuallyHiddenInput = styled("input")({
   clip: "rect(0 0 0 0)",
@@ -25,27 +30,29 @@ const VisuallyHiddenInput = styled("input")({
 interface CardProps {
   kbId: number;
   kbName: string;
+  onSuccess: () => void;
 }
-const KnowledgeBaseCard = ({ kbId, kbName }: CardProps) => {
+const KnowledgeBaseCard = ({ kbId, kbName, onSuccess }: CardProps) => {
   const navigate = useNavigate();
   const [loading, setIsLoading] = useState(false);
+
   const uploadFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files !== null) {
       const formData = new FormData();
-      for (const file of files) {
-        console.log(file);
-        console.log(file instanceof File);
-        formData.append("file", file);
-      }
       const jwt = getLoggedInJwt();
       if (!jwt) {
         return navigate("/login");
       }
       setIsLoading(true);
-      uploadFileToKnowledgeBase(kbId, formData, jwt).finally(() =>
-        setIsLoading(false),
-      );
+      const promises: Promise<StatusResponse>[] = [];
+      for (const file of files) {
+        formData.append("file", file);
+        promises.push(uploadFileToKnowledgeBase(kbId, formData, jwt));
+      }
+      Promise.all(promises)
+        .then(onSuccess)
+        .finally(() => setIsLoading(false));
     }
   };
   return (
@@ -78,13 +85,27 @@ const KnowledgeBaseCard = ({ kbId, kbName }: CardProps) => {
 };
 const KnowledgeBaseUpload = () => {
   const knowledgeBases = useLoaderData() as KnowledgeBase[];
+  const [alertOpen, setAlertOpen] = useState(false);
   return (
     <>
       {knowledgeBases.map(({ name, id }) => (
         <Grid size={{ xs: 12, md: 6 }} key={id}>
-          <KnowledgeBaseCard kbName={name} kbId={id} />
+          <KnowledgeBaseCard
+            kbName={name}
+            kbId={id}
+            onSuccess={() => setAlertOpen(true)}
+          />
         </Grid>
       ))}
+      <Snackbar
+        open={alertOpen}
+        autoHideDuration={3000}
+        onClose={() => setAlertOpen(false)}
+      >
+        <Alert severity="success" variant="filled" sx={{ width: "100%" }}>
+          Successfully uploaded!
+        </Alert>
+      </Snackbar>
     </>
   );
 };

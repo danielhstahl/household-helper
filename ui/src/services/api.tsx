@@ -7,7 +7,7 @@ import type {
   SessionDB,
   KnowledgeBase,
 } from "./models";
-interface StatusResponse {
+export interface StatusResponse {
   status: string;
 }
 const buildUrl = (base: string, sessionId: string | undefined) => {

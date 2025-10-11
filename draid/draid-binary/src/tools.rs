@@ -1,7 +1,6 @@
 use rocket::{
     serde,
     serde::json::{Value, json},
-    serde::{Deserialize, Serialize},
 };
 use sqlx::types::chrono;
 use std::{ops::Deref, sync::Arc};
@@ -121,10 +120,4 @@ impl Tool for TimeTool {
         let result = chrono::Local::now();
         Ok(json!({"result":result}))
     }
-}
-
-#[derive(Deserialize, Serialize, Debug)]
-#[serde(crate = "rocket::serde")]
-pub struct Content {
-    content: String,
 }
