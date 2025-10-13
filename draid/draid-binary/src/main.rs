@@ -90,7 +90,7 @@ async fn run_migrations_draid(rocket: Rocket<Build>) -> fairing::Result {
 async fn create_logging(rocket: Rocket<Build>) -> fairing::Result {
     match DBDraid::fetch(&rocket) {
         Some(db) => {
-            let (tx, rx) = mpsc::channel(1);
+            let (tx, rx) = mpsc::channel(100);
 
             // Spawn the worker task onto the tokio runtime
             let worker_handle = rocket::tokio::spawn(run_async_worker(AsyncDbWorker {
@@ -266,7 +266,7 @@ async fn chat_with_bot(
         .await
         .map_err(|e| BadRequest(e.to_string()))?;
 
-    let (tx, mut rx) = mpsc::channel::<String>(1);
+    let (tx, mut rx) = mpsc::channel::<String>(100);
 
     let span_id = Uuid::new_v4().to_string();
     //frustrating that I'm cloning...I tried to get bot and prompt to be efficient
@@ -280,7 +280,7 @@ async fn chat_with_bot(
             ))
             .await
         {
-            eprintln!("chat_with_tools exploded: {}", e); // Or propagate if you care
+            eprintln!("chat_with_tools exploded: {}", e);
         }
     });
     Ok(TextStream! {
