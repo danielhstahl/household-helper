@@ -240,11 +240,6 @@ async fn main() -> Result<(), rocket::Error> {
     rocket.launch().await?;
     Ok(())
 }
-#[derive(Deserialize)]
-#[serde(crate = "rocket::serde")]
-struct Prompt<'a> {
-    text: &'a str,
-}
 
 #[derive(Deserialize)]
 #[serde(crate = "rocket::serde")]
@@ -256,7 +251,7 @@ struct PromptKb<'a> {
 async fn chat_with_bot(
     bot: Bot,
     psql_memory: PsqlMemory,
-    prompt: String,
+    prompt: &str,
 ) -> Result<TextStream![String], BadRequest<String>> {
     let messages = psql_memory
         .messages()
@@ -269,9 +264,11 @@ async fn chat_with_bot(
     let (tx, mut rx) = mpsc::channel::<String>(100);
 
     let span_id = Uuid::new_v4().to_string();
+
+    let remote_prompt = prompt.to_string();
     //frustrating that I'm cloning...I tried to get bot and prompt to be efficient
     rocket::tokio::spawn(async move {
-        if let Err(e) = chat_with_tools(bot, tx, &messages, prompt, span_id)
+        if let Err(e) = chat_with_tools(bot, tx, &messages, &remote_prompt, span_id)
             .instrument(span!(
                 Level::INFO,
                 "chat_with_tools",
@@ -468,33 +465,35 @@ async fn get_messages(
     Ok(Json(messages))
 }
 
+#[derive(Deserialize)]
+#[serde(crate = "rocket::serde")]
+struct Prompt {
+    text: String,
+}
 #[post("/helper?<session_id>", format = "json", data = "<prompt>")]
-async fn helper<'a>(
+async fn helper(
     session_id: Uuid,
-    prompt: Json<Prompt<'a>>,
+    prompt: Json<Prompt>,
     db: &DBDraid,
     bots: &State<Bots>,
     helper: auth::Helper,
 ) -> Result<TextStream![String], BadRequest<String>> {
     let psql_memory = PsqlMemory::new(100, session_id, helper.id, db.0.clone());
-    chat_with_bot(
-        bots.helper_bot.clone(),
-        psql_memory,
-        prompt.text.to_string(),
-    )
-    .await
+    //cloning a bot is likely expensive, but only happens once per invocation
+    chat_with_bot(bots.helper_bot.clone(), psql_memory, &prompt.text).await
 }
 
 #[post("/tutor?<session_id>", format = "json", data = "<prompt>")]
-async fn tutor<'a>(
+async fn tutor(
     session_id: Uuid,
-    prompt: Json<Prompt<'a>>,
+    prompt: Json<Prompt>,
     db: &DBDraid,
     bots: &State<Bots>,
     tutor: auth::Tutor,
 ) -> Result<TextStream![String], BadRequest<String>> {
     let psql_memory = PsqlMemory::new(100, session_id, tutor.id, db.0.clone());
-    chat_with_bot(bots.tutor_bot.clone(), psql_memory, prompt.text.to_string()).await
+    //cloning a bot is likely expensive, but only happens once per invocation
+    chat_with_bot(bots.tutor_bot.clone(), psql_memory, &prompt.text).await
 }
 
 #[get("/telemetry/latency/<endpoint>", format = "json")]

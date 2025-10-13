@@ -178,7 +178,7 @@ pub async fn chat_with_tools(
     bot: Bot,
     tx: Sender<String>,
     previous_messages: &[MessageResult],
-    new_message: String,
+    new_message: &str,
     span_id: String,
 ) -> anyhow::Result<()> {
     info!(
@@ -191,11 +191,7 @@ pub async fn chat_with_tools(
     let mut registry = ToolRegistry::new();
     let mut tool_results: std::collections::HashMap<(u32, u32), ChatCompletionMessageToolCall> =
         std::collections::HashMap::new();
-    let req = construct_messages(
-        get_req(&bot, &bot.tools)?,
-        previous_messages,
-        new_message.as_str(),
-    )?;
+    let req = construct_messages(get_req(&bot, &bot.tools)?, previous_messages, new_message)?;
 
     match &bot.tools {
         Some(tools) => {
@@ -290,11 +286,8 @@ pub async fn chat_with_tools(
                 "Finished constructing tool calls"
             );
             //no tools since we don't want to call the tools a second time
-            let req_no_tools = construct_messages(
-                get_req(&bot, &None)?,
-                previous_messages,
-                new_message.as_str(),
-            )?;
+            let req_no_tools =
+                construct_messages(get_req(&bot, &None)?, previous_messages, new_message)?;
             let mut stream =
                 tool_response(&bot.llm, registry, req_no_tools, tool_results, &span_id)
                     .await?
