@@ -1,11 +1,16 @@
-use rocket::serde::Serialize;
-use rocket::serde::uuid::Uuid;
-use rocket::tokio::sync::mpsc;
+use serde::Serialize;
 use sqlx::{PgConnection, Pool, Postgres};
 use std::sync::{Arc, Mutex};
+use tokio::sync::mpsc;
+use tokio::task::JoinHandle;
 use tracing::Event;
 use tracing::field::{Field, Visit};
+use tracing::info;
+use tracing::level_filters::LevelFilter;
+use tracing::{Instrument, Level, span};
 use tracing_subscriber::Layer;
+use tracing_subscriber::{Registry, prelude::*};
+use uuid::Uuid;
 
 // The type of data we send over the channel
 #[derive(Debug)]
@@ -148,7 +153,6 @@ impl Visit for PsqlVisitor {
 }
 
 #[derive(Serialize)]
-#[serde(crate = "rocket::serde")]
 pub struct SpanLength {
     span_id: Uuid,
     diff_in_seconds: f64,
@@ -168,7 +172,6 @@ fn hist_bin_num(data_size: usize) -> i32 {
 }
 
 #[derive(Serialize, Debug)]
-#[serde(crate = "rocket::serde")]
 pub struct HistogramIncrement {
     index: i32,
     range: String,
@@ -230,7 +233,6 @@ pub async fn get_histogram(
 }
 
 #[derive(Serialize)]
-#[serde(crate = "rocket::serde")]
 pub struct SpanToolUse {
     cnt_spns_with_tools: i64,
     cnt_spns_without_tools: i64,
@@ -266,6 +268,34 @@ pub async fn get_tool_use(
     .fetch_all(pool)
     .await?;
     Ok(spans)
+}
+
+pub async fn create_logging(db: &PgConnection) -> JoinHandle<Result<(), tokio::io::Error>> {
+    let (tx, rx) = mpsc::channel(100);
+
+    // Spawn the worker task onto the tokio runtime
+    let worker_handle = tokio::spawn(run_async_worker(AsyncDbWorker {
+        rx,
+        db_client: db.0.clone(),
+    }));
+
+    let layer = PSqlLayer {
+        tx: Arc::new(Mutex::new(tx)),
+    };
+
+    // Optional: Add an EnvFilter layer for runtime filtering
+    let filter_layer = tracing_subscriber::EnvFilter::builder()
+        .with_default_directive(LevelFilter::INFO.into())
+        .from_env_lossy();
+
+    let subscriber = Registry::default()
+        .with(filter_layer) // Handles RUST_LOG environment variable filtering
+        .with(layer); // Your custom processing layer
+
+    tracing::subscriber::set_global_default(subscriber)
+        .expect("Failed to set global tracing subscriber");
+
+    worker_handle
 }
 
 #[cfg(test)]

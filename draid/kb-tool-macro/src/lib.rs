@@ -81,7 +81,7 @@ pub fn kb(input: TokenStream) -> TokenStream {
                                          kb_endpoint,
                                          #name_str);
 
-                    let args: Value = json::from_str(&args)?;
+                    let args: Value = serde_json::from_str(&args)?;
                     let content = args["content"].as_str().unwrap();
 
                     // The LitInt for num_results is directly interpolated

@@ -1,178 +1,79 @@
-#[macro_use]
-extern crate rocket;
 mod auth;
 mod dbtracing;
 mod embedding;
 mod llm;
 mod prompts;
-mod psql_memory;
 mod psql_users;
 mod psql_vectors;
 mod tools;
 
-use dbtracing::{
-    AsyncDbWorker, HistogramIncrement, PSqlLayer, SpanToolUse, get_histogram, get_tool_use,
-    run_async_worker,
-};
+use dbtracing::create_logging;
 use embedding::{EmbeddingClient, get_embeddings};
-use futures::stream::{self, StreamExt};
 use kb_tool_macro::kb;
 use llm::{Bot, chat_with_tools};
+use poem::{
+    Error, Request, Result, Route, http::StatusCode, listener::TcpListener, middleware::AddData,
+    web::Data,
+};
+use poem_openapi::payload::Json;
+use poem_openapi::{
+    Object, OpenApi, OpenApiService, SecurityScheme,
+    auth::{ApiKey, Basic, BearerAuthorization},
+    param::Query,
+    payload::PlainText,
+};
 use prompts::HELPER_PROMPT;
 use prompts::TUTOR_PROMPT;
-use psql_memory::{MessageResult, PsqlMemory, manage_chat_interaction};
 use psql_users::{Role, SessionDB, UserRequest, UserResponse, create_user};
 use psql_vectors::{
     KnowledgeBase, get_docs_with_similar_content, get_knowledge_base, get_knowledge_bases,
     write_chunk_content, write_document, write_knowledge_base,
 };
 use reqwest::Client as HttpClient;
-use rocket::fairing::{self, AdHoc};
-use rocket::form::Form;
-use rocket::fs::TempFile;
-use rocket::http::Status;
-use rocket::response::status::BadRequest;
-use rocket::response::stream::TextStream;
-use rocket::serde::{
-    Deserialize, Serialize, json,
-    json::{Json, Value, json},
-    uuid::Uuid,
-};
-use rocket::tokio::io::AsyncReadExt;
-use rocket::tokio::sync::mpsc::{self};
-use rocket::{Build, Rocket, State};
-use rocket_db_pools::Connection;
-use rocket_db_pools::Database;
-use sha256::digest;
-use sqlx::PgConnection;
+use serde::{Deserialize, Serialize};
+use serde_json::{Value, json};
+use sqlx::postgres::PgPoolOptions;
+use sqlx::{PgConnection, Type, query, types::chrono};
 use std::env;
-use std::pin::Pin;
 use std::sync::{Arc, Mutex};
-use text_splitter::TextSplitter;
 use tools::{AddTool, TimeTool, Tool};
-use tracing::info;
-use tracing::level_filters::LevelFilter;
-use tracing::{Instrument, Level, span};
-use tracing_subscriber::{Registry, prelude::*};
 
-#[derive(Database)]
-#[database("draid")]
-struct DBDraid(rocket_db_pools::sqlx::PgPool);
-
-async fn run_migrations_draid(rocket: Rocket<Build>) -> fairing::Result {
-    match DBDraid::fetch(&rocket) {
-        Some(db) => match sqlx::migrate!("./migrations").run(&**db).await {
-            Ok(_) => {
-                let password = env::var("INIT_ADMIN_PASSWORD").unwrap();
-                let admin_user = UserRequest {
-                    username: "admin",
-                    password: Some(&password), //intentinoally don't start up if not set
-                    roles: vec![Role::Admin],
-                };
-                let mut connection = db.0.acquire().await.unwrap();
-                if psql_users::get_user(&admin_user.username, &mut *connection)
-                    .await
-                    .is_err()
-                {
-                    create_user(&admin_user, &mut *connection).await.unwrap();
-                };
-                Ok(rocket)
-            }
-            Err(e) => {
-                error!("Failed to initialize SQLx database: {}", e);
-                Err(rocket)
-            }
-        },
-        None => Err(rocket),
-    }
+#[derive(Debug, Serialize, Deserialize)]
+struct User {
+    username: String,
 }
 
-async fn create_logging(rocket: Rocket<Build>) -> fairing::Result {
-    match DBDraid::fetch(&rocket) {
-        Some(db) => {
-            let (tx, rx) = mpsc::channel(100);
-
-            // Spawn the worker task onto the tokio runtime
-            let worker_handle = rocket::tokio::spawn(run_async_worker(AsyncDbWorker {
-                rx,
-                db_client: db.0.clone(),
-            }));
-
-            let layer = PSqlLayer {
-                tx: Arc::new(Mutex::new(tx)),
-            };
-
-            // Optional: Add an EnvFilter layer for runtime filtering
-            let filter_layer = tracing_subscriber::EnvFilter::builder()
-                .with_default_directive(LevelFilter::INFO.into())
-                .from_env_lossy();
-
-            let subscriber = Registry::default()
-                .with(filter_layer) // Handles RUST_LOG environment variable filtering
-                .with(layer); // Your custom processing layer
-
-            tracing::subscriber::set_global_default(subscriber)
-                .expect("Failed to set global tracing subscriber");
-
-            Ok(rocket.manage(worker_handle))
-        }
-        None => Err(rocket),
-    }
+#[derive(Debug, Serialize)]
+struct AuthResponse {
+    access_token: String,
 }
 
-fn generate_bots(
-    model_name: String,
-    open_ai_compatable_endpoint: String,
-) -> impl FnOnce(Rocket<Build>) -> Pin<Box<dyn Future<Output = fairing::Result> + Send>> {
-    move |rocket: Rocket<Build>| {
-        Box::pin(async move {
-            match DBDraid::fetch(&rocket) {
-                Some(db) => {
-                    let mut connection = db.0.acquire().await.unwrap();
-                    let kb_arcs: Vec<Arc<dyn Tool + Send + Sync>> =
-                        vec![kb!("recipes", 3), kb!("gardening", 3)];
-                    for kb_arc in kb_arcs.iter() {
-                        match write_knowledge_base(kb_arc.name(), &mut *connection).await {
-                            Ok(result) => println!(
-                                "Created knowledge base {} with index {}",
-                                kb_arc.name(),
-                                result
-                            ),
-                            Err(e) => println!("Failed to create knowledge base: {}", e),
-                        }
-                    }
-                    let mut helper_tools: Vec<Arc<dyn Tool + Send + Sync>> =
-                        vec![Arc::new(AddTool), Arc::new(TimeTool)];
-                    helper_tools.extend(kb_arcs);
+/// Basic authorization
+///
+/// - User: `test`
+/// - Password: `123456`
+#[derive(SecurityScheme)]
+#[oai(ty = "basic")]
+struct MyBasicAuthorization(Basic);
 
-                    let bots = Bots {
-                        helper_bot: Bot::new(
-                            model_name.clone(),
-                            HELPER_PROMPT,
-                            &open_ai_compatable_endpoint,
-                            //recommended for qwen, see eg https://huggingface.co/Qwen/Qwen3-4B-GGUF#best-practices
-                            Some(0.6),  //temperature
-                            Some(1.5),  //presence penalty
-                            Some(0.95), //top_p
-                            Some(helper_tools),
-                        ),
-                        tutor_bot: Bot::new(
-                            model_name,
-                            TUTOR_PROMPT,
-                            &open_ai_compatable_endpoint,
-                            //recommended for qwen, see eg https://huggingface.co/Qwen/Qwen3-4B-GGUF#best-practices
-                            Some(0.6),  //temperature
-                            Some(1.5),  //presence penalty
-                            Some(0.95), //top_p
-                            None,       //no tools
-                        ),
-                    };
-                    Ok(rocket.manage(bots))
-                }
-                None => Err(rocket),
-            }
-        })
-    }
+/// ApiKey authorization
+/*#[derive(SecurityScheme)]
+#[oai(
+    ty = "api_key",
+    key_name = "X-API-Key",
+    key_in = "header",
+    checker = "api_checker"
+)]
+struct MyApiKeyAuthorization(User);
+
+async fn api_checker(req: &Request, api_key: ApiKey) -> Option<User> {
+    let server_key = req.data::<ServerKey>().unwrap();
+    VerifyWithKey::<User>::verify_with_key(api_key.key.as_str(), server_key).ok()
+}*/
+
+#[derive(Object)]
+struct LoginRequest {
+    username: String,
 }
 
 struct Bots {
@@ -180,534 +81,128 @@ struct Bots {
     tutor_bot: Bot,
 }
 
-#[rocket::main]
-async fn main() -> Result<(), rocket::Error> {
+async fn get_bots(
+    model_name: String,
+    open_ai_compatable_endpoint: String,
+    db: &PgConnection,
+) -> Result<Bots, Error> {
+    let kb_arcs: Vec<Arc<dyn Tool + Send + Sync>> = vec![kb!("recipes", 3), kb!("gardening", 3)];
+    for kb_arc in kb_arcs.iter() {
+        match write_knowledge_base(kb_arc.name(), &mut *db).await {
+            Ok(result) => println!(
+                "Created knowledge base {} with index {}",
+                kb_arc.name(),
+                result
+            ),
+            Err(e) => println!("Failed to create knowledge base: {}", e),
+        }
+    }
+    let mut helper_tools: Vec<Arc<dyn Tool + Send + Sync>> =
+        vec![Arc::new(AddTool), Arc::new(TimeTool)];
+    helper_tools.extend(kb_arcs);
+
+    let bots = Bots {
+        helper_bot: Bot::new(
+            model_name.clone(),
+            HELPER_PROMPT,
+            &open_ai_compatable_endpoint,
+            //recommended for qwen, see eg https://huggingface.co/Qwen/Qwen3-4B-GGUF#best-practices
+            Some(0.6),  //temperature
+            Some(1.5),  //presence penalty
+            Some(0.95), //top_p
+            Some(helper_tools),
+        ),
+        tutor_bot: Bot::new(
+            model_name,
+            TUTOR_PROMPT,
+            &open_ai_compatable_endpoint,
+            //recommended for qwen, see eg https://huggingface.co/Qwen/Qwen3-4B-GGUF#best-practices
+            Some(0.6),  //temperature
+            Some(1.5),  //presence penalty
+            Some(0.95), //top_p
+            None,       //no tools
+        ),
+    };
+    Ok(bots)
+}
+
+struct Api;
+
+#[OpenApi]
+impl Api {
+    #[oai(path = "/hello", method = "get")]
+    async fn index(&self, name: Query<Option<String>>) -> PlainText<String> {
+        match name.0 {
+            Some(name) => PlainText(format!("hello, {}!", name)),
+            None => PlainText("hello!".to_string()),
+        }
+    }
+    #[oai(path = "/login", method = "post")]
+    async fn login(
+        &self,
+        db: Data<&PgConnection>,
+        jwt_secret: Data<&Vec<u8>>,
+        auth: MyBasicAuthorization,
+        req: Json<LoginRequest>,
+    ) -> Result<AuthResponse> {
+        psql_users::authenticate_user(&auth.0.username, &auth.0.password, &mut db)
+            .await
+            .map_err(|_e| Error::from_status(StatusCode::UNAUTHORIZED))?;
+
+        let access_token = auth::create_token(auth.0.username.to_string(), &jwt_secret)
+            .map_err(|_| Error::from_status(StatusCode::INTERNAL_SERVER_ERROR))?;
+
+        Ok(Json(AuthResponse { access_token }))
+    }
+
+    /// This API returns the currently logged in user.
+    #[oai(path = "/hello", method = "get")]
+    async fn hello(&self, auth2: MyBasicAuthorization) -> Result<PlainText<String>> {
+        if auth2.0.username != "test" || auth2.0.password != "123456" {
+            return Err(Error::from_status(StatusCode::UNAUTHORIZED));
+        }
+        Ok(PlainText(auth2.0.username))
+    }
+}
+
+#[tokio::main]
+async fn main() -> Result<(), std::io::Error> {
     let open_ai_compatable_endpoint_chat = env::var("OPEN_AI_COMPATABLE_ENDPOINT_CHAT")
         .unwrap_or_else(|_e| "http://localhost:11434".to_string());
 
     let open_ai_compatable_endpoint_embedding = env::var("OPEN_AI_COMPATABLE_ENDPOINT_EMBEDDING")
         .unwrap_or_else(|_e| "http://localhost:11434".to_string());
 
-    let jwt_secret = env::var("JWT_SECRET").unwrap().into_bytes();
-    //Temperature=0.6, TopP=0.95, TopK=20, and MinP=0, PresencePenalty=1.5
     let model_name = "hf.co/Qwen/Qwen3-4B-GGUF:latest";
 
+    let api_service =
+        OpenApiService::new(Api, "Hello World", "1.0").server("http://localhost:3000/api");
+    let ui = api_service.swagger_ui();
+    let jwt_secret = env::var("JWT_SECRET").unwrap().into_bytes();
+    let psql_url = env::var("PSQL_DATABASE_URL").unwrap();
+    let pool = PgPoolOptions::new()
+        .max_connections(100) //one hundred connections to start with
+        .connect(psql_url)
+        .await?;
+
+    let logging_handle = create_logging(&pool);
+    let bots = get_bots(model_name, open_ai_compatable_endpoint_chat, &pool).await?;
     let embedding_client = Arc::new(EmbeddingClient::new(
         //"bge-m3:567m".to_string(),
         "hf.co/mixedbread-ai/mxbai-embed-large-v1".to_string(),
         &open_ai_compatable_endpoint_embedding,
     ));
-    let rocket = rocket::build()
-        .attach(DBDraid::init())
-        .attach(AdHoc::try_on_ignite(
-            "DBDraid Migrations",
-            run_migrations_draid,
-        ))
-        .attach(AdHoc::try_on_ignite("Logging", create_logging))
-        .attach(AdHoc::try_on_ignite(
-            "Bots",
-            generate_bots(model_name.to_string(), open_ai_compatable_endpoint_chat),
-        ))
-        .manage(jwt_secret)
-        .manage(embedding_client)
-        .mount(
-            "/",
-            routes![
-                helper,
-                tutor,
-                new_user,
-                get_users,
-                get_user,
-                delete_user,
-                update_user,
-                login,
-                new_session,
-                delete_session,
-                latest_session,
-                get_sessions,
-                get_messages,
-                tool_use,
-                histogram,
-                similar_kb_by_id,
-                similar_kb_by_name,
-                get_kbs,
-                ingest_kb_by_id,
-                ingest_kb_by_name
-            ],
-        )
-        .ignite()
-        .await?;
-    rocket.launch().await?;
-    Ok(())
-}
 
-#[derive(Deserialize)]
-#[serde(crate = "rocket::serde")]
-struct PromptKb<'a> {
-    text: &'a str,
-    num_results: i16,
-}
+    let app = Route::new()
+        .nest("/api", api_service)
+        .data(jwt_secret)
+        .data(pool)
+        .data(bots)
+        .data(embedding_client)
+        //.with(AddData::new(pool))
+        .nest("/", ui);
 
-async fn chat_with_bot(
-    bot: Bot,
-    psql_memory: PsqlMemory,
-    prompt: &str,
-) -> Result<TextStream![String], BadRequest<String>> {
-    let messages = psql_memory
-        .messages()
-        .await
-        .map_err(|e| BadRequest(e.to_string()))?;
-    let tx_persist_message = manage_chat_interaction(&prompt, psql_memory)
-        .await
-        .map_err(|e| BadRequest(e.to_string()))?;
-
-    let (tx, mut rx) = mpsc::channel::<String>(100);
-
-    let span_id = Uuid::new_v4().to_string();
-
-    let remote_prompt = prompt.to_string();
-    //frustrating that I'm cloning...I tried to get bot and prompt to be efficient
-    rocket::tokio::spawn(async move {
-        if let Err(e) = chat_with_tools(bot, tx, &messages, &remote_prompt, span_id)
-            .instrument(span!(
-                Level::INFO,
-                "chat_with_tools",
-                endpoint = "query",
-                tool_use = false
-            ))
-            .await
-        {
-            eprintln!("chat_with_tools exploded: {}", e);
-        }
-    });
-    Ok(TextStream! {
-        while let Some(chunk) = rx.recv().await {
-            if let Err(e) = tx_persist_message.send(chunk.clone()).await {
-                eprintln!("Failed to send chunk to background task: {}", e);
-            }
-            yield chunk
-        }
-    })
-}
-
-#[derive(Debug, Deserialize, FromForm)]
-#[serde(crate = "rocket::serde")]
-struct AuthRequest<'a> {
-    username: &'a str,
-    password: &'a str,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(crate = "rocket::serde")]
-struct AuthResponse {
-    access_token: String,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(crate = "rocket::serde")]
-enum ResponseStatus {
-    Success,
-    //Failure,
-}
-#[derive(Debug, Serialize)]
-#[serde(crate = "rocket::serde")]
-struct StatusResponse {
-    status: ResponseStatus,
-}
-
-#[post("/user", format = "json", data = "<user>")]
-async fn new_user<'a>(
-    user: Json<psql_users::UserRequest<'a>>,
-    mut db: Connection<DBDraid>,
-    _admin: auth::Admin, //guard, only admins can access this
-) -> Result<Json<StatusResponse>, BadRequest<String>> {
-    psql_users::create_user(&user, &mut db)
-        .await
-        .map_err(|e| BadRequest(e.to_string()))?;
-
-    Ok(Json(StatusResponse {
-        status: ResponseStatus::Success,
-    }))
-}
-
-#[delete("/user/<id>")]
-async fn delete_user<'a>(
-    id: Uuid,
-    mut db: Connection<DBDraid>,
-    _admin: auth::Admin, //guard, only admins can access this
-) -> Result<Json<StatusResponse>, BadRequest<String>> {
-    psql_users::delete_user(&id, &mut db)
-        .await
-        .map_err(|e| BadRequest(e.to_string()))?;
-
-    Ok(Json(StatusResponse {
-        status: ResponseStatus::Success,
-    }))
-}
-
-#[patch("/user/<id>", format = "json", data = "<user>")]
-async fn update_user<'a>(
-    id: Uuid,
-    user: Json<psql_users::UserRequest<'a>>,
-    mut db: Connection<DBDraid>,
-    _admin: auth::Admin, //guard, only admins can access this
-) -> Result<Json<StatusResponse>, BadRequest<String>> {
-    psql_users::patch_user(&id, &user, &mut db)
-        .await
-        .map_err(|e| BadRequest(e.to_string()))?;
-
-    Ok(Json(StatusResponse {
-        status: ResponseStatus::Success,
-    }))
-}
-
-#[get("/user")]
-async fn get_users<'a>(
-    mut db: Connection<DBDraid>,
-    _admin: auth::Admin, //guard, only admins can access this
-) -> Result<Json<Vec<UserResponse>>, BadRequest<String>> {
-    let users = psql_users::get_all_users(&mut db)
-        .await
-        .map_err(|e| BadRequest(e.to_string()))?;
-
-    Ok(Json(users))
-}
-
-#[get("/user/me")]
-async fn get_user<'a>(
-    mut db: Connection<DBDraid>,
-    user: auth::AuthenticatedUser,
-) -> Result<Json<UserResponse>, BadRequest<String>> {
-    let user = psql_users::get_user(&user.username, &mut db)
-        .await
-        .map_err(|e| BadRequest(e.to_string()))?;
-    Ok(Json(user))
-}
-
-#[post("/session", format = "json")]
-async fn new_session<'a>(
-    mut db: Connection<DBDraid>,
-    user: auth::AuthenticatedUser, //guard, only authenticated users can access
-) -> Result<Json<SessionDB>, BadRequest<String>> {
-    let session = psql_users::create_session(&user.id, &mut db)
-        .await
-        .map_err(|e| BadRequest(e.to_string()))?;
-
-    Ok(Json(session))
-}
-
-#[delete("/session/<session_id>")]
-async fn delete_session(
-    session_id: Uuid,
-    mut db: Connection<DBDraid>,
-    user: auth::AuthenticatedUser, //guard, only authenticated users can access
-) -> Result<Json<StatusResponse>, BadRequest<String>> {
-    psql_users::delete_session(&session_id, &user.id, &mut db)
-        .await
-        .map_err(|e| BadRequest(e.to_string()))?;
-
-    Ok(Json(StatusResponse {
-        status: ResponseStatus::Success,
-    }))
-}
-
-#[get("/session", format = "json")]
-async fn get_sessions<'a>(
-    mut db: Connection<DBDraid>,
-    user: auth::AuthenticatedUser, //guard, only authenticated users can access
-) -> Result<Json<Vec<SessionDB>>, BadRequest<String>> {
-    let sessions = psql_users::get_all_sessions(&user.id, &mut db)
-        .await
-        .map_err(|e| BadRequest(e.to_string()))?;
-
-    Ok(Json(sessions))
-}
-
-#[get("/session/recent", format = "json")]
-async fn latest_session<'a>(
-    mut db: Connection<DBDraid>,
-    user: auth::AuthenticatedUser, //guard, only authenticated users can access
-) -> Result<Json<Option<SessionDB>>, BadRequest<String>> {
-    let session = psql_users::get_most_recent_session(&user.id, &mut db)
-        .await
-        .map_err(|e| BadRequest(e.to_string()))?;
-
-    Ok(Json(session))
-}
-
-#[post("/login", data = "<credentials>")]
-async fn login(
-    credentials: Form<AuthRequest<'_>>,
-    mut db: Connection<DBDraid>,
-    jwt_secret: &State<Vec<u8>>,
-) -> Result<Json<AuthResponse>, Status> {
-    psql_users::authenticate_user(&credentials.username, &credentials.password, &mut db)
-        .await
-        .map_err(|_e| Status::Unauthorized)?;
-
-    let access_token = auth::create_token(credentials.username.to_string(), &jwt_secret)
-        .map_err(|_| Status::InternalServerError)?;
-
-    Ok(Json(AuthResponse { access_token }))
-}
-
-#[get("/messages/<session_id>")]
-async fn get_messages(
-    session_id: Uuid,
-    db: &DBDraid,
-    user: auth::AuthenticatedUser,
-) -> Result<Json<Vec<MessageResult>>, BadRequest<String>> {
-    let psql_memory = PsqlMemory::new(100, session_id, user.id, db.0.clone());
-    let messages = psql_memory
-        .messages()
-        .await
-        .map_err(|e| BadRequest(e.to_string()))?;
-    Ok(Json(messages))
-}
-
-#[derive(Deserialize)]
-#[serde(crate = "rocket::serde")]
-struct Prompt {
-    text: String,
-}
-#[post("/helper?<session_id>", format = "json", data = "<prompt>")]
-async fn helper(
-    session_id: Uuid,
-    prompt: Json<Prompt>,
-    db: &DBDraid,
-    bots: &State<Bots>,
-    helper: auth::Helper,
-) -> Result<TextStream![String], BadRequest<String>> {
-    let psql_memory = PsqlMemory::new(100, session_id, helper.id, db.0.clone());
-    //cloning a bot is likely expensive, but only happens once per invocation
-    chat_with_bot(bots.helper_bot.clone(), psql_memory, &prompt.text).await
-}
-
-#[post("/tutor?<session_id>", format = "json", data = "<prompt>")]
-async fn tutor(
-    session_id: Uuid,
-    prompt: Json<Prompt>,
-    db: &DBDraid,
-    bots: &State<Bots>,
-    tutor: auth::Tutor,
-) -> Result<TextStream![String], BadRequest<String>> {
-    let psql_memory = PsqlMemory::new(100, session_id, tutor.id, db.0.clone());
-    //cloning a bot is likely expensive, but only happens once per invocation
-    chat_with_bot(bots.tutor_bot.clone(), psql_memory, &prompt.text).await
-}
-
-#[get("/telemetry/latency/<endpoint>", format = "json")]
-async fn histogram(
-    endpoint: &str,
-    mut db: Connection<DBDraid>,
-    _admin: auth::Admin,
-) -> Result<Json<Vec<HistogramIncrement>>, BadRequest<String>> {
-    let results = get_histogram(&mut db, &endpoint)
-        .await
-        .map_err(|e| BadRequest(e.to_string()))?;
-    Ok(Json(results))
-}
-
-#[get("/telemetry/tools/<endpoint>", format = "json")]
-async fn tool_use(
-    endpoint: &str,
-    mut db: Connection<DBDraid>,
-    _admin: auth::Admin,
-) -> Result<Json<Vec<SpanToolUse>>, BadRequest<String>> {
-    let results = get_tool_use(&mut db, &endpoint)
-        .await
-        .map_err(|e| BadRequest(e.to_string()))?;
-    Ok(Json(results))
-}
-
-async fn similar_content<'a>(
-    kb_id: i64,
-    prompt: Json<PromptKb<'a>>,
-    mut db: Connection<DBDraid>,
-    client: &EmbeddingClient,
-) -> Result<Json<Vec<String>>, BadRequest<String>> {
-    let embeddings = get_embeddings(&client, &prompt.text)
-        .await
-        .map_err(|e| BadRequest(e.to_string()))?;
-
-    let result = get_docs_with_similar_content(kb_id, embeddings, prompt.num_results, &mut db)
-        .await
-        .map_err(|e| BadRequest(e.to_string()))?;
-    Ok(Json(result))
-}
-
-#[post("/knowledge_base/<kb_id>/similar", format = "json", data = "<prompt>")]
-async fn similar_kb_by_id<'a>(
-    kb_id: i64,
-    prompt: Json<PromptKb<'a>>,
-    db: Connection<DBDraid>,
-    client: &State<Arc<EmbeddingClient>>,
-) -> Result<Json<Vec<String>>, BadRequest<String>> {
-    similar_content(kb_id, prompt, db, client).await
-}
-
-#[post(
-    "/knowledge_base/<kb>/similar",
-    format = "json",
-    data = "<prompt>",
-    rank = 2
-)]
-async fn similar_kb_by_name<'a>(
-    kb: &str,
-    prompt: Json<PromptKb<'a>>,
-    mut db: Connection<DBDraid>,
-    client: &State<Arc<EmbeddingClient>>,
-) -> Result<Json<Vec<String>>, BadRequest<String>> {
-    let KnowledgeBase { id, .. } = get_knowledge_base(kb, &mut db)
-        .await
-        .map_err(|e| BadRequest(e.to_string()))?;
-    similar_content(id, prompt, db, client).await
-}
-async fn extract_and_write(
-    client: &EmbeddingClient,
-    document_id: i64,
-    kb_id: i64,
-    chunk: String,
-    mut db: &mut PgConnection,
-) -> anyhow::Result<()> {
-    let embeddings = get_embeddings(&client, &chunk).await?;
-    write_chunk_content(document_id, kb_id, &chunk, embeddings, &mut db).await?;
-    Ok(())
-}
-
-#[get("/knowledge_base")]
-async fn get_kbs(
-    mut db: Connection<DBDraid>,
-) -> Result<Json<Vec<KnowledgeBase>>, BadRequest<String>> {
-    Ok(Json(
-        get_knowledge_bases(&mut db)
-            .await
-            .map_err(|e| BadRequest(e.to_string()))?,
-    ))
-}
-
-async fn ingest_content(
-    kb_id: i64, //category of knowledge base
-    file: &mut TempFile<'_>,
-    db: &DBDraid,
-    client: &EmbeddingClient,
-) -> Result<Json<StatusResponse>, BadRequest<String>> {
-    let max_characters = 1000;
-    let splitter = TextSplitter::new(max_characters);
-    let span_id = Uuid::new_v4().to_string();
-    info!(
-        tool_use = true,
-        is_kb = true,
-        span_id,
-        "Started ingesting content"
-    );
-    let mut content = String::new();
-    file.open()
-        .await
-        .map_err(|e| BadRequest(e.to_string()))?
-        .read_to_string(&mut content)
-        .await
-        .map_err(|e| BadRequest(e.to_string()))?;
-
-    let content_hash = digest(&content);
-    let mut conn = db.acquire().await.map_err(|e| BadRequest(e.to_string()))?;
-    match write_document(&content_hash, &content, &mut conn).await {
-        Ok(document_id) => {
-            info!(
-                tool_use = true,
-                endpoint = "ingest",
-                span_id,
-                "Finished reading content"
-            );
-            let chunks: Vec<String> = splitter.chunks(&content).map(|v| v.to_string()).collect();
-            info!(
-                tool_use = true,
-                endpoint = "ingest",
-                span_id,
-                "Finished chunking content"
-            );
-            info!(
-                tool_use = true,
-                endpoint = "ingest",
-                span_id,
-                message = format!("Number of chunks {}", chunks.len())
-            );
-            let futures = chunks.into_iter().map(|chunk| async move {
-                let mut conn = db.acquire().await?;
-                extract_and_write(&client, document_id, kb_id, chunk, &mut conn).await
-            });
-            let results: Vec<anyhow::Result<()>> = stream::iter(futures)
-                .buffer_unordered(100) // Concurrently process up to 100 tasks
-                .collect()
-                .await;
-            info!(
-                tool_use = true,
-                endpoint = "ingest",
-                span_id,
-                "Finished writing vectors"
-            );
-            for result in results {
-                result.map_err(|e| BadRequest(e.to_string()))?;
-            }
-        }
-        Err(_e) => {
-            info!(
-                tool_use = true,
-                endpoint = "ingest",
-                span_id,
-                "Already indexed!"
-            );
-        }
-    }
-    Ok(Json(StatusResponse {
-        status: ResponseStatus::Success,
-    }))
-}
-
-#[derive(FromForm)]
-pub struct FileWrapper<'r> {
-    // This MUST match the client-side name: formData.append("file", file)
-    pub file: TempFile<'r>,
-}
-
-#[post("/knowledge_base/<kb_id>/ingest", data = "<form>")]
-async fn ingest_kb_by_id(
-    kb_id: i64, //category of knowledge base
-    mut form: Form<FileWrapper<'_>>,
-    db: &DBDraid,
-    client: &State<Arc<EmbeddingClient>>,
-    _admin: auth::Admin,
-) -> Result<Json<StatusResponse>, BadRequest<String>> {
-    let file_data = &mut form.file;
-    ingest_content(kb_id, file_data, db, client)
-        .instrument(span!(
-            Level::INFO,
-            "knowledge_base_ingest",
-            tool_use = false,
-            endpoint = "ingest",
-        ))
-        .await
-}
-
-#[post("/knowledge_base/<kb>/ingest", data = "<form>", rank = 2)]
-async fn ingest_kb_by_name(
-    kb: &str, //category of knowledge base
-    mut form: Form<FileWrapper<'_>>,
-    db: &DBDraid,
-    client: &State<Arc<EmbeddingClient>>,
-    _admin: auth::Admin,
-) -> Result<Json<StatusResponse>, BadRequest<String>> {
-    let mut conn = db.acquire().await.map_err(|e| BadRequest(e.to_string()))?;
-    let KnowledgeBase { id, .. } = get_knowledge_base(kb, &mut conn)
-        .await
-        .map_err(|e| BadRequest(e.to_string()))?;
-    let file_data = &mut form.file;
-    ingest_content(id, file_data, db, client)
-        .instrument(span!(
-            Level::INFO,
-            "knowledge_base_ingest",
-            tool_use = false,
-            endpoint = "ingest",
-        ))
+    poem::Server::new(TcpListener::bind("0.0.0.0:3000"))
+        .run(app)
         .await
 }
