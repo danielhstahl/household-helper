@@ -8,6 +8,7 @@ mod psql_users;
 mod psql_vectors;
 mod tools;
 
+use auth::UserIdentification;
 use dbtracing::create_logging;
 use embedding::{EmbeddingClient, get_embeddings};
 use kb_tool_macro::kb;
@@ -17,8 +18,8 @@ use poem::{
     Error, Request, Result, Route, http::StatusCode, listener::TcpListener, middleware::AddData,
     web::Data, /*web::Json,*/ web::Path,
 };
-use poem_openapi::ApiResponse;
 use poem_openapi::payload::Json;
+use poem_openapi::{ApiResponse, Enum};
 use poem_openapi::{
     Object, OpenApi, OpenApiService, SecurityScheme,
     auth::{ApiKey, Basic, BearerAuthorization},
@@ -181,14 +182,61 @@ async fn chat_with_bot(bot: Bot, psql_memory: PsqlMemory, prompt: &str) -> Resul
     Ok(())
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Enum)]
 enum ResponseStatus {
     Success,
     //Failure,
 }
 
+#[derive(Debug, Serialize, Object)]
 struct StatusResponse {
     status: ResponseStatus,
+}
+
+// 1. Define the Error Payload
+#[derive(Debug, Serialize, Object)]
+pub struct ApiError {
+    pub code: u16,
+    pub message: String,
+}
+
+#[derive(ApiResponse)]
+pub enum SuccessResponse {
+    // Status 200: Success
+    #[oai(status = 200)]
+    Success(Json<StatusResponse>),
+
+    // Status 500: Internal Server Error
+    #[oai(status = 500)]
+    InternalError(Json<ApiError>),
+}
+
+#[derive(ApiResponse)]
+pub enum UsersResponse {
+    // Status 200: Success
+    #[oai(status = 200)]
+    SuccessMultiple(Json<Vec<UserResponse>>),
+
+    #[oai(status = 200)]
+    SuccessSingle(Json<UserResponse>),
+
+    // Status 500: Internal Server Error
+    #[oai(status = 500)]
+    InternalError(Json<ApiError>),
+}
+
+#[derive(ApiResponse)]
+pub enum SessionResponse {
+    // Status 200: Success
+    #[oai(status = 200)]
+    SuccessMultiple(Json<Vec<SessionDB>>),
+
+    #[oai(status = 200)]
+    SuccessSingle(Json<SessionDB>),
+
+    // Status 500: Internal Server Error
+    #[oai(status = 500)]
+    InternalError(Json<ApiError>),
 }
 
 struct Api;
@@ -208,30 +256,78 @@ impl Api {
         &self,
         user: Json<psql_users::UserRequest>,
         Data(pool): Data<&PgPool>,
-        //_admin: auth::Admin,
-    ) -> Result<Json<StatusResponse>> {
+    ) -> Result<SuccessResponse> {
         psql_users::create_user(&user, pool)
             .await
             .map_err(InternalServerError)?;
-        Ok(Json(StatusResponse {
+        Ok(SuccessResponse::Success(Json(StatusResponse {
             status: ResponseStatus::Success,
-        }))
+        })))
     }
     #[protect("Role::Admin", ty = "Role")]
     #[oai(path = "/user/:id", method = "post")]
-    async fn delete_user<'a>(
+    async fn delete_user(
         &self,
         Path(id): Path<Uuid>,
         Data(pool): Data<&PgPool>,
-        //_admin: auth::Admin, //guard, only admins can access this
-    ) -> Result<Json<StatusResponse>> {
+    ) -> Result<SuccessResponse> {
         psql_users::delete_user(&id, pool)
             .await
             .map_err(InternalServerError)?;
-
-        Ok(Json(StatusResponse {
+        Ok(SuccessResponse::Success(Json(StatusResponse {
             status: ResponseStatus::Success,
-        }))
+        })))
+    }
+
+    #[protect("Role::Admin", ty = "Role")]
+    #[oai(path = "/user/:id", method = "patch")]
+    async fn update_user(
+        &self,
+        Path(id): Path<Uuid>,
+        user: Json<psql_users::UserRequest>,
+        Data(pool): Data<&PgPool>,
+    ) -> Result<SuccessResponse> {
+        psql_users::patch_user(&id, &user, pool)
+            .await
+            .map_err(InternalServerError)?;
+        Ok(SuccessResponse::Success(Json(StatusResponse {
+            status: ResponseStatus::Success,
+        })))
+    }
+
+    #[protect("Role::Admin", ty = "Role")]
+    #[oai(path = "/user", method = "get")]
+    async fn get_users(&self, Data(pool): Data<&PgPool>) -> Result<UsersResponse> {
+        let users = psql_users::get_all_users(pool)
+            .await
+            .map_err(InternalServerError)?;
+        Ok(UsersResponse::SuccessMultiple(Json(users)))
+    }
+
+    #[protect(any("Role::Admin", "Role::Tutor", "Role::Helper"), ty = "Role")]
+    #[oai(path = "/user/me", method = "get")]
+    async fn get_user(
+        &self,
+        Data(user): Data<&UserIdentification>, //attached from auth middleware
+        Data(pool): Data<&PgPool>,
+    ) -> Result<UsersResponse> {
+        let user = psql_users::get_user(&user.username, pool)
+            .await
+            .map_err(InternalServerError)?;
+        Ok(UsersResponse::SuccessSingle(Json(user)))
+    }
+
+    #[protect(any("Role::Admin", "Role::Tutor", "Role::Helper"), ty = "Role")]
+    #[oai(path = "/session", method = "post")]
+    async fn new_session(
+        &self,
+        Data(user): Data<&UserIdentification>, //attached from auth middleware
+        Data(pool): Data<&PgPool>,
+    ) -> Result<SessionResponse> {
+        let session = psql_users::create_session(&user.id, pool)
+            .await
+            .map_err(InternalServerError)?;
+        Ok(SessionResponse::SuccessSingle(Json(session)))
     }
 
     #[oai(path = "/login", method = "post")]

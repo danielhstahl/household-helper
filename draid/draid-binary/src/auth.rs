@@ -1,15 +1,21 @@
-use crate::psql_users::{Role, UserResponse, get_user};
+use crate::psql_users::get_user;
 use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation, decode, encode};
 use poem::error::InternalServerError;
 use poem::http::header::AUTHORIZATION;
 use poem::{Endpoint, Middleware, Request, Result};
-use poem::{Request, Result};
 use serde::{Deserialize, Serialize};
-use sqlx::PgConnection;
+use sqlx::PgPool;
 use std::fmt;
+use uuid::Uuid;
 // Used for integration with custom middleware
 use poem_grants::authorities::AttachAuthorities;
 use std::time::{SystemTime, UNIX_EPOCH};
+
+#[derive(Clone)]
+pub struct UserIdentification {
+    pub username: String,
+    pub id: Uuid,
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Claims {
@@ -76,7 +82,7 @@ impl<E: Endpoint> Endpoint for JwtMiddlewareImpl<E> {
                 msg: "JWT Secret does not exist".to_string(),
             })
         })?;
-        let mut db_conn = req.data::<&mut PgConnection>().ok_or_else(|| {
+        let pool = req.data::<PgPool>().ok_or_else(|| {
             InternalServerError(AuthError {
                 msg: "Could not get database connection".to_string(),
             })
@@ -94,12 +100,15 @@ impl<E: Endpoint> Endpoint for JwtMiddlewareImpl<E> {
                 &Validation::new(Algorithm::HS256),
             )
             .map_err(InternalServerError)?;
-            let calling_user = get_user(&token_data.claims.sub, *db_conn)
+            let calling_user = get_user(&token_data.claims.sub, pool)
                 .await
                 .map_err(InternalServerError)?;
-            // Decode JWT token
-            //let claims = crate::claims::decode_jwt(value)?;
-            // Attache permissions to request for `poem-grants`
+
+            req.extensions_mut().insert(UserIdentification {
+                username: calling_user.username,
+                id: calling_user.id,
+            });
+            // Attach permissions to request for `poem-grants`
             req.attach(calling_user.roles);
         }
 
