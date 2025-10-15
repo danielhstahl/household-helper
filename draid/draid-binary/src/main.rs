@@ -3,6 +3,7 @@ mod dbtracing;
 mod embedding;
 mod llm;
 mod prompts;
+mod psql_memory;
 mod psql_users;
 mod psql_vectors;
 mod tools;
@@ -11,10 +12,12 @@ use dbtracing::create_logging;
 use embedding::{EmbeddingClient, get_embeddings};
 use kb_tool_macro::kb;
 use llm::{Bot, chat_with_tools};
+use poem::error::InternalServerError;
 use poem::{
     Error, Request, Result, Route, http::StatusCode, listener::TcpListener, middleware::AddData,
-    web::Data,
+    web::Data, /*web::Json,*/ web::Path,
 };
+use poem_openapi::ApiResponse;
 use poem_openapi::payload::Json;
 use poem_openapi::{
     Object, OpenApi, OpenApiService, SecurityScheme,
@@ -24,6 +27,7 @@ use poem_openapi::{
 };
 use prompts::HELPER_PROMPT;
 use prompts::TUTOR_PROMPT;
+use psql_memory::{MessageResult, PsqlMemory, manage_chat_interaction};
 use psql_users::{Role, SessionDB, UserRequest, UserResponse, create_user};
 use psql_vectors::{
     KnowledgeBase, get_docs_with_similar_content, get_knowledge_base, get_knowledge_bases,
@@ -32,18 +36,22 @@ use psql_vectors::{
 use reqwest::Client as HttpClient;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
+use sqlx::PgPool;
 use sqlx::postgres::PgPoolOptions;
 use sqlx::{PgConnection, Type, query, types::chrono};
 use std::env;
 use std::sync::{Arc, Mutex};
+use tokio::sync::mpsc;
 use tools::{AddTool, TimeTool, Tool};
+use tracing::{Instrument, Level, span};
+use uuid::Uuid;
 
 #[derive(Debug, Serialize, Deserialize)]
 struct User {
     username: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Object)]
 struct AuthResponse {
     access_token: String,
 }
@@ -84,7 +92,7 @@ struct Bots {
 async fn get_bots(
     model_name: String,
     open_ai_compatable_endpoint: String,
-    db: &PgConnection,
+    db: &mut PgConnection,
 ) -> Result<Bots, Error> {
     let kb_arcs: Vec<Arc<dyn Tool + Send + Sync>> = vec![kb!("recipes", 3), kb!("gardening", 3)];
     for kb_arc in kb_arcs.iter() {
@@ -126,8 +134,65 @@ async fn get_bots(
     Ok(bots)
 }
 
-struct Api;
+async fn chat_with_bot(bot: Bot, psql_memory: PsqlMemory, prompt: &str) -> Result<()> {
+    let messages = psql_memory.messages().await.map_err(InternalServerError)?;
+    let tx_persist_message = manage_chat_interaction(&prompt, psql_memory)
+        .await
+        .map_err(InternalServerError)?;
 
+    let (tx, mut rx) = mpsc::channel::<String>(100);
+
+    let span_id = Uuid::new_v4().to_string();
+
+    //let remote_prompt = prompt.to_string();
+
+    //bot may not need to be cloned
+    chat_with_tools(bot, tx, &messages, &prompt, span_id)
+        .instrument(span!(
+            Level::INFO,
+            "chat_with_tools",
+            endpoint = "query",
+            tool_use = false
+        ))
+        .await
+        .map_err(InternalServerError)?;
+    //frustrating that I'm cloning...I tried to get bot and prompt to be efficient
+    /*tokio::spawn(async move {
+        if let Err(e) = chat_with_tools(bot, tx, &messages, &remote_prompt, span_id)
+            .instrument(span!(
+                Level::INFO,
+                "chat_with_tools",
+                endpoint = "query",
+                tool_use = false
+            ))
+            .await
+        {
+            eprintln!("chat_with_tools exploded: {}", e);
+        }
+    });
+    Ok(TextStream! {
+        while let Some(chunk) = rx.recv().await {
+            if let Err(e) = tx_persist_message.send(chunk.clone()).await {
+                eprintln!("Failed to send chunk to background task: {}", e);
+            }
+            yield chunk
+        }
+    })*/
+    Ok(())
+}
+
+#[derive(Debug, Serialize)]
+enum ResponseStatus {
+    Success,
+    //Failure,
+}
+
+struct StatusResponse {
+    status: ResponseStatus,
+}
+
+struct Api;
+#[poem_grants::open_api]
 #[OpenApi]
 impl Api {
     #[oai(path = "/hello", method = "get")]
@@ -137,15 +202,47 @@ impl Api {
             None => PlainText("hello!".to_string()),
         }
     }
+    #[protect("Role::Admin", ty = "Role")]
+    #[oai(path = "/user", method = "post")]
+    async fn new_user(
+        &self,
+        user: Json<psql_users::UserRequest>,
+        Data(pool): Data<&PgPool>,
+        //_admin: auth::Admin,
+    ) -> Result<Json<StatusResponse>> {
+        psql_users::create_user(&user, pool)
+            .await
+            .map_err(InternalServerError)?;
+        Ok(Json(StatusResponse {
+            status: ResponseStatus::Success,
+        }))
+    }
+    #[protect("Role::Admin", ty = "Role")]
+    #[oai(path = "/user/:id", method = "post")]
+    async fn delete_user<'a>(
+        &self,
+        Path(id): Path<Uuid>,
+        Data(pool): Data<&PgPool>,
+        //_admin: auth::Admin, //guard, only admins can access this
+    ) -> Result<Json<StatusResponse>> {
+        psql_users::delete_user(&id, pool)
+            .await
+            .map_err(InternalServerError)?;
+
+        Ok(Json(StatusResponse {
+            status: ResponseStatus::Success,
+        }))
+    }
+
     #[oai(path = "/login", method = "post")]
     async fn login(
         &self,
-        db: Data<&PgConnection>,
-        jwt_secret: Data<&Vec<u8>>,
+        Data(pool): Data<&PgPool>,
+        Data(jwt_secret): Data<&Vec<u8>>,
         auth: MyBasicAuthorization,
-        req: Json<LoginRequest>,
-    ) -> Result<AuthResponse> {
-        psql_users::authenticate_user(&auth.0.username, &auth.0.password, &mut db)
+        //req: Json<LoginRequest>,
+    ) -> Result<Json<AuthResponse>> {
+        psql_users::authenticate_user(&auth.0.username, &auth.0.password, pool)
             .await
             .map_err(|_e| Error::from_status(StatusCode::UNAUTHORIZED))?;
 
@@ -153,15 +250,6 @@ impl Api {
             .map_err(|_| Error::from_status(StatusCode::INTERNAL_SERVER_ERROR))?;
 
         Ok(Json(AuthResponse { access_token }))
-    }
-
-    /// This API returns the currently logged in user.
-    #[oai(path = "/hello", method = "get")]
-    async fn hello(&self, auth2: MyBasicAuthorization) -> Result<PlainText<String>> {
-        if auth2.0.username != "test" || auth2.0.password != "123456" {
-            return Err(Error::from_status(StatusCode::UNAUTHORIZED));
-        }
-        Ok(PlainText(auth2.0.username))
     }
 }
 
@@ -180,10 +268,17 @@ async fn main() -> Result<(), std::io::Error> {
     let ui = api_service.swagger_ui();
     let jwt_secret = env::var("JWT_SECRET").unwrap().into_bytes();
     let psql_url = env::var("PSQL_DATABASE_URL").unwrap();
-    let pool = PgPoolOptions::new()
-        .max_connections(100) //one hundred connections to start with
-        .connect(psql_url)
-        .await?;
+    /*let pool = PgPoolOptions::new()
+    .max_connections(100) //one hundred connections to start with
+    .connect(psql_url)
+    .await?;*/
+
+    let pool = PgPool::connect(&psql_url).await?;
+
+    sqlx::migrate!("./migrations")
+        .run(&pool)
+        .await
+        .expect("Failed to run migrations.");
 
     let logging_handle = create_logging(&pool);
     let bots = get_bots(model_name, open_ai_compatable_endpoint_chat, &pool).await?;
