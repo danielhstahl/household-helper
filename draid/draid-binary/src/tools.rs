@@ -1,7 +1,5 @@
-use rocket::{
-    serde,
-    serde::json::{Value, json},
-};
+use serde_json::{Value, json};
+
 use sqlx::types::chrono;
 use std::{ops::Deref, sync::Arc};
 
@@ -90,7 +88,7 @@ impl Tool for AddTool {
         })
     }
     async fn invoke(&self, args: String) -> anyhow::Result<Value> {
-        let args: Value = serde::json::from_str(&args)?;
+        let args: Value = serde_json::from_str(&args)?;
         let result = args["a"].as_number().unwrap().as_f64().unwrap()
             + args["b"].as_number().unwrap().as_f64().unwrap();
         Ok(json!({"result":result}))

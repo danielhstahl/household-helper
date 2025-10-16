@@ -1,13 +1,12 @@
+use poem_openapi::Object;
 use serde::Serialize;
-use sqlx::{PgConnection, Pool, Postgres};
+use sqlx::{PgConnection, PgPool, Pool, Postgres};
 use std::sync::{Arc, Mutex};
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 use tracing::Event;
 use tracing::field::{Field, Visit};
-use tracing::info;
 use tracing::level_filters::LevelFilter;
-use tracing::{Instrument, Level, span};
 use tracing_subscriber::Layer;
 use tracing_subscriber::{Registry, prelude::*};
 use uuid::Uuid;
@@ -64,7 +63,7 @@ impl<S: tracing::Subscriber> Layer<S> for PSqlLayer {
     // ... other synchronous trait methods
 }
 
-pub async fn run_async_worker(mut worker: AsyncDbWorker) -> anyhow::Result<()> {
+pub async fn run_async_worker(mut worker: AsyncDbWorker) -> Result<(), sqlx::Error> {
     while let Some(log_message) = worker.rx.recv().await {
         let _ = sqlx::query!(
             r#"
@@ -171,7 +170,7 @@ fn hist_bin_num(data_size: usize) -> i32 {
     }
 }
 
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Debug, Object)]
 pub struct HistogramIncrement {
     index: i32,
     range: String,
@@ -206,9 +205,9 @@ fn extract_histogram(spans: &[SpanLength]) -> Vec<HistogramIncrement> {
 }
 
 pub async fn get_histogram(
-    pool: &mut PgConnection,
+    pool: &PgPool,
     endpoint: &str,
-) -> anyhow::Result<Vec<HistogramIncrement>> {
+) -> Result<Vec<HistogramIncrement>, sqlx::Error> {
     let spans = sqlx::query_as!(
         SpanLength,
         r#"
@@ -232,16 +231,13 @@ pub async fn get_histogram(
     Ok(histogram)
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Object)]
 pub struct SpanToolUse {
     cnt_spns_with_tools: i64,
     cnt_spns_without_tools: i64,
     date: chrono::DateTime<chrono::Utc>,
 }
-pub async fn get_tool_use(
-    pool: &mut PgConnection,
-    endpoint: &str,
-) -> anyhow::Result<Vec<SpanToolUse>> {
+pub async fn get_tool_use(pool: &PgPool, endpoint: &str) -> Result<Vec<SpanToolUse>, sqlx::Error> {
     let spans = sqlx::query_as!(
         SpanToolUse,
         r#"
@@ -270,13 +266,13 @@ pub async fn get_tool_use(
     Ok(spans)
 }
 
-pub async fn create_logging(db: &PgConnection) -> JoinHandle<Result<(), tokio::io::Error>> {
+pub fn create_logging(db: &PgPool) -> JoinHandle<Result<(), sqlx::Error>> {
     let (tx, rx) = mpsc::channel(100);
 
     // Spawn the worker task onto the tokio runtime
     let worker_handle = tokio::spawn(run_async_worker(AsyncDbWorker {
         rx,
-        db_client: db.0.clone(),
+        db_client: db.clone(),
     }));
 
     let layer = PSqlLayer {

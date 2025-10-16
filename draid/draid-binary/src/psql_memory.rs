@@ -1,10 +1,9 @@
-use rocket::serde::{Deserialize, Serialize};
-use rocket::tokio::sync::mpsc;
-use rocket::tokio::sync::mpsc::Sender;
+use poem_openapi::{Enum, Object};
+use serde::{Deserialize, Serialize};
 use sqlx::types::chrono;
 use sqlx::{Pool, Postgres, Type, types::Uuid};
-#[derive(Serialize, Deserialize, Type)]
-#[serde(crate = "rocket::serde")]
+use tokio::sync::mpsc::{self, Sender};
+#[derive(Serialize, Deserialize, Type, Enum)]
 #[sqlx(type_name = "message_type")]
 pub enum MessageType {
     #[serde(rename = "system")]
@@ -21,8 +20,7 @@ pub enum MessageType {
     ToolMessage,
 }
 
-#[derive(Serialize, sqlx::FromRow)]
-#[serde(crate = "rocket::serde")]
+#[derive(Serialize, sqlx::FromRow, Object)]
 pub struct MessageResult {
     pub content: String,
     pub message_type: MessageType,
@@ -30,7 +28,6 @@ pub struct MessageResult {
 }
 
 #[derive(Serialize, Deserialize)]
-#[serde(crate = "rocket::serde")]
 pub struct Message {
     pub content: String,
     pub message_type: MessageType,
@@ -97,13 +94,13 @@ pub async fn manage_chat_interaction(
     new_message: &str,
     memory: PsqlMemory,
 ) -> sqlx::Result<Sender<String>> {
-    let (tx, mut rx) = mpsc::channel::<String>(1);
+    let (tx, mut rx) = mpsc::channel::<String>(100);
     let message = Message {
         content: new_message.to_string(),
         message_type: MessageType::HumanMessage,
     };
     memory.add_message(message).await?;
-    rocket::tokio::spawn(async move {
+    tokio::spawn(async move {
         let mut full_response = String::new();
         while let Some(chunk) = rx.recv().await {
             full_response.push_str(&chunk);

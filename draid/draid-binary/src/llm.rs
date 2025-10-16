@@ -16,10 +16,11 @@ use async_openai::{
 };
 use futures::future::join_all;
 use futures::{StreamExt, future};
-use rocket::tokio::{self, sync::mpsc::Sender};
-use rocket::{serde::json::Value, tokio::task::JoinHandle};
+use serde_json::Value;
 use std::sync::Arc;
+use tokio::sync::mpsc::Sender;
 use tokio::task;
+use tokio::task::JoinHandle;
 use tracing::info;
 
 fn get_llm(api_endpoint: &str) -> Client<OpenAIConfig> {
@@ -175,7 +176,7 @@ fn get_end_of_thinking(item: &Result<CreateChatCompletionStreamResponse, OpenAIE
 }
 
 pub async fn chat_with_tools(
-    bot: Bot,
+    bot: &Bot,
     tx: Sender<String>,
     previous_messages: &[MessageResult],
     new_message: &str,

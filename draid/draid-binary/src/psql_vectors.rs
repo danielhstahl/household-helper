@@ -1,13 +1,13 @@
 use pgvector::Vector;
-use rocket::serde::Serialize;
-use sqlx::{Error, PgConnection, Row, postgres::PgRow};
+use serde::Serialize;
+use sqlx::{Error, PgPool, Row, postgres::PgRow};
 
 //if top num_matches are all in same document, will only return one document
 pub async fn get_docs_with_similar_content(
     kb: i64,
     embeddings: Vec<f32>,
     num_matches: i16,
-    pool: &mut PgConnection,
+    pool: &PgPool,
 ) -> sqlx::Result<Vec<String>> {
     let embeddings = Vector::from(embeddings);
     //cosine similarity
@@ -70,7 +70,7 @@ pub async fn write_chunk_content(
     kb_id: i64,
     content: &str, //only for debugging, not exposed to anything
     embeddings: Vec<f32>,
-    pool: &mut PgConnection,
+    pool: &PgPool,
 ) -> sqlx::Result<()> {
     sqlx::query(
         "INSERT INTO vectors (document_id, kb_id, content, embedding) VALUES ($1, $2, $3, $4)",
@@ -93,14 +93,14 @@ struct IdOnly {
 pub async fn write_document(
     document_hash: &str,
     document_content: &str,
-    pool: &mut PgConnection,
+    pool: &PgPool,
 ) -> sqlx::Result<i64> {
     let result = sqlx::query_as!(
         IdOnly,
         r#"INSERT INTO documents (hash) VALUES ($1) RETURNING id"#,
         document_hash
     )
-    .fetch_one(&mut *pool)
+    .fetch_one(pool)
     .await?;
     sqlx::query!(
         r#"INSERT INTO content (document_id, content) VALUES ($1, $2)"#,
@@ -112,7 +112,7 @@ pub async fn write_document(
     Ok(result.id)
 }
 
-pub async fn write_knowledge_base(name: &str, pool: &mut PgConnection) -> sqlx::Result<i64> {
+pub async fn write_knowledge_base(name: &str, pool: &PgPool) -> sqlx::Result<i64> {
     let result = sqlx::query_as!(
         IdOnly,
         r#"INSERT INTO knowledge_bases (name) VALUES ($1) RETURNING id"#,
@@ -123,22 +123,18 @@ pub async fn write_knowledge_base(name: &str, pool: &mut PgConnection) -> sqlx::
     Ok(result.id)
 }
 #[derive(Debug, Serialize)]
-#[serde(crate = "rocket::serde")]
 pub struct KnowledgeBase {
     pub id: i64,
     name: String,
 }
-pub async fn get_knowledge_bases(pool: &mut PgConnection) -> sqlx::Result<Vec<KnowledgeBase>> {
+pub async fn get_knowledge_bases(pool: &PgPool) -> sqlx::Result<Vec<KnowledgeBase>> {
     let result = sqlx::query_as!(KnowledgeBase, r#"SELECT id, name from knowledge_bases"#)
         .fetch_all(pool)
         .await?;
     Ok(result)
 }
 
-pub async fn get_knowledge_base(
-    name: &str,
-    pool: &mut PgConnection,
-) -> sqlx::Result<KnowledgeBase> {
+pub async fn get_knowledge_base(name: &str, pool: &PgPool) -> sqlx::Result<KnowledgeBase> {
     let result = sqlx::query_as!(
         KnowledgeBase,
         r#"SELECT id, name from knowledge_bases where name=$1"#,
