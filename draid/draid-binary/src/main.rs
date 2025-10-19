@@ -10,21 +10,20 @@ mod tools;
 
 use auth::{JwtMiddleware, UserIdentification, WSMiddleware};
 use dbtracing::{HistogramIncrement, SpanToolUse, create_logging, get_histogram, get_tool_use};
-use embedding::{EmbeddingClient, get_embeddings};
+use embedding::{EmbeddingClient, get_embeddings, ingest_content};
 use futures::future::{BoxFuture, FutureExt};
 use futures::{SinkExt, StreamExt};
 use kb_tool_macro::kb;
 use llm::{Bot, chat_with_tools};
 use poem::error::InternalServerError;
 use poem::middleware::Tracing;
-use poem::web::Query as WsQuery;
-use poem::web::websocket::{Message, WebSocket, WebSocketStream, WebSocketUpgraded};
+use poem::web::websocket::{Message, WebSocket, WebSocketStream};
+use poem::web::{Multipart, Query as WsQuery};
 use poem::{
     EndpointExt, Error, Result, Route, http::StatusCode, listener::TcpListener, web::Data,
-    web::Form, /*web::Json,*/ web::Path,
+    web::Form, web::Path,
 };
 use poem::{IntoResponse, handler};
-use poem_grants::GrantsMiddleware;
 use poem_openapi::payload::Json;
 use poem_openapi::{ApiResponse, Enum};
 use poem_openapi::{Object, OpenApi, OpenApiService};
@@ -34,7 +33,7 @@ use psql_memory::{MessageResult, PsqlMemory, write_ai_message, write_human_messa
 use psql_users::{Role, SessionDB, UserResponse, create_init_admin_user};
 use psql_vectors::{
     KnowledgeBase, get_docs_with_similar_content, get_knowledge_base, get_knowledge_bases,
-    write_chunk_content, write_document, write_knowledge_base,
+    write_knowledge_base,
 };
 use reqwest::Client as HttpClient;
 use serde::{Deserialize, Serialize};
@@ -157,10 +156,9 @@ enum SuccessResponse {
     // Status 200: Success
     #[oai(status = 200)]
     Success(Json<StatusResponse>),
-
     // Status 500: Internal Server Error
-    #[oai(status = 500)]
-    InternalError(Json<ApiError>),
+    //#[oai(status = 500)]
+    //InternalError(Json<ApiError>),
 }
 
 #[derive(ApiResponse)]
@@ -171,10 +169,9 @@ enum UsersResponse {
 
     #[oai(status = 200)]
     SuccessSingle(Json<UserResponse>),
-
     // Status 500: Internal Server Error
-    #[oai(status = 500)]
-    InternalError(Json<ApiError>),
+    //#[oai(status = 500)]
+    //InternalError(Json<ApiError>),
 }
 
 #[derive(ApiResponse)]
@@ -185,10 +182,9 @@ enum SessionResponse {
 
     #[oai(status = 200)]
     SuccessSingle(Json<SessionDB>),
-
     // Status 500: Internal Server Error
-    #[oai(status = 500)]
-    InternalError(Json<ApiError>),
+    //#[oai(status = 500)]
+    //InternalError(Json<ApiError>),
 }
 
 #[derive(ApiResponse)]
@@ -196,13 +192,12 @@ enum MessageResponse {
     // Status 200: Success
     #[oai(status = 200)]
     SuccessMultiple(Json<Vec<MessageResult>>),
-
-    #[oai(status = 200)]
+    /*#[oai(status = 200)]
     SuccessSingle(Json<MessageResult>),
 
     // Status 500: Internal Server Error
     #[oai(status = 500)]
-    InternalError(Json<ApiError>),
+    InternalError(Json<ApiError>),*/
 }
 
 #[derive(Deserialize, Object)]
@@ -213,6 +208,12 @@ struct Prompt {
 #[derive(Deserialize)] // No deny_unknown_fields; let token slide, it's inert here
 struct SessionQuery {
     session_id: Uuid,
+}
+#[derive(Object, Serialize)]
+struct UploadResponse {
+    filename: String,
+    size: usize,
+    hash: String, // e.g., blake3 for that cyberpunk veracity
 }
 
 pub fn handle_chat_session(
@@ -314,18 +315,6 @@ async fn similar_content(
         .await
         .map_err(InternalServerError)?;
     Ok(Json(result))
-}
-
-async fn extract_and_write(
-    client: &EmbeddingClient,
-    document_id: i64,
-    kb_id: i64,
-    chunk: String,
-    pool: &PgPool,
-) -> anyhow::Result<()> {
-    let embeddings = get_embeddings(&client, &chunk).await?;
-    write_chunk_content(document_id, kb_id, &chunk, embeddings, pool).await?;
-    Ok(())
 }
 
 struct Api;
@@ -535,6 +524,43 @@ impl Api {
                 .map_err(InternalServerError)?,
         ))
     }
+
+    #[protect("Role::Admin", ty = "Role")]
+    #[oai(path = "/knowledge_base/:kb/ingest", method = "post")]
+    async fn upload_file(
+        &self,
+        Path(kb): Path<String>,
+        mut multipart: Multipart,
+        Data(client): Data<&EmbeddingClient>,
+        Data(pool): Data<&PgPool>,
+    ) -> Result<Json<UploadResponse>> {
+        let KnowledgeBase { id, .. } = get_knowledge_base(&kb, pool)
+            .await
+            .map_err(InternalServerError)?;
+        let mut filename = None;
+        let mut data = Vec::new();
+        while let Some(field) = multipart.next_field().await? {
+            //this MUST match the client-side name: formData.append("file", file)
+            if field.name() == Some("file") {
+                filename = field.file_name().map(String::from);
+                data = field.bytes().await?; // Own the bytes; drop cleanses the void
+            }
+        }
+        if data.is_empty() {
+            return Err(Error::from_status(StatusCode::BAD_REQUEST)); // Bad input? *Thrownness* into error.
+        }
+        let data_size = data.len();
+        let hash = ingest_content(id, pool, data, client)
+            .await
+            .map_err(|e| InternalServerError(NoData { msg: e.to_string() }))?;
+        let resp = UploadResponse {
+            filename: filename.unwrap_or("anonymous_sprawl".to_string()),
+            size: data_size,
+            hash,
+        };
+
+        Ok(Json(resp)) // Serializes to JSON; spec gen handles the rest
+    }
 }
 
 #[tokio::main]
@@ -577,11 +603,10 @@ async fn main() -> Result<(), anyhow::Error> {
 
     //logging setup
     //this is a future, can be awaited but then blocks everything
-    let logging_handle = create_logging(&pool);
+    let _logging_handle = create_logging(&pool);
 
     //API setup
-    let api_service =
-        OpenApiService::new(Api, "Hello World", "1.0").server(actual_endpoint_for_swagger);
+    let api_service = OpenApiService::new(Api, "Draid", "1.0").server(actual_endpoint_for_swagger);
     let ui = api_service.swagger_ui();
 
     let app = Route::new()
