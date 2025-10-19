@@ -6,9 +6,9 @@ services:
       INIT_ADMIN_PASSWORD: [yourpassword]
       OPEN_AI_COMPATABLE_ENDPOINT: http://[yourllmip]:8100/ai/llm
       JWT_SECRET: [yourjwtsecret]
-      ROCKET_DATABASES: '{draid={url="postgresql://[yourpsqluser]:[yourpsqlpassword]@psqldb:5432/draid"}}'
-      ROCKET_PORT: 8000
-      ROCKET_ADDRESS: 0.0.0.0
+      PSQL_DATABASE_URL: "postgresql://[yourpsqluser]:[yourpsqlpassword]@psqldb:5432/draid"
+      PORT: 8000
+      ADDRESS: 0.0.0.0
       KNOWLEDGE_BASE_ENDPOINT: "http://127.0.0.1:8000"
       HOSTNAME: "yourfinalhostname, used for swagger"
 
