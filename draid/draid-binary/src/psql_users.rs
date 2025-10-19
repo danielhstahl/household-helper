@@ -93,7 +93,17 @@ pub async fn authenticate_user(username: &str, password: &str, pool: &PgPool) ->
         .map_err(|e| sqlx::Error::Protocol(e.to_string()))?;
     Ok(())
 }
-
+pub async fn create_init_admin_user(init_password: String, pool: &PgPool) -> sqlx::Result<()> {
+    let admin_user = UserRequest {
+        username: "admin".to_string(),
+        password: Some(init_password), //intentionally don't start up if not set
+        roles: vec![Role::Admin],
+    };
+    if get_user(&admin_user.username, pool).await.is_err() {
+        create_user(&admin_user, pool).await?;
+    };
+    Ok(())
+}
 pub async fn get_user(username: &str, pool: &PgPool) -> sqlx::Result<UserResponse> {
     let user_db = sqlx::query_as!(
         UserDB,

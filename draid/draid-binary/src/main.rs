@@ -8,29 +8,30 @@ mod psql_users;
 mod psql_vectors;
 mod tools;
 
-use auth::UserIdentification;
+use auth::{JwtMiddleware, UserIdentification, WSMiddleware};
 use dbtracing::{HistogramIncrement, SpanToolUse, create_logging, get_histogram, get_tool_use};
 use embedding::{EmbeddingClient, get_embeddings};
+use futures::future::{BoxFuture, FutureExt};
+use futures::{SinkExt, StreamExt};
 use kb_tool_macro::kb;
 use llm::{Bot, chat_with_tools};
 use poem::error::InternalServerError;
-//use poem::web::Query;
+use poem::middleware::Tracing;
+use poem::web::Query as WsQuery;
+use poem::web::websocket::{Message, WebSocket, WebSocketStream, WebSocketUpgraded};
 use poem::{
-    EndpointExt, Error, Request, Result, Route, http::StatusCode, listener::TcpListener,
-    middleware::AddData, web::Data, /*web::Json,*/ web::Path,
+    EndpointExt, Error, Result, Route, http::StatusCode, listener::TcpListener, web::Data,
+    web::Form, /*web::Json,*/ web::Path,
 };
+use poem::{IntoResponse, handler};
+use poem_grants::GrantsMiddleware;
 use poem_openapi::payload::Json;
 use poem_openapi::{ApiResponse, Enum};
-use poem_openapi::{
-    Object, OpenApi, OpenApiService, SecurityScheme,
-    auth::{ApiKey, Basic, BearerAuthorization},
-    param::Query,
-    payload::PlainText,
-};
+use poem_openapi::{Object, OpenApi, OpenApiService};
 use prompts::HELPER_PROMPT;
 use prompts::TUTOR_PROMPT;
-use psql_memory::{MessageResult, PsqlMemory, manage_chat_interaction};
-use psql_users::{Role, SessionDB, UserRequest, UserResponse, create_user};
+use psql_memory::{MessageResult, PsqlMemory, write_ai_message, write_human_message};
+use psql_users::{Role, SessionDB, UserResponse, create_init_admin_user};
 use psql_vectors::{
     KnowledgeBase, get_docs_with_similar_content, get_knowledge_base, get_knowledge_bases,
     write_chunk_content, write_document, write_knowledge_base,
@@ -39,11 +40,8 @@ use reqwest::Client as HttpClient;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sqlx::PgPool;
-use sqlx::postgres::PgPoolOptions;
-use sqlx::{PgConnection, Type, query, types::chrono};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::{env, fmt};
-use tokio::sync::mpsc;
 use tools::{AddTool, TimeTool, Tool};
 use tracing::{Instrument, Level, span};
 use uuid::Uuid;
@@ -58,37 +56,15 @@ struct AuthResponse {
     access_token: String,
 }
 
-/// Basic authorization
-///
-/// - User: `test`
-/// - Password: `123456`
-#[derive(SecurityScheme)]
-#[oai(ty = "basic")]
-struct MyBasicAuthorization(Basic);
-
-/// ApiKey authorization
-/*#[derive(SecurityScheme)]
-#[oai(
-    ty = "api_key",
-    key_name = "X-API-Key",
-    key_in = "header",
-    checker = "api_checker"
-)]
-struct MyApiKeyAuthorization(User);
-
-async fn api_checker(req: &Request, api_key: ApiKey) -> Option<User> {
-    let server_key = req.data::<ServerKey>().unwrap();
-    VerifyWithKey::<User>::verify_with_key(api_key.key.as_str(), server_key).ok()
-}*/
-
-#[derive(Object)]
-struct LoginRequest {
+#[derive(Debug, Deserialize, Object)]
+struct AuthRequest {
     username: String,
+    password: String,
 }
 
 struct Bots {
-    helper_bot: Bot,
-    tutor_bot: Bot,
+    helper_bot: Arc<Bot>,
+    tutor_bot: Arc<Bot>,
 }
 
 async fn get_bots(
@@ -112,7 +88,7 @@ async fn get_bots(
     helper_tools.extend(kb_arcs);
 
     let bots = Bots {
-        helper_bot: Bot::new(
+        helper_bot: Arc::new(Bot::new(
             model_name.clone(),
             HELPER_PROMPT,
             &open_ai_compatable_endpoint,
@@ -121,8 +97,8 @@ async fn get_bots(
             Some(1.5),  //presence penalty
             Some(0.95), //top_p
             Some(helper_tools),
-        ),
-        tutor_bot: Bot::new(
+        )),
+        tutor_bot: Arc::new(Bot::new(
             model_name,
             TUTOR_PROMPT,
             &open_ai_compatable_endpoint,
@@ -131,57 +107,32 @@ async fn get_bots(
             Some(1.5),  //presence penalty
             Some(0.95), //top_p
             None,       //no tools
-        ),
+        )),
     };
     Ok(bots)
 }
 
-async fn chat_with_bot(bot: &Bot, psql_memory: PsqlMemory, prompt: &str) -> Result<()> {
-    let messages = psql_memory.messages().await.map_err(InternalServerError)?;
-    let tx_persist_message = manage_chat_interaction(&prompt, psql_memory)
-        .await
-        .map_err(InternalServerError)?;
-
-    let (tx, mut rx) = mpsc::channel::<String>(100);
-
-    let span_id = Uuid::new_v4().to_string();
-
-    //let remote_prompt = prompt.to_string();
-
-    //bot may not need to be cloned
-    chat_with_tools(&bot, tx, &messages, &prompt, span_id)
-        .instrument(span!(
-            Level::INFO,
-            "chat_with_tools",
-            endpoint = "query",
-            tool_use = false
-        ))
-        .await
-        .map_err(|e| InternalServerError(e.to_string()))?;
-    //frustrating that I'm cloning...I tried to get bot and prompt to be efficient
-    /*tokio::spawn(async move {
-        if let Err(e) = chat_with_tools(bot, tx, &messages, &remote_prompt, span_id)
-            .instrument(span!(
-                Level::INFO,
-                "chat_with_tools",
-                endpoint = "query",
-                tool_use = false
-            ))
-            .await
-        {
-            eprintln!("chat_with_tools exploded: {}", e);
-        }
-    });
-    Ok(TextStream! {
-        while let Some(chunk) = rx.recv().await {
-            if let Err(e) = tx_persist_message.send(chunk.clone()).await {
-                eprintln!("Failed to send chunk to background task: {}", e);
-            }
-            yield chunk
-        }
-    })*/
-    Ok(())
+#[derive(Debug)]
+pub struct NoData {
+    msg: String,
 }
+impl fmt::Display for NoData {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.msg)
+    }
+}
+impl std::error::Error for NoData {}
+
+#[derive(Debug)]
+pub struct LLMError {
+    msg: String,
+}
+impl fmt::Display for LLMError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.msg)
+    }
+}
+impl std::error::Error for LLMError {}
 
 #[derive(Debug, Serialize, Enum)]
 enum ResponseStatus {
@@ -202,7 +153,7 @@ pub struct ApiError {
 }
 
 #[derive(ApiResponse)]
-pub enum SuccessResponse {
+enum SuccessResponse {
     // Status 200: Success
     #[oai(status = 200)]
     Success(Json<StatusResponse>),
@@ -213,7 +164,7 @@ pub enum SuccessResponse {
 }
 
 #[derive(ApiResponse)]
-pub enum UsersResponse {
+enum UsersResponse {
     // Status 200: Success
     #[oai(status = 200)]
     SuccessMultiple(Json<Vec<UserResponse>>),
@@ -227,7 +178,7 @@ pub enum UsersResponse {
 }
 
 #[derive(ApiResponse)]
-pub enum SessionResponse {
+enum SessionResponse {
     // Status 200: Success
     #[oai(status = 200)]
     SuccessMultiple(Json<Vec<SessionDB>>),
@@ -241,7 +192,7 @@ pub enum SessionResponse {
 }
 
 #[derive(ApiResponse)]
-pub enum MessageResponse {
+enum MessageResponse {
     // Status 200: Success
     #[oai(status = 200)]
     SuccessMultiple(Json<Vec<MessageResult>>),
@@ -259,28 +210,128 @@ struct Prompt {
     text: String,
 }
 
-#[derive(Debug)]
-pub struct NoData {
-    msg: String,
+#[derive(Deserialize)] // No deny_unknown_fields; let token slide, it's inert here
+struct SessionQuery {
+    session_id: Uuid,
 }
-impl fmt::Display for NoData {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.msg)
+
+pub fn handle_chat_session(
+    bot_ref: &Arc<Bot>,
+    session_id: Uuid,
+    user_id: Uuid,
+    pool: &PgPool,
+) -> impl Fn(WebSocketStream) -> BoxFuture<'static, Result<()>> + Send + Sync + 'static {
+    let bot = bot_ref.clone(); //its weird I need so many clones...but they are cheap (on Arcs)
+    let pool = pool.clone();
+    move |mut socket: WebSocketStream| -> BoxFuture<'static, Result<()>> {
+        let bot = bot.clone();
+        let pool = pool.clone();
+        async move {
+            while let Some(Ok(Message::Text(prompt))) = &mut socket.next().await {
+                // recreate each request.  This is as "performant" as
+                // standard rest request was in previous approach
+                let psql_memory = PsqlMemory::new(100, session_id, user_id, pool.clone());
+                let messages = psql_memory.messages().await.map_err(InternalServerError)?;
+                write_human_message(prompt.clone(), &psql_memory)
+                    .await
+                    .map_err(InternalServerError)?;
+                let span_id = Uuid::new_v4().to_string();
+                //chat_with_tools produces each token in the stream to the websocket
+                let full_message = chat_with_tools(&bot, &mut socket, &messages, &prompt, span_id)
+                    .instrument(span!(
+                        Level::INFO,
+                        "chat_with_tools",
+                        endpoint = "query",
+                        tool_use = false
+                    ))
+                    .await
+                    .map_err(|e| InternalServerError(LLMError { msg: e.to_string() }))?;
+                write_ai_message(full_message, &psql_memory)
+                    .await
+                    .map_err(InternalServerError)?;
+                socket
+                    .send(Message::Close(None))
+                    .await
+                    .map_err(InternalServerError)?;
+            }
+            Ok(())
+        }
+        .boxed()
     }
 }
-impl std::error::Error for NoData {}
+
+#[poem_grants::protect("Role::Tutor", ty = "Role")]
+#[handler]
+async fn tutor_ws_handler(
+    WsQuery(SessionQuery { session_id }): WsQuery<SessionQuery>,
+    Data(bot): Data<&Arc<Bots>>,
+    Data(pool): Data<&PgPool>,
+    Data(user): Data<&UserIdentification>, //attached from auth middleware
+    ws: WebSocket,
+) -> Result<poem::Response> {
+    let ws_upgrade = ws.on_upgrade(handle_chat_session(
+        &bot.tutor_bot,
+        session_id,
+        user.id,
+        pool,
+    ));
+    Ok(ws_upgrade.into_response())
+}
+
+#[poem_grants::protect("Role::Helper", ty = "Role")]
+#[handler]
+async fn helper_ws_handler(
+    WsQuery(SessionQuery { session_id }): WsQuery<SessionQuery>,
+    Data(bot): Data<&Arc<Bots>>,
+    Data(pool): Data<&PgPool>,
+    Data(user): Data<&UserIdentification>, //attached from auth middleware
+    ws: WebSocket,
+) -> Result<poem::Response> {
+    let ws_upgrade = ws.on_upgrade(handle_chat_session(
+        &bot.helper_bot,
+        session_id,
+        user.id,
+        pool,
+    ));
+    Ok(ws_upgrade.into_response())
+}
+
+#[derive(Deserialize, Object)]
+struct PromptKb {
+    text: String,
+    num_results: i16,
+}
+async fn similar_content(
+    kb_id: i64,
+    prompt: Json<PromptKb>,
+    pool: &PgPool,
+    client: &EmbeddingClient,
+) -> Result<Json<Vec<String>>> {
+    let embeddings = get_embeddings(&client, &prompt.text)
+        .await
+        .map_err(InternalServerError)?;
+    let result = get_docs_with_similar_content(kb_id, embeddings, prompt.num_results, pool)
+        .await
+        .map_err(InternalServerError)?;
+    Ok(Json(result))
+}
+
+async fn extract_and_write(
+    client: &EmbeddingClient,
+    document_id: i64,
+    kb_id: i64,
+    chunk: String,
+    pool: &PgPool,
+) -> anyhow::Result<()> {
+    let embeddings = get_embeddings(&client, &chunk).await?;
+    write_chunk_content(document_id, kb_id, &chunk, embeddings, pool).await?;
+    Ok(())
+}
 
 struct Api;
 #[poem_grants::open_api]
 #[OpenApi]
 impl Api {
-    #[oai(path = "/hello", method = "get")]
-    async fn index(&self, name: Query<Option<String>>) -> PlainText<String> {
-        match name.0 {
-            Some(name) => PlainText(format!("hello, {}!", name)),
-            None => PlainText("hello!".to_string()),
-        }
-    }
     #[protect("Role::Admin", ty = "Role")]
     #[oai(path = "/user", method = "post")]
     async fn new_user(
@@ -296,7 +347,7 @@ impl Api {
         })))
     }
     #[protect("Role::Admin", ty = "Role")]
-    #[oai(path = "/user/:id", method = "post")]
+    #[oai(path = "/user/:id", method = "delete")]
     async fn delete_user(
         &self,
         Path(id): Path<Uuid>,
@@ -412,13 +463,13 @@ impl Api {
         &self,
         Data(pool): Data<&PgPool>,
         Data(jwt_secret): Data<&Vec<u8>>,
-        auth: MyBasicAuthorization,
+        Form(auth): Form<AuthRequest>,
     ) -> Result<Json<AuthResponse>> {
-        psql_users::authenticate_user(&auth.0.username, &auth.0.password, pool)
+        psql_users::authenticate_user(&auth.username, &auth.password, pool)
             .await
             .map_err(|_e| Error::from_status(StatusCode::UNAUTHORIZED))?;
 
-        let access_token = auth::create_token(auth.0.username.to_string(), &jwt_secret)
+        let access_token = auth::create_token(auth.username, &jwt_secret)
             .map_err(|_| Error::from_status(StatusCode::INTERNAL_SERVER_ERROR))?;
 
         Ok(Json(AuthResponse { access_token }))
@@ -437,35 +488,6 @@ impl Api {
         Ok(MessageResponse::SuccessMultiple(Json(messages)))
     }
 
-    #[protect("Role::Helper", ty = "Role")]
-    #[oai(path = "/helper?:session_id", method = "post")]
-    async fn helper(
-        &self,
-        Query(session_id): Query<Uuid>,
-        prompt: Json<Prompt>,
-        Data(user): Data<&UserIdentification>, //attached from auth middleware
-        Data(pool): Data<&PgPool>,
-        bots: Data<&Bots>,
-    ) -> Result<()> {
-        //websocket
-        let psql_memory = PsqlMemory::new(100, session_id, user.id, pool.clone());
-        chat_with_bot(&bots.helper_bot, psql_memory, &prompt.text).await
-    }
-    #[protect("Role::Tutor", ty = "Role")]
-    #[oai(path = "/tutor?:session_id", method = "post")]
-    async fn tutor(
-        &self,
-        Query(session_id): Query<Uuid>,
-        prompt: Json<Prompt>,
-        Data(user): Data<&UserIdentification>, //attached from auth middleware
-        Data(pool): Data<&PgPool>,
-        bots: Data<&Bots>,
-    ) -> Result<()> {
-        //websocket
-        let psql_memory = PsqlMemory::new(100, session_id, user.id, pool.clone());
-        chat_with_bot(&bots.tutor_bot, psql_memory, &prompt.text).await
-    }
-
     #[protect("Role::Admin", ty = "Role")]
     #[oai(path = "/telemetry/latency/:endpoint", method = "get")]
     async fn histogram(
@@ -473,7 +495,6 @@ impl Api {
         Path(endpoint): Path<String>,
         Data(pool): Data<&PgPool>,
     ) -> Result<Json<Vec<HistogramIncrement>>> {
-        //websocket
         let results = get_histogram(pool, &endpoint)
             .await
             .map_err(InternalServerError)?;
@@ -486,59 +507,93 @@ impl Api {
         Path(endpoint): Path<String>,
         Data(pool): Data<&PgPool>,
     ) -> Result<Json<Vec<SpanToolUse>>> {
-        //websocket
         let results = get_tool_use(pool, &endpoint)
             .await
             .map_err(InternalServerError)?;
         Ok(Json(results))
     }
+
+    #[oai(path = "/knowledge_base/:kb/similar", method = "post")]
+    async fn similar_kb_by_name(
+        &self,
+        Path(kb): Path<String>,
+        prompt: Json<PromptKb>,
+        Data(pool): Data<&PgPool>,
+        Data(client): Data<&EmbeddingClient>,
+    ) -> Result<Json<Vec<String>>> {
+        let KnowledgeBase { id, .. } = get_knowledge_base(&kb, pool)
+            .await
+            .map_err(InternalServerError)?;
+        similar_content(id, prompt, pool, client).await
+    }
+    #[protect("Role::Admin", ty = "Role")]
+    #[oai(path = "/knowledge_base", method = "get")]
+    async fn get_kbs(&self, Data(pool): Data<&PgPool>) -> Result<Json<Vec<KnowledgeBase>>> {
+        Ok(Json(
+            get_knowledge_bases(pool)
+                .await
+                .map_err(InternalServerError)?,
+        ))
+    }
 }
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
+    //environment variables
     let open_ai_compatable_endpoint_chat = env::var("OPEN_AI_COMPATABLE_ENDPOINT_CHAT")
         .unwrap_or_else(|_e| "http://localhost:11434".to_string());
 
     let open_ai_compatable_endpoint_embedding = env::var("OPEN_AI_COMPATABLE_ENDPOINT_EMBEDDING")
         .unwrap_or_else(|_e| "http://localhost:11434".to_string());
-
-    let model_name = "hf.co/Qwen/Qwen3-4B-GGUF:latest";
-
-    let api_service =
-        OpenApiService::new(Api, "Hello World", "1.0").server("http://localhost:3000/api");
-    let ui = api_service.swagger_ui();
     let jwt_secret = env::var("JWT_SECRET").unwrap().into_bytes();
     let psql_url = env::var("PSQL_DATABASE_URL").unwrap();
-    let pool = PgPool::connect(&psql_url).await?;
+    let init_admin_password = env::var("INIT_ADMIN_PASSWORD").unwrap();
+    let actual_endpoint_for_swagger =
+        env::var("HOSTNAME").unwrap_or_else(|_e| "http://localhost:3000".to_string());
 
+    //db setup
+    let pool = PgPool::connect(&psql_url).await?;
     sqlx::migrate!("./migrations")
         .run(&pool)
         .await
         .expect("Failed to run migrations.");
+    create_init_admin_user(init_admin_password, &pool).await?;
 
-    let logging_handle = create_logging(&pool).await?;
+    //llm and embedding setup
+    let model_name = "hf.co/Qwen/Qwen3-4B-GGUF:latest";
+    let embedding_client = Arc::new(EmbeddingClient::new(
+        //"bge-m3:567m".to_string(),
+        "hf.co/mixedbread-ai/mxbai-embed-large-v1".to_string(),
+        &open_ai_compatable_endpoint_embedding,
+    ));
     let bots = get_bots(
         model_name.to_string(),
         open_ai_compatable_endpoint_chat,
         &pool,
     )
     .await?;
-    let embedding_client = Arc::new(EmbeddingClient::new(
-        //"bge-m3:567m".to_string(),
-        "hf.co/mixedbread-ai/mxbai-embed-large-v1".to_string(),
-        &open_ai_compatable_endpoint_embedding,
-    ));
 
     let bots_arc = Arc::new(bots);
 
+    //logging setup
+    //this is a future, can be awaited but then blocks everything
+    let logging_handle = create_logging(&pool);
+
+    //API setup
+    let api_service =
+        OpenApiService::new(Api, "Hello World", "1.0").server(actual_endpoint_for_swagger);
+    let ui = api_service.swagger_ui();
+
     let app = Route::new()
-        .nest("/api", api_service)
-        .nest("/", ui)
+        .nest("/", api_service.with(JwtMiddleware)) //what about login?
+        .at("/ws/tutor", tutor_ws_handler.with(WSMiddleware))
+        .at("/ws/helper", helper_ws_handler.with(WSMiddleware))
+        .nest("/docs", ui)
+        .with(Tracing)
         .data(jwt_secret)
         .data(pool)
         .data(bots_arc)
         .data(embedding_client);
-
     poem::Server::new(TcpListener::bind("0.0.0.0:3000"))
         .run(app)
         .await?;

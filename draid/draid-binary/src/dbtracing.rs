@@ -1,6 +1,6 @@
 use poem_openapi::Object;
 use serde::Serialize;
-use sqlx::{PgConnection, PgPool, Pool, Postgres};
+use sqlx::{PgPool, Pool, Postgres};
 use std::sync::{Arc, Mutex};
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;

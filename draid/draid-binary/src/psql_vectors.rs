@@ -1,4 +1,5 @@
 use pgvector::Vector;
+use poem_openapi::Object;
 use serde::Serialize;
 use sqlx::{Error, PgPool, Row, postgres::PgRow};
 
@@ -122,7 +123,7 @@ pub async fn write_knowledge_base(name: &str, pool: &PgPool) -> sqlx::Result<i64
     .await?;
     Ok(result.id)
 }
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Object)]
 pub struct KnowledgeBase {
     pub id: i64,
     name: String,

@@ -15,10 +15,10 @@ use async_openai::{
     },
 };
 use futures::future::join_all;
-use futures::{StreamExt, future};
+use futures::{SinkExt, StreamExt, future};
+use poem::web::websocket::{Message, WebSocketStream};
 use serde_json::Value;
 use std::sync::Arc;
-use tokio::sync::mpsc::Sender;
 use tokio::task;
 use tokio::task::JoinHandle;
 use tracing::info;
@@ -177,11 +177,11 @@ fn get_end_of_thinking(item: &Result<CreateChatCompletionStreamResponse, OpenAIE
 
 pub async fn chat_with_tools(
     bot: &Bot,
-    tx: Sender<String>,
+    tx: &mut WebSocketStream,
     previous_messages: &[MessageResult],
     new_message: &str,
     span_id: String,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<String> {
     info!(
         tool_use = false,
         endpoint = "query",
@@ -211,6 +211,7 @@ pub async fn chat_with_tools(
         .create_stream(req)
         .await?
         .skip_while(|item| future::ready(!get_end_of_thinking(&item)));
+    let mut full_message_no_tools = String::new();
     while let Some(result) = stream.next().await {
         let result = result?;
         let tokens = get_final_tokens_from_stream(&result);
@@ -262,8 +263,9 @@ pub async fn chat_with_tools(
         } else if contains_stop_word(&tokens) {
             info!(tool_use = false, endpoint = "query", span_id, "First token");
         } else {
+            full_message_no_tools.push_str(&tokens);
             //no tool call, just send results
-            match tx.send(tokens).await {
+            match tx.send(Message::Text(tokens)).await {
                 Ok(_) => {} // Success
                 Err(_) => {
                     info!(
@@ -273,7 +275,7 @@ pub async fn chat_with_tools(
                         "Client disconnected (channel closed) during tool response stream."
                     );
                     // This stops the function from processing the rest of the stream
-                    return Ok(());
+                    return Ok(full_message_no_tools);
                 }
             }
         }
@@ -286,6 +288,7 @@ pub async fn chat_with_tools(
                 span_id,
                 "Finished constructing tool calls"
             );
+            let mut full_message_tools = String::new();
             //no tools since we don't want to call the tools a second time
             let req_no_tools =
                 construct_messages(get_req(&bot, &None)?, previous_messages, new_message)?;
@@ -299,7 +302,8 @@ pub async fn chat_with_tools(
                 if contains_stop_word(&tokens) {
                     info!(tool_use = true, endpoint = "query", span_id, "First token");
                 } else {
-                    match tx.send(tokens).await {
+                    full_message_tools.push_str(&tokens);
+                    match tx.send(Message::Text(tokens)).await {
                         Ok(_) => {} // Success
                         Err(_) => {
                             info!(
@@ -309,7 +313,7 @@ pub async fn chat_with_tools(
                                 "Client disconnected (channel closed) during tool response stream."
                             );
                             // This stops the function from processing the rest of the stream
-                            return Ok(());
+                            return Ok(full_message_tools);
                         }
                     }
                 }
@@ -320,7 +324,7 @@ pub async fn chat_with_tools(
                 span_id,
                 "Completed response"
             );
-            Ok(())
+            Ok(full_message_tools)
         }
         _ => {
             info!(
@@ -329,7 +333,7 @@ pub async fn chat_with_tools(
                 span_id,
                 "Completed response"
             );
-            Ok(())
+            Ok(full_message_no_tools)
         }
     }
 }
