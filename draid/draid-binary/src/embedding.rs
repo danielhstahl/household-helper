@@ -37,19 +37,6 @@ pub async fn get_embeddings(
     Ok(response.data.into_iter().next().unwrap().embedding)
 }
 
-/*
-pub async fn get_embeddings_batch(
-    client: &EmbeddingClient,
-    messages: Vec<String>,
-) -> Result<Vec<Vec<f32>>, OpenAIError> {
-    let request = CreateEmbeddingRequestArgs::default()
-        .model(&client.model_name)
-        .input(messages)
-        .build()?;
-    let response = client.llm.embeddings().create(request).await?;
-    println!("data size {}", response.data.len());
-    Ok(response.data.into_iter().map(|v| v.embedding).collect())
-}*/
 async fn extract_and_write(
     client: &EmbeddingClient,
     document_id: i64,

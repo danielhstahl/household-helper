@@ -138,22 +138,6 @@ fn construct_messages(
     Ok(req)
 }
 
-/*
-pub async fn chat(
-    client: &Client<OpenAIConfig>,
-    bot: &Bot,
-    previous_messages: &[MessageResult],
-    new_message: &str,
-) -> Result<ChatCompletionResponseStream, OpenAIError> {
-    let req = construct_messages(
-        get_req(&bot, &None)?,
-        previous_messages,
-        new_message,
-    )?;
-    let stream = client.chat().create_stream(req).await?;
-    Ok(stream)
-}*/
-
 fn get_final_tokens_from_stream(stream: &CreateChatCompletionStreamResponse) -> String {
     stream
         .choices

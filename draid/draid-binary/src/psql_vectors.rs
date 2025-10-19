@@ -38,34 +38,6 @@ pub async fn get_docs_with_similar_content(
     Ok(result?)
 }
 
-/*
-pub async fn write_content(
-    content: Vec<String>,
-    embeddings: Vec<Vec<f32>>,
-    pool: &Pool<Postgres>,
-) -> sqlx::Result<()> {
-    let mut query_string = String::from("INSERT INTO vectors (content, embedding) VALUES ");
-
-    // Generate the multi-row `VALUES` placeholders
-    // hilariously hacky...put the numbers in by dollar sign
-    let embedding_placeholders: Vec<String> = (0..content.len())
-        .map(|i| format!("(${}, ${})", 2 * i + 1, 2 * i + 2))
-        .collect();
-
-    query_string.push_str(&embedding_placeholders.join(", "));
-
-    // Create a `Query` object with the dynamic SQL string
-    let mut sqlx_query = sqlx::query(&query_string);
-
-    // Bind each value individually to the query, including the enum
-    for (text, embedding) in content.into_iter().zip(embeddings.into_iter()) {
-        sqlx_query = sqlx_query.bind(text).bind(Vector::from(embedding));
-    }
-    sqlx_query.execute(pool).await?;
-    Ok(())
-}
-*/
-
 pub async fn write_chunk_content(
     document_id: i64,
     kb_id: i64,
