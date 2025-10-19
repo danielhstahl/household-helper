@@ -1,11 +1,15 @@
-use rocket::serde::Serialize;
-use rocket::serde::uuid::Uuid;
-use rocket::tokio::sync::mpsc;
-use sqlx::{PgConnection, Pool, Postgres};
+use poem_openapi::Object;
+use serde::Serialize;
+use sqlx::{PgPool, Pool, Postgres};
 use std::sync::{Arc, Mutex};
+use tokio::sync::mpsc;
+use tokio::task::JoinHandle;
 use tracing::Event;
 use tracing::field::{Field, Visit};
+use tracing::level_filters::LevelFilter;
 use tracing_subscriber::Layer;
+use tracing_subscriber::{Registry, prelude::*};
+use uuid::Uuid;
 
 // The type of data we send over the channel
 #[derive(Debug)]
@@ -59,7 +63,7 @@ impl<S: tracing::Subscriber> Layer<S> for PSqlLayer {
     // ... other synchronous trait methods
 }
 
-pub async fn run_async_worker(mut worker: AsyncDbWorker) -> anyhow::Result<()> {
+pub async fn run_async_worker(mut worker: AsyncDbWorker) -> Result<(), sqlx::Error> {
     while let Some(log_message) = worker.rx.recv().await {
         let _ = sqlx::query!(
             r#"
@@ -148,7 +152,6 @@ impl Visit for PsqlVisitor {
 }
 
 #[derive(Serialize)]
-#[serde(crate = "rocket::serde")]
 pub struct SpanLength {
     span_id: Uuid,
     diff_in_seconds: f64,
@@ -167,8 +170,7 @@ fn hist_bin_num(data_size: usize) -> i32 {
     }
 }
 
-#[derive(Serialize, Debug)]
-#[serde(crate = "rocket::serde")]
+#[derive(Serialize, Debug, Object)]
 pub struct HistogramIncrement {
     index: i32,
     range: String,
@@ -203,9 +205,9 @@ fn extract_histogram(spans: &[SpanLength]) -> Vec<HistogramIncrement> {
 }
 
 pub async fn get_histogram(
-    pool: &mut PgConnection,
+    pool: &PgPool,
     endpoint: &str,
-) -> anyhow::Result<Vec<HistogramIncrement>> {
+) -> Result<Vec<HistogramIncrement>, sqlx::Error> {
     let spans = sqlx::query_as!(
         SpanLength,
         r#"
@@ -229,17 +231,13 @@ pub async fn get_histogram(
     Ok(histogram)
 }
 
-#[derive(Serialize)]
-#[serde(crate = "rocket::serde")]
+#[derive(Serialize, Object)]
 pub struct SpanToolUse {
     cnt_spns_with_tools: i64,
     cnt_spns_without_tools: i64,
     date: chrono::DateTime<chrono::Utc>,
 }
-pub async fn get_tool_use(
-    pool: &mut PgConnection,
-    endpoint: &str,
-) -> anyhow::Result<Vec<SpanToolUse>> {
+pub async fn get_tool_use(pool: &PgPool, endpoint: &str) -> Result<Vec<SpanToolUse>, sqlx::Error> {
     let spans = sqlx::query_as!(
         SpanToolUse,
         r#"
@@ -266,6 +264,34 @@ pub async fn get_tool_use(
     .fetch_all(pool)
     .await?;
     Ok(spans)
+}
+
+pub fn create_logging(db: &PgPool) -> JoinHandle<Result<(), sqlx::Error>> {
+    let (tx, rx) = mpsc::channel(100);
+
+    // Spawn the worker task onto the tokio runtime
+    let worker_handle = tokio::spawn(run_async_worker(AsyncDbWorker {
+        rx,
+        db_client: db.clone(),
+    }));
+
+    let layer = PSqlLayer {
+        tx: Arc::new(Mutex::new(tx)),
+    };
+
+    // Optional: Add an EnvFilter layer for runtime filtering
+    let filter_layer = tracing_subscriber::EnvFilter::builder()
+        .with_default_directive(LevelFilter::INFO.into())
+        .from_env_lossy();
+
+    let subscriber = Registry::default()
+        .with(filter_layer) // Handles RUST_LOG environment variable filtering
+        .with(layer); // Your custom processing layer
+
+    tracing::subscriber::set_global_default(subscriber)
+        .expect("Failed to set global tracing subscriber");
+
+    worker_handle
 }
 
 #[cfg(test)]

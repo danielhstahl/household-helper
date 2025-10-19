@@ -3,11 +3,10 @@ import Chat from "../components/Chat.tsx";
 import AgentSelection from "../components/AgentSelection.tsx";
 import Output from "../components/Output.tsx";
 import { MessageTypeEnum, type Message } from "../services/models.tsx";
-import { streamText } from "../services/api.tsx";
-import { invokeAgent, type AgentSelections } from "../state/selectAgent.tsx";
+import { type AgentSelections } from "../state/selectAgent.tsx";
+import { invokeAgent } from "../services/api.tsx";
 import { getLoggedInJwt } from "../state/localState.tsx";
 import {
-  useNavigate,
   useNavigation,
   useOutletContext,
   useParams,
@@ -15,6 +14,7 @@ import {
 } from "react-router";
 import Grid from "@mui/material/Grid";
 import SessionSelection from "../components/SessionSelection";
+import { useNavigate } from "react-router";
 
 interface MessagesAndText {
   messages: Message[];
@@ -37,6 +37,7 @@ const MainChat = () => {
   const { agentSelectionRef } = useOutletContext() as OutletContext;
   const areMessagesInitialLoading = navigation.state === "loading";
   const [isWaiting, setIsWaiting] = useState(false);
+
   const [{ messages, latestText }, setMessages] = useState<MessagesAndText>(
     initMessageState(historicalMessages),
   );
@@ -82,14 +83,12 @@ const MainChat = () => {
     }));
     setIsWaiting(false);
   };
-
-  //have to do this janky workaround since useFetcher serializes responses and doesnt allow streaming
   const onSubmit = (selectedAgent: AgentSelections, value: string) => {
     const jwt = getLoggedInJwt();
     onStart(value);
-    return invokeAgent(selectedAgent, value, jwt as string, sessionId as string)
-      .then(streamText(onNew, onDone))
-      .catch(() => navigate("/login"));
+    invokeAgent(selectedAgent, value, jwt as string, sessionId as string, onNew)
+      .catch(() => navigate("/login"))
+      .finally(onDone);
   };
 
   return (

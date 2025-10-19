@@ -5,10 +5,12 @@ use argon2::{
     },
 };
 use futures::stream::StreamExt;
-use rocket::serde::uuid::Uuid;
-use rocket::serde::{Deserialize, Serialize};
-use sqlx::{PgConnection, Type, query, types::chrono};
+use poem_openapi::Enum;
+use poem_openapi::Object;
+use serde::{Deserialize, Serialize};
+use sqlx::{PgPool, Type, query, types::chrono};
 use std::{collections::HashMap, fmt};
+use uuid::Uuid;
 fn hash_password(password: &str) -> Result<String, Error> {
     // Generate a secure random salt
     let salt = SaltString::generate(&mut OsRng);
@@ -22,8 +24,8 @@ fn check_password(password: &str, hashed_password: &str) -> Result<(), Error> {
     Argon2::default().verify_password(password.as_bytes(), &parsed_hash)
 }
 
-#[derive(Serialize, Deserialize, Type)]
-#[serde(crate = "rocket::serde", rename_all = "lowercase")]
+#[derive(Serialize, Deserialize, Type, PartialEq, Eq, Hash, Enum)]
+#[serde(rename_all = "lowercase")]
 #[sqlx(type_name = "role_type", rename_all = "lowercase")]
 pub enum Role {
     Admin,
@@ -52,26 +54,23 @@ struct RoleDB {
     role: Role,
     username_id: Uuid,
 }
-#[derive(Serialize, sqlx::FromRow)]
-#[serde(crate = "rocket::serde")]
+#[derive(Serialize, sqlx::FromRow, Object)]
 pub struct SessionDB {
     id: Uuid,
     username_id: Uuid,
     session_start: chrono::DateTime<chrono::Utc>,
 }
 
-#[derive(Serialize)]
-#[serde(crate = "rocket::serde")]
+#[derive(Serialize, Object)]
 pub struct UserResponse {
     pub id: Uuid,
     pub username: String,
     pub roles: Vec<Role>,
 }
-#[derive(Deserialize)]
-#[serde(crate = "rocket::serde")]
-pub struct UserRequest<'a> {
-    pub username: &'a str,
-    pub password: Option<&'a str>,
+#[derive(Deserialize, Object)]
+pub struct UserRequest {
+    pub username: String,
+    pub password: Option<String>,
     pub roles: Vec<Role>,
 }
 
@@ -79,11 +78,7 @@ pub struct HashedPassword {
     hashed_password: String,
 }
 
-pub async fn authenticate_user(
-    username: &str,
-    password: &str,
-    pool: &mut PgConnection,
-) -> sqlx::Result<()> {
+pub async fn authenticate_user(username: &str, password: &str, pool: &PgPool) -> sqlx::Result<()> {
     let password_compare = sqlx::query_as!(
         HashedPassword,
         r#"
@@ -91,15 +86,25 @@ pub async fn authenticate_user(
         "#,
         &username
     )
-    .fetch_one(&mut *pool)
+    .fetch_one(pool)
     .await?;
 
     check_password(&password, &password_compare.hashed_password)
         .map_err(|e| sqlx::Error::Protocol(e.to_string()))?;
     Ok(())
 }
-
-pub async fn get_user(username: &str, pool: &mut PgConnection) -> sqlx::Result<UserResponse> {
+pub async fn create_init_admin_user(init_password: String, pool: &PgPool) -> sqlx::Result<()> {
+    let admin_user = UserRequest {
+        username: "admin".to_string(),
+        password: Some(init_password), //intentionally don't start up if not set
+        roles: vec![Role::Admin],
+    };
+    if get_user(&admin_user.username, pool).await.is_err() {
+        create_user(&admin_user, pool).await?;
+    };
+    Ok(())
+}
+pub async fn get_user(username: &str, pool: &PgPool) -> sqlx::Result<UserResponse> {
     let user_db = sqlx::query_as!(
         UserDB,
         r#"
@@ -107,7 +112,7 @@ pub async fn get_user(username: &str, pool: &mut PgConnection) -> sqlx::Result<U
         "#,
         &username
     )
-    .fetch_one(&mut *pool)
+    .fetch_one(pool)
     .await?;
     let roles = sqlx::query_as!(
         RoleDB,
@@ -116,7 +121,7 @@ pub async fn get_user(username: &str, pool: &mut PgConnection) -> sqlx::Result<U
         "#,
         &user_db.id
     )
-    .fetch_all(&mut *pool)
+    .fetch_all(pool)
     .await?;
     Ok(UserResponse {
         id: user_db.id,
@@ -125,14 +130,14 @@ pub async fn get_user(username: &str, pool: &mut PgConnection) -> sqlx::Result<U
     })
 }
 
-pub async fn delete_user(username_id: &Uuid, pool: &mut PgConnection) -> sqlx::Result<()> {
+pub async fn delete_user(username_id: &Uuid, pool: &PgPool) -> sqlx::Result<()> {
     sqlx::query!(
         r#"
         DELETE FROM roles where username_id=$1
         "#,
         &username_id
     )
-    .execute(&mut *pool)
+    .execute(pool)
     .await?;
     sqlx::query!(
         r#"
@@ -140,19 +145,19 @@ pub async fn delete_user(username_id: &Uuid, pool: &mut PgConnection) -> sqlx::R
         "#,
         &username_id
     )
-    .execute(&mut *pool)
+    .execute(pool)
     .await?;
     Ok(())
 }
 
-pub async fn get_all_users(pool: &mut PgConnection) -> sqlx::Result<Vec<UserResponse>> {
+pub async fn get_all_users(pool: &PgPool) -> sqlx::Result<Vec<UserResponse>> {
     let users_db = sqlx::query_as!(
         UserDB,
         r#"
         SELECT id, username FROM users
         "#,
     )
-    .fetch_all(&mut *pool)
+    .fetch_all(pool)
     .await?;
     let mut roles = sqlx::query_as!(
         RoleDB,
@@ -160,7 +165,7 @@ pub async fn get_all_users(pool: &mut PgConnection) -> sqlx::Result<Vec<UserResp
         SELECT role as "role: Role", username_id FROM roles
         "#
     )
-    .fetch(&mut *pool);
+    .fetch(pool);
     let mut roles_by_user: HashMap<Uuid, Vec<Role>> = HashMap::new();
     while let Some(role) = roles.next().await {
         let role = role?;
@@ -179,7 +184,7 @@ pub async fn get_all_users(pool: &mut PgConnection) -> sqlx::Result<Vec<UserResp
         .collect())
 }
 
-async fn create_roles(id: &Uuid, roles: &[Role], pool: &mut PgConnection) -> sqlx::Result<()> {
+async fn create_roles(id: &Uuid, roles: &[Role], pool: &PgPool) -> sqlx::Result<()> {
     let mut query_string = String::from("INSERT INTO roles (id, username_id, role) VALUES ");
 
     // Generate the multi-row `VALUES` placeholders
@@ -200,9 +205,10 @@ async fn create_roles(id: &Uuid, roles: &[Role], pool: &mut PgConnection) -> sql
     sqlx_query.execute(pool).await?;
     Ok(())
 }
-pub async fn create_user<'a>(user: &UserRequest<'a>, pool: &mut PgConnection) -> sqlx::Result<()> {
+pub async fn create_user(user: &UserRequest, pool: &PgPool) -> sqlx::Result<()> {
     let password = user
         .password
+        .as_ref()
         .ok_or_else(|| sqlx::Error::Protocol("Password is required to create user".to_string()))?;
     let hashed_password =
         hash_password(&password).map_err(|e| sqlx::Error::Protocol(e.to_string()))?;
@@ -216,17 +222,13 @@ pub async fn create_user<'a>(user: &UserRequest<'a>, pool: &mut PgConnection) ->
         &user.username,
         &hashed_password
     )
-    .fetch_one(&mut *pool)
+    .fetch_one(pool)
     .await?;
     create_roles(&user_db.id, &user.roles, pool).await?;
     Ok(())
 }
 
-pub async fn patch_user<'a>(
-    id: &Uuid,
-    user: &UserRequest<'a>,
-    pool: &mut PgConnection,
-) -> sqlx::Result<()> {
+pub async fn patch_user(id: &Uuid, user: &UserRequest, pool: &PgPool) -> sqlx::Result<()> {
     match &user.password {
         Some(password) => {
             let hashed_password =
@@ -242,7 +244,7 @@ pub async fn patch_user<'a>(
                 &hashed_password,
                 &id
             )
-            .execute(&mut *pool)
+            .execute(pool)
         }
         None => sqlx::query_as!(
             UserDB,
@@ -254,7 +256,7 @@ pub async fn patch_user<'a>(
             &user.username,
             &id
         )
-        .execute(&mut *pool),
+        .execute(pool),
     }
     .await?;
 
@@ -266,16 +268,13 @@ pub async fn patch_user<'a>(
         "#,
         &id
     )
-    .execute(&mut *pool)
+    .execute(pool)
     .await?;
     create_roles(&id, &user.roles, pool).await?;
     Ok(())
 }
 
-pub async fn create_session<'a>(
-    username_id: &Uuid,
-    pool: &mut PgConnection,
-) -> sqlx::Result<SessionDB> {
+pub async fn create_session<'a>(username_id: &Uuid, pool: &PgPool) -> sqlx::Result<SessionDB> {
     let session_db = sqlx::query_as!(
         SessionDB,
         r#"
@@ -293,7 +292,7 @@ pub async fn create_session<'a>(
 
 pub async fn get_all_sessions<'a>(
     username_id: &Uuid,
-    pool: &mut PgConnection,
+    pool: &PgPool,
 ) -> sqlx::Result<Vec<SessionDB>> {
     let session_db = sqlx::query_as!(
         SessionDB,
@@ -312,7 +311,7 @@ pub async fn get_all_sessions<'a>(
 
 pub async fn get_most_recent_session<'a>(
     username_id: &Uuid,
-    pool: &mut PgConnection,
+    pool: &PgPool,
 ) -> sqlx::Result<Option<SessionDB>> {
     let session_db = sqlx::query_as!(
         SessionDB,
@@ -331,7 +330,7 @@ pub async fn get_most_recent_session<'a>(
 pub async fn delete_session<'a>(
     session_id: &Uuid,
     user_id: &Uuid,
-    pool: &mut PgConnection,
+    pool: &PgPool,
 ) -> sqlx::Result<()> {
     sqlx::query!(
         r#"

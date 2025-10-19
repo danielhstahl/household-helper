@@ -10,6 +10,7 @@ services:
       ROCKET_PORT: 8000
       ROCKET_ADDRESS: 0.0.0.0
       KNOWLEDGE_BASE_ENDPOINT: "http://127.0.0.1:8000"
+      HOSTNAME: "yourfinalhostname, used for swagger"
 
   ui:
     image: ghcr.io/danielhstahl/householdhelper-ui:v0.4.1

@@ -75,13 +75,13 @@ pub fn kb(input: TokenStream) -> TokenStream {
                     let client = HttpClient::new();
 
                     let kb_endpoint = env::var("KNOWLEDGE_BASE_ENDPOINT")
-                            .unwrap_or_else(|_e| "http://127.0.0.1:8000".to_string());
+                            .unwrap_or_else(|_e| "http://127.0.0.1:3000".to_string());
                     // The string literal is embedded in the format! call
                     let kb_url = format!("{}/knowledge_base/{}/similar",
                                          kb_endpoint,
                                          #name_str);
 
-                    let args: Value = json::from_str(&args)?;
+                    let args: Value = serde_json::from_str(&args)?;
                     let content = args["content"].as_str().unwrap();
 
                     // The LitInt for num_results is directly interpolated
