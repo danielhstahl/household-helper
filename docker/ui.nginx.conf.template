@@ -30,7 +30,7 @@ http {
             chunked_transfer_encoding off;
         }
         location /docs/ {
-            # DONT remove the /docs
+            # no backslash so as not to remove the /docs
             proxy_pass http://${BACKEND_SERVICE};
             proxy_set_header Host $host;
             proxy_set_header X-Real-IP $remote_addr;
@@ -40,13 +40,9 @@ http {
             # These headers are vital for keeping the connection open, especially for SSE.
             proxy_set_header Connection '';
             proxy_http_version 1.1;
-
-            # Prevents Nginx from sending a "chunked" Transfer-Encoding header.
-            # While sometimes useful, it can interfere with certain clients or protocols.
-            chunked_transfer_encoding off;
         }
         location /ws/ {
-            # DONT remove the /ws
+            # no backslash so as not to remove the /ws
             proxy_pass http://${BACKEND_SERVICE};
             proxy_http_version 1.1;
             proxy_set_header Upgrade $http_upgrade;

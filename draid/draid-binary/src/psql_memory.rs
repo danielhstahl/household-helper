@@ -1,32 +1,26 @@
 use poem_openapi::{Enum, Object};
-use serde::{Deserialize, Serialize};
 use sqlx::types::chrono;
 use sqlx::{Pool, Postgres, Type, types::Uuid};
-#[derive(Serialize, Deserialize, Type, Enum)]
+#[derive(Type, Enum)]
 #[sqlx(type_name = "message_type")]
 pub enum MessageType {
-    #[serde(rename = "system")]
     #[sqlx(rename = "system")]
     SystemMessage,
-    #[serde(rename = "ai")]
     #[sqlx(rename = "ai")]
     AIMessage,
-    #[serde(rename = "human")]
     #[sqlx(rename = "human")]
     HumanMessage,
-    #[serde(rename = "tool")]
     #[sqlx(rename = "tool")]
     ToolMessage,
 }
 
-#[derive(Serialize, sqlx::FromRow, Object)]
+#[derive(sqlx::FromRow, Object)]
 pub struct MessageResult {
     pub content: String,
     pub message_type: MessageType,
     pub timestamp: chrono::DateTime<chrono::Utc>,
 }
 
-#[derive(Serialize, Deserialize)]
 pub struct Message {
     pub content: String,
     pub message_type: MessageType,

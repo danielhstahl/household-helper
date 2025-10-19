@@ -84,3 +84,7 @@ If you are creating a self-signed certificate for local hosting:
 `openssl req -x509 -newkey rsa:4096 -sha256 -days 3650 -nodes \
   -keyout $DOMAIN_NAME.key -out $DOMAIN_NAME.crt -subj "/CN=$DOMAIN_NAME.local" \
   -addext "subjectAltName=DNS:*.$DOMAIN_NAME.local,IP:$LOCAL_IP"`
+
+### Synology
+
+If running on a Synology, make sure that your reverse proxy allows websocket headers.
