@@ -9,7 +9,6 @@ jobs:
       contents: read
       packages: write
     env:
-      NODE_ENV: "production"
       NODE_OPTIONS: "--max_old_space_size=4096"
     steps:
       - uses: actions/checkout@v4
@@ -20,6 +19,7 @@ jobs:
 
       - name: compile
         working-directory: ui
+        # vite sets node_env=production automatically when building
         run: npm run build
 
       - name: generate docker
