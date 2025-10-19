@@ -574,6 +574,8 @@ async fn main() -> Result<(), anyhow::Error> {
     let jwt_secret = env::var("JWT_SECRET").unwrap().into_bytes();
     let psql_url = env::var("PSQL_DATABASE_URL").unwrap();
     let init_admin_password = env::var("INIT_ADMIN_PASSWORD").unwrap();
+    let port = env::var("PORT").unwrap_or_else(|_e| "3000".to_string());
+    let address = env::var("ADDRESS").unwrap_or_else(|_e| "0.0.0.0".to_string());
     let actual_endpoint_for_swagger =
         env::var("HOSTNAME").unwrap_or_else(|_e| "http://localhost:3000".to_string());
 
@@ -619,7 +621,7 @@ async fn main() -> Result<(), anyhow::Error> {
         .data(pool)
         .data(bots_arc)
         .data(embedding_client);
-    poem::Server::new(TcpListener::bind("0.0.0.0:3000"))
+    poem::Server::new(TcpListener::bind(format!("{}:{}", address, port)))
         .run(app)
         .await?;
     Ok(())
