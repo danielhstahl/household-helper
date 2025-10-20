@@ -25,10 +25,10 @@ export interface UserResponse {
 }
 
 export const MessageTypeEnum = {
-  human: "human",
-  ai: "ai",
-  system: "system",
-  tool: "tool",
+  human: "HumanMessage",
+  ai: "AIMessage",
+  system: "SystemMessage",
+  tool: "ToolMessage",
 } as const;
 
 export type MessageType =
