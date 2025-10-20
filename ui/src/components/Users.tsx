@@ -1,11 +1,8 @@
 import Table, { type Action, ActionEnum } from "../components/TableX";
 import { useLoaderData, useFetcher } from "react-router";
 import Grid from "@mui/material/Grid";
-interface User {
-  id: number;
-  username: string;
-  roles: string[];
-}
+import { type UserResponse } from "../services/models";
+
 const mapActionToRequest = (actionType: Action) => {
   switch (actionType) {
     case ActionEnum.Create:
@@ -18,7 +15,7 @@ const mapActionToRequest = (actionType: Action) => {
 };
 const Users = () => {
   const fetcher = useFetcher<typeof useLoaderData>();
-  const users = useLoaderData() as User[];
+  const users = useLoaderData<UserResponse[]>();
 
   const onChange = (
     type: Action,

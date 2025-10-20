@@ -3,6 +3,7 @@ import { getLoggedInJwt, setLoggedInJwt } from "../../state/localState.tsx";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { http, HttpResponse } from "msw";
 import { setupWorker } from "msw/browser";
+import { RoleTypeEnum } from "../models.tsx";
 
 describe("sessionAction", () => {
   beforeEach(() => {
@@ -173,7 +174,7 @@ describe("userAction", () => {
         return HttpResponse.json({
           id: 2,
           username: "hello",
-          roles: ["admin"],
+          roles: [RoleTypeEnum.admin],
         });
       }),
     );
@@ -184,7 +185,7 @@ describe("userAction", () => {
       JSON.stringify({
         username: "hello",
         password: "world",
-        roles: ["admin"],
+        roles: [RoleTypeEnum.admin],
       }),
     );
     const result = await userAction({
@@ -195,7 +196,7 @@ describe("userAction", () => {
     expect(result).toEqual({
       id: 2,
       username: "hello",
-      roles: ["admin"],
+      roles: [RoleTypeEnum.admin],
     });
 
     server.stop();
@@ -208,7 +209,7 @@ describe("userAction", () => {
         return HttpResponse.json({
           id: parseInt(id as string),
           username: "hello",
-          roles: ["admin"],
+          roles: [RoleTypeEnum.admin],
         });
       }),
     );
@@ -220,7 +221,7 @@ describe("userAction", () => {
         id: 2,
         username: "hello",
         password: "world",
-        roles: ["admin"],
+        roles: [RoleTypeEnum.admin],
       }),
     );
     const result = await userAction({
@@ -231,7 +232,7 @@ describe("userAction", () => {
     expect(result).toEqual({
       id: 2,
       username: "hello",
-      roles: ["admin"],
+      roles: [RoleTypeEnum.admin],
     });
     server.stop();
   });

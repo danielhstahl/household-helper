@@ -7,6 +7,7 @@ import type {
   Message,
   SessionDB,
   KnowledgeBase,
+  RoleType,
 } from "./models";
 export interface StatusResponse {
   status: string;
@@ -103,7 +104,7 @@ export async function getUsers(jwt: string): Promise<UserResponse[]> {
 export async function createUser(
   username: string,
   password: string,
-  roles: string[],
+  roles: RoleType[],
   jwt: string,
 ): Promise<StatusResponse> {
   const response = await fetch("/api/user", {
@@ -122,7 +123,7 @@ export async function updateUser(
   id: number,
   username: string,
   password: string | undefined,
-  roles: string[],
+  roles: RoleType[],
   jwt: string,
 ): Promise<StatusResponse> {
   const payload = password
