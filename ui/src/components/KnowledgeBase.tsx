@@ -91,7 +91,6 @@ const KnowledgeBaseUpload = () => {
         <Grid size={{ xs: 12, md: 6 }} key={id}>
           <KnowledgeBaseCard
             kbName={name}
-            kbId={id}
             onSuccess={() => setAlertOpen(true)}
           />
         </Grid>
