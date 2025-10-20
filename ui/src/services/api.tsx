@@ -219,11 +219,11 @@ export async function getKnowledgeBases(jwt: string): Promise<KnowledgeBase> {
 }
 
 export async function uploadFileToKnowledgeBase(
-  kbId: number,
+  kbName: string,
   formData: FormData,
   jwt: string,
 ): Promise<StatusResponse> {
-  const response = await fetch(`/api/knowledge_base/${kbId}/ingest`, {
+  const response = await fetch(`/api/knowledge_base/${kbName}/ingest`, {
     method: "POST",
     headers: { Authorization: `Bearer ${jwt}` },
     body: formData,

@@ -508,7 +508,7 @@ impl Api {
         Path(kb): Path<String>,
         prompt: Json<PromptKb>,
         Data(pool): Data<&PgPool>,
-        Data(client): Data<&EmbeddingClient>,
+        Data(client): Data<&Arc<EmbeddingClient>>,
     ) -> Result<Json<Vec<String>>> {
         let KnowledgeBase { id, .. } = get_knowledge_base(&kb, pool)
             .await
@@ -531,7 +531,7 @@ impl Api {
         &self,
         Path(kb): Path<String>,
         mut multipart: Multipart,
-        Data(client): Data<&EmbeddingClient>,
+        Data(client): Data<&Arc<EmbeddingClient>>,
         Data(pool): Data<&PgPool>,
     ) -> Result<Json<UploadResponse>> {
         let KnowledgeBase { id, .. } = get_knowledge_base(&kb, pool)
@@ -594,14 +594,14 @@ async fn main() -> Result<(), anyhow::Error> {
         "hf.co/mixedbread-ai/mxbai-embed-large-v1".to_string(),
         &open_ai_compatable_endpoint_embedding,
     ));
-    let bots = get_bots(
-        model_name.to_string(),
-        open_ai_compatable_endpoint_chat,
-        &pool,
-    )
-    .await?;
-
-    let bots_arc = Arc::new(bots);
+    let bots = Arc::new(
+        get_bots(
+            model_name.to_string(),
+            open_ai_compatable_endpoint_chat,
+            &pool,
+        )
+        .await?,
+    );
 
     //logging setup
     //this is a future, can be awaited but then blocks everything
@@ -619,7 +619,7 @@ async fn main() -> Result<(), anyhow::Error> {
         .with(Tracing)
         .data(jwt_secret)
         .data(pool)
-        .data(bots_arc)
+        .data(bots)
         .data(embedding_client);
     poem::Server::new(TcpListener::bind(format!("{}:{}", address, port)))
         .run(app)

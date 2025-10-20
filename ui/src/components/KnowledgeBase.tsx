@@ -28,11 +28,10 @@ const VisuallyHiddenInput = styled("input")({
   width: 1,
 });
 interface CardProps {
-  kbId: number;
   kbName: string;
   onSuccess: () => void;
 }
-const KnowledgeBaseCard = ({ kbId, kbName, onSuccess }: CardProps) => {
+const KnowledgeBaseCard = ({ kbName, onSuccess }: CardProps) => {
   const navigate = useNavigate();
   const [loading, setIsLoading] = useState(false);
 
@@ -48,7 +47,7 @@ const KnowledgeBaseCard = ({ kbId, kbName, onSuccess }: CardProps) => {
       const promises: Promise<StatusResponse>[] = [];
       for (const file of files) {
         formData.append("file", file);
-        promises.push(uploadFileToKnowledgeBase(kbId, formData, jwt));
+        promises.push(uploadFileToKnowledgeBase(kbName, formData, jwt));
       }
       Promise.all(promises)
         .then(onSuccess)
