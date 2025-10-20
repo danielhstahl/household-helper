@@ -18,10 +18,18 @@ export interface Token {
   access_token: string;
 }
 
+export const RoleTypeEnum = {
+  admin: "Admin",
+  helper: "Helper",
+  tutor: "Tutor",
+} as const;
+
+export type RoleType = (typeof RoleTypeEnum)[keyof typeof RoleTypeEnum];
+
 export interface UserResponse {
   id: string;
   username: string;
-  roles: string[]; //check is role has a type
+  roles: RoleType[];
 }
 
 export const MessageTypeEnum = {

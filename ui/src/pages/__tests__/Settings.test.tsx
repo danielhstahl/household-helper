@@ -3,6 +3,7 @@ import { render } from "vitest-browser-react";
 import { createRoutesStub, redirect } from "react-router";
 import Settings from "../Settings.tsx";
 import Users from "../../components/Users.tsx";
+import { RoleTypeEnum } from "../../services/models.tsx";
 
 describe("Settings", () => {
   it("renders", async () => {
@@ -21,7 +22,7 @@ describe("Settings", () => {
               {
                 id: 2,
                 username: "hello",
-                roles: ["admin"],
+                roles: [RoleTypeEnum.admin],
               },
             ],
             action: () => {},

@@ -1,17 +1,18 @@
 import { describe, it, expect, vi } from "vitest";
 import { render } from "vitest-browser-react";
 import Table, { ActionEnum } from "../TableX.tsx";
+import { RoleTypeEnum } from "../../services/models.tsx";
 
 describe("Table", () => {
   it("renders", async () => {
-    const users = [{ id: 3, roles: ["admin"], username: "hello" }];
+    const users = [{ id: 3, roles: [RoleTypeEnum.admin], username: "hello" }];
     const onChange = vi.fn();
     const screen = render(<Table users={users} onChange={onChange} />);
     await expect.element(screen.getByText(/Username/i)).toBeInTheDocument();
     await expect.element(screen.getByText(/hello/i)).toBeInTheDocument();
   });
   it("adds new user on add user", async () => {
-    const users = [{ id: 3, roles: ["admin"], username: "hello" }];
+    const users = [{ id: 3, roles: [RoleTypeEnum.admin], username: "hello" }];
     const onChange = vi.fn();
     const screen = render(<Table users={users} onChange={onChange} />);
     await expect
@@ -24,7 +25,7 @@ describe("Table", () => {
       .toHaveAttribute("aria-rowcount", "3");
   });
   it("edits user on edit user", async () => {
-    const users = [{ id: 3, roles: ["admin"], username: "hello" }];
+    const users = [{ id: 3, roles: [RoleTypeEnum.admin], username: "hello" }];
     const onChange = vi.fn();
     const screen = render(<Table users={users} onChange={onChange} />);
     const editButton = screen.getByRole("menuitem", { name: "EditButton" });
@@ -47,6 +48,6 @@ describe("Table", () => {
     expect(calledWith[0]).toEqual(ActionEnum.Update);
     expect(calledWith[1]).toEqual(3);
     expect(calledWith[2]).toEqual("hello");
-    expect(calledWith[4]).toEqual(["admin"]);
+    expect(calledWith[4]).toEqual([RoleTypeEnum.admin]);
   });
 });

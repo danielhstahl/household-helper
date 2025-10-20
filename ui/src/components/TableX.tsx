@@ -30,6 +30,7 @@ import {
 import { useGridApiContext } from "@mui/x-data-grid";
 import type { GridRenderEditCellParams } from "@mui/x-data-grid";
 import { generate } from "random-words";
+import { RoleTypeEnum } from "../services/models";
 
 const ITEM_HEIGHT = 48;
 const ITEM_PADDING_TOP = 8;
@@ -51,15 +52,15 @@ function getStyles(name: string, personName: readonly string[], theme: Theme) {
 }
 const all_roles = [
   {
-    value: "admin",
+    value: RoleTypeEnum.admin,
     label: "Admin",
   },
   {
-    value: "tutor",
+    value: RoleTypeEnum.tutor,
     label: "Tutor",
   },
   {
-    value: "helper",
+    value: RoleTypeEnum.helper,
     label: "Helper",
   },
 ];

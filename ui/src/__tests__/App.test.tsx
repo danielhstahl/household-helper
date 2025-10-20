@@ -3,6 +3,7 @@ import { render } from "vitest-browser-react";
 import App from "../App.tsx";
 import MainPage from "../pages/MainPage.tsx";
 import { createMemoryRouter, RouterProvider } from "react-router";
+import { RoleTypeEnum } from "../services/models.tsx";
 const createRouter = () => {
   return createMemoryRouter([
     {
@@ -13,7 +14,7 @@ const createRouter = () => {
           path: "/",
           Component: MainPage,
           loader: async () => ({
-            roles: ["admin"],
+            roles: [RoleTypeEnum.admin],
             id: 3,
             username: "admin",
           }),

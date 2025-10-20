@@ -1,15 +1,10 @@
 import AppBarDroid from "../components/AppBar.tsx";
 import { useState, useRef, useEffect } from "react";
 import { useLoaderData, Outlet, useParams } from "react-router";
-
-interface User {
-  roles: string[];
-  id: string;
-  username: string;
-}
+import { type UserResponse, RoleTypeEnum } from "../services/models.tsx";
 
 const MainPage = () => {
-  const user = useLoaderData<User>();
+  const user = useLoaderData<UserResponse>();
   const { agent, sessionId } = useParams();
   const agentSelectionRef = useRef(null);
   const [agentSelectionHeight, setAgentSelectionHeight] = useState(0);
@@ -23,7 +18,11 @@ const MainPage = () => {
     <>
       <AppBarDroid
         threshold={agentSelectionHeight}
-        isAdmin={user.roles.find((v: string) => v === "admin") ? true : false}
+        isAdmin={
+          user.roles.find((v: string) => v === RoleTypeEnum.admin)
+            ? true
+            : false
+        }
         agent={agent || ""}
         sessionId={sessionId || ""}
       />

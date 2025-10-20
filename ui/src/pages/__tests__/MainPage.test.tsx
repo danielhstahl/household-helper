@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { render } from "vitest-browser-react";
 import { createRoutesStub } from "react-router";
 import MainPage from "../MainPage.tsx";
+import { RoleTypeEnum } from "../../services/models.tsx";
 
 describe("MainPage", () => {
   it("renders settings when admin", async () => {
@@ -13,7 +14,7 @@ describe("MainPage", () => {
         loader: () => ({
           id: 2,
           username: "hello",
-          roles: ["admin"],
+          roles: [RoleTypeEnum.admin],
         }),
         action: () => {},
       },
@@ -31,7 +32,7 @@ describe("MainPage", () => {
         loader: () => ({
           id: 2,
           username: "hello",
-          roles: ["tutor"],
+          roles: [RoleTypeEnum.tutor],
         }),
         action: () => {},
       },
