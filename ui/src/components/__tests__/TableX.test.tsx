@@ -48,6 +48,6 @@ describe("Table", () => {
     expect(calledWith[0]).toEqual(ActionEnum.Update);
     expect(calledWith[1]).toEqual(3);
     expect(calledWith[2]).toEqual("hello");
-    expect(calledWith[4]).toEqual(["admin"]);
+    expect(calledWith[4]).toEqual([RoleTypeEnum.admin]);
   });
 });
