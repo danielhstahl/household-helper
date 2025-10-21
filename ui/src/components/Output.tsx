@@ -7,11 +7,11 @@ import CircularProgress from "@mui/material/CircularProgress";
 import ReactMarkdown from "react-markdown";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
+import rehypeHighlight from "rehype-highlight";
 import "katex/dist/katex.min.css";
 import remarkGfm from "remark-gfm"; // For GitHub-flavored Markdown (tables, strikethrough, etc.)
 import { memo } from "react";
 import { MessageTypeEnum, type Message } from "../services/models";
-
 interface OutputProps {
   messages: Message[];
   isWaiting: boolean;
@@ -21,14 +21,36 @@ interface OutputProps {
 interface FormattedTextProps {
   text: string;
 }
-const FormattedText = memo(({ text }: FormattedTextProps) => (
-  <ReactMarkdown
-    remarkPlugins={[remarkGfm, remarkMath]}
-    rehypePlugins={[rehypeKatex]}
-  >
-    {text}
-  </ReactMarkdown>
-));
+
+const commonLanguages = [
+  "javascript",
+  "typescript",
+  "python",
+  "rust",
+  "html",
+  "css",
+  "csharp",
+  "sql",
+  "go",
+  "yaml",
+];
+const parseText = (text: string) => {
+  return commonLanguages
+    .reduce((aggr, curr) => {
+      return aggr.replaceAll("```" + curr, "```" + curr + "\n");
+    }, text)
+    .replaceAll("```", "\n```");
+};
+const FormattedText = memo(({ text }: FormattedTextProps) => {
+  return (
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm, remarkMath]}
+      rehypePlugins={[rehypeKatex, [rehypeHighlight, { detect: false }]]}
+    >
+      {parseText(text)}
+    </ReactMarkdown>
+  );
+});
 
 const Output = ({ messages, isWaiting, latestText, loading }: OutputProps) => {
   const theme = useTheme();
