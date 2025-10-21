@@ -34,6 +34,8 @@ const commonLanguages = [
   "go",
   "yaml",
 ];
+// llms sometimes mess up syntax.
+// parsing this text ensures that code is actually on separate lines
 const parseText = (text: string) => {
   return commonLanguages
     .reduce((aggr, curr) => {
