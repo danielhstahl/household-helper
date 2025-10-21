@@ -12,6 +12,7 @@ import "katex/dist/katex.min.css";
 import remarkGfm from "remark-gfm"; // For GitHub-flavored Markdown (tables, strikethrough, etc.)
 import { memo } from "react";
 import { MessageTypeEnum, type Message } from "../services/models";
+import { parseText } from "../services/utils";
 interface OutputProps {
   messages: Message[];
   isWaiting: boolean;
@@ -22,27 +23,6 @@ interface FormattedTextProps {
   text: string;
 }
 
-const commonLanguages = [
-  "javascript",
-  "typescript",
-  "python",
-  "rust",
-  "html",
-  "css",
-  "csharp",
-  "sql",
-  "go",
-  "yaml",
-];
-// llms sometimes mess up syntax.
-// parsing this text ensures that code is actually on separate lines
-const parseText = (text: string) => {
-  return commonLanguages
-    .reduce((aggr, curr) => {
-      return aggr.replaceAll("```" + curr, "```" + curr + "\n");
-    }, text)
-    .replaceAll("```", "\n```");
-};
 const FormattedText = memo(({ text }: FormattedTextProps) => {
   return (
     <ReactMarkdown

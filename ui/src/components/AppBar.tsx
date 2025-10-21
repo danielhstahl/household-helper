@@ -45,16 +45,23 @@ const AppBarDroid = ({
   const isLargerThanSm = useMediaQuery(theme.breakpoints.up("md"));
   const isLargerThanXS = useMediaQuery(theme.breakpoints.up("sm"));
   const { mode, setMode } = useColorScheme();
+  const background = theme.palette.background.paper;
   //hacky, but effective.  load from CDN on mode change.
   useEffect(() => {
     const link = document.createElement("link");
     link.rel = "stylesheet";
     link.href = mode === "light" ? LIGHT_THEME_URL : DARK_THEME_URL;
     document.head.appendChild(link);
+    const css = document.createElement("style");
+    document.head.appendChild(css);
+    if (mode === "dark") {
+      css.sheet!.insertRule(`.hljs { background: ${background}; }`);
+    }
     return () => {
       document.head.removeChild(link);
+      document.head.removeChild(css);
     };
-  }, [mode]);
+  }, [mode, background]);
   return (
     <AppBar>
       <Toolbar>
