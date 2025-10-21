@@ -9,6 +9,7 @@ mod psql_vectors;
 mod tools;
 
 use auth::{JwtMiddleware, UserIdentification, WSMiddleware};
+use chrono::{DateTime, Utc};
 use dbtracing::{HistogramIncrement, SpanToolUse, create_logging, get_histogram, get_tool_use};
 use embedding::{EmbeddingClient, get_embeddings, ingest_content};
 use futures::future::{BoxFuture, FutureExt};
@@ -246,7 +247,11 @@ pub fn handle_chat_session(
                         tool_use = false
                     ))
                     .await
-                    .map_err(|e| InternalServerError(LLMError { msg: e.to_string() }))?;
+                    .map_err(|e| {
+                        let utc: DateTime<Utc> = Utc::now();
+                        println!("{}-{:?}", utc, e); //log to stdout as well
+                        InternalServerError(LLMError { msg: e.to_string() })
+                    })?;
                 write_ai_message(full_message, &psql_memory)
                     .await
                     .map_err(InternalServerError)?;

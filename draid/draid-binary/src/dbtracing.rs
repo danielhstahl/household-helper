@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use poem_openapi::Object;
 use serde::Serialize;
 use sqlx::{PgPool, Pool, Postgres};
@@ -65,6 +66,8 @@ impl<S: tracing::Subscriber> Layer<S> for PSqlLayer {
 
 pub async fn run_async_worker(mut worker: AsyncDbWorker) -> Result<(), sqlx::Error> {
     while let Some(log_message) = worker.rx.recv().await {
+        let utc: DateTime<Utc> = Utc::now();
+        println!("{}-{:?}", utc, log_message); //log to stdout as well
         let _ = sqlx::query!(
             r#"
             INSERT INTO traces (span_id, tool_use, endpoint, message, timestamp)
