@@ -18,7 +18,12 @@ import useScrollTrigger from "@mui/material/useScrollTrigger";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import { useColorScheme } from "@mui/material/styles";
 import { NavLink, useNavigate } from "react-router";
+import { useEffect } from "react";
 
+const LIGHT_THEME_URL =
+  "https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/github.min.css";
+const DARK_THEME_URL =
+  "https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/github-dark.min.css";
 const AppBarDroid = ({
   threshold,
   isAdmin,
@@ -40,6 +45,16 @@ const AppBarDroid = ({
   const isLargerThanSm = useMediaQuery(theme.breakpoints.up("md"));
   const isLargerThanXS = useMediaQuery(theme.breakpoints.up("sm"));
   const { mode, setMode } = useColorScheme();
+  //hacky, but effective.  load from CDN on mode change.
+  useEffect(() => {
+    const link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.href = mode === "light" ? LIGHT_THEME_URL : DARK_THEME_URL;
+    document.head.appendChild(link);
+    return () => {
+      document.head.removeChild(link);
+    };
+  }, [mode]);
   return (
     <AppBar>
       <Toolbar>
