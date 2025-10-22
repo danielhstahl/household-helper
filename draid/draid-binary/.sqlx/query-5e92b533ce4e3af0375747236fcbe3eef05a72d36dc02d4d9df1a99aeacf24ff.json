@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                    INSERT INTO traces (span_id, tool_use, endpoint, message, timestamp)\n                    VALUES ($1, $2, $3, $4, NOW())\n                    ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Bool",
+        "Varchar",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "5e92b533ce4e3af0375747236fcbe3eef05a72d36dc02d4d9df1a99aeacf24ff"
+}
