@@ -20,18 +20,26 @@ pub struct LogMessage {
     endpoint: String,
     message: String,
 }
+struct PoemMessage {
+    message: String,
+    custom_fields: Vec<(String, String)>,
+}
+enum Logger {
+    LLMLogger(LogMessage),
+    PoemLogger(PoemMessage),
+}
 
 // The async worker context
-pub struct AsyncDbWorker {
+struct AsyncDbWorker {
     // The receiver half of the channel, owned by the worker task
-    pub rx: mpsc::Receiver<LogMessage>,
-    pub db_client: Pool<Postgres>,
+    rx: mpsc::Receiver<Logger>,
+    db_client: Pool<Postgres>,
 }
 
 // The synchronous Layer that feeds the worker
-pub struct PSqlLayer {
+struct PSqlLayer {
     // The sender half of the channel, wrapped in a thread-safe container
-    pub tx: Arc<Mutex<mpsc::Sender<LogMessage>>>,
+    tx: Arc<Mutex<mpsc::Sender<Logger>>>,
 }
 
 impl<S: tracing::Subscriber> Layer<S> for PSqlLayer {
@@ -42,18 +50,19 @@ impl<S: tracing::Subscriber> Layer<S> for PSqlLayer {
         event.record(&mut visitor);
 
         // 1. Extract data synchronously
-        let log_data = LogMessage {
-            span_id: Uuid::parse_str(
-                &visitor
-                    .span_id
-                    .unwrap_or_else(|| "span needs to exist".to_string()),
-            )
-            .unwrap_or_else(|_e| Uuid::new_v4()),
-            tool_use: visitor.tool_use.unwrap_or_else(|| false),
-            endpoint: visitor
-                .endpoint
-                .unwrap_or_else(|| "no endpoint provided".to_string()),
-            message: visitor.message.unwrap_or_else(|| "no message".to_string()),
+        let log_data = match visitor.span_id {
+            Some(span_id) => Logger::LLMLogger(LogMessage {
+                span_id: Uuid::parse_str(&span_id).unwrap_or_else(|_e| Uuid::new_v4()),
+                tool_use: visitor.tool_use.unwrap_or_else(|| false),
+                endpoint: visitor
+                    .endpoint
+                    .unwrap_or_else(|| "no endpoint provided".to_string()),
+                message: visitor.message.unwrap_or_else(|| "no message".to_string()),
+            }),
+            None => Logger::PoemLogger(PoemMessage {
+                message: visitor.message.unwrap_or_else(|| "no message".to_string()),
+                custom_fields: visitor.custom_fields,
+            }),
         };
 
         // 2. Send data to the background worker (this is non-blocking)
@@ -64,22 +73,32 @@ impl<S: tracing::Subscriber> Layer<S> for PSqlLayer {
     // ... other synchronous trait methods
 }
 
-pub async fn run_async_worker(mut worker: AsyncDbWorker) -> Result<(), sqlx::Error> {
-    while let Some(log_message) = worker.rx.recv().await {
+async fn run_async_worker(mut worker: AsyncDbWorker) -> Result<(), sqlx::Error> {
+    while let Some(logger) = worker.rx.recv().await {
         let utc: DateTime<Utc> = Utc::now();
-        println!("{}-{:?}", utc, log_message); //log to stdout as well
-        let _ = sqlx::query!(
-            r#"
-            INSERT INTO traces (span_id, tool_use, endpoint, message, timestamp)
-            VALUES ($1, $2, $3, $4, NOW())
-            "#,
-            &log_message.span_id,
-            &log_message.tool_use,
-            &log_message.endpoint,
-            &log_message.message
-        )
-        .execute(&worker.db_client)
-        .await?;
+        match logger {
+            Logger::LLMLogger(log_message) => {
+                println!("{}-{:?}", utc, log_message); //log to stdout as well
+                let _ = sqlx::query!(
+                    r#"
+                    INSERT INTO traces (span_id, tool_use, endpoint, message, timestamp)
+                    VALUES ($1, $2, $3, $4, NOW())
+                    "#,
+                    &log_message.span_id,
+                    &log_message.tool_use,
+                    &log_message.endpoint,
+                    &log_message.message
+                )
+                .execute(&worker.db_client)
+                .await?;
+            }
+            Logger::PoemLogger(poem_message) => {
+                println!(
+                    "{}-{}-{:?}",
+                    utc, poem_message.message, poem_message.custom_fields
+                ); //log to stdout as well
+            }
+        }
     }
     Ok(())
 }
