@@ -85,6 +85,14 @@ If you are creating a self-signed certificate for local hosting:
   -keyout $DOMAIN_NAME.key -out $DOMAIN_NAME.crt -subj "/CN=$DOMAIN_NAME.local" \
   -addext "subjectAltName=DNS:*.$DOMAIN_NAME.local,IP:$LOCAL_IP"`
 
+### OLLAMA on Mac
+
+To keep the model in memory:
+
+`launchctl setenv OLLAMA_KEEP_ALIVE -1`
+
+And then restart Ollama
+
 ### Synology
 
 If running on a Synology, make sure that your reverse proxy allows websocket headers.
