@@ -78,7 +78,6 @@ struct Bots {
 async fn get_bots(
     model_name: String,
     open_ai_compatable_endpoint: String,
-    //pool: &PgPool,
     helper_tools: Vec<Arc<dyn Tool + Send + Sync>>,
 ) -> anyhow::Result<Bots> {
     let bots = Bots {

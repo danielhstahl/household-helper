@@ -1,9 +1,4 @@
-//use crate::tools::Tool;
-use rmcp::{
-    RoleClient, ServiceExt,
-    model::{/*CallToolRequestParam,*/ Tool as McpTool},
-    service::RunningService,
-};
+use rmcp::{RoleClient, ServiceExt, model::Tool as McpTool, service::RunningService};
 
 pub async fn get_server_and_tools(
     mcp_type: &str,
