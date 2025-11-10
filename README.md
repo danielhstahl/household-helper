@@ -54,7 +54,7 @@ psql -c "CREATE DATABASE draid;"
 
 Change directory to [draid](./draid), and run
 
-`INIT_ADMIN_PASSWORD=[yourinitpassword] USER_DATABASE_URL=postgresql://postgres:[yourpassword]@localhost:5432 JWT_SECRET=[yourjwtsecret] cargo run`
+`INIT_ADMIN_PASSWORD=[yourinitpassword] PSQL_DATABASE_URL=postgresql://postgres:[yourpassword]@localhost:5432 JWT_SECRET=[yourjwtsecret] cargo run`
 
 
 ## Deploy

@@ -2,6 +2,7 @@ mod auth;
 mod dbtracing;
 mod embedding;
 mod llm;
+mod mcp_tools;
 mod prompts;
 mod psql_memory;
 mod psql_users;
@@ -15,7 +16,9 @@ use embedding::{EmbeddingClient, get_embeddings, ingest_content};
 use futures::future::{BoxFuture, FutureExt};
 use futures::{SinkExt, StreamExt};
 use kb_tool_macro::kb;
+use kb_tool_macro::mcp;
 use llm::{Bot, chat_with_tools};
+use mcp_tools::get_server_and_tools;
 use poem::error::InternalServerError;
 use poem::middleware::Tracing;
 use poem::web::websocket::{Message, WebSocket, WebSocketStream};
@@ -37,6 +40,11 @@ use psql_vectors::{
     write_knowledge_base,
 };
 use reqwest::Client as HttpClient;
+use rmcp::{
+    RoleClient,
+    model::{CallToolRequestParam, Tool as McpTool},
+    service::{RunningService, ServerSink},
+};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sqlx::PgPool;
@@ -70,23 +78,9 @@ struct Bots {
 async fn get_bots(
     model_name: String,
     open_ai_compatable_endpoint: String,
-    pool: &PgPool,
-) -> Result<Bots, Error> {
-    let kb_arcs: Vec<Arc<dyn Tool + Send + Sync>> = vec![kb!("recipes", 3), kb!("gardening", 3)];
-    for kb_arc in kb_arcs.iter() {
-        match write_knowledge_base(kb_arc.name(), pool).await {
-            Ok(result) => println!(
-                "Created knowledge base {} with index {}",
-                kb_arc.name(),
-                result
-            ),
-            Err(e) => println!("Failed to create knowledge base: {}", e),
-        }
-    }
-    let mut helper_tools: Vec<Arc<dyn Tool + Send + Sync>> =
-        vec![Arc::new(AddTool), Arc::new(TimeTool)];
-    helper_tools.extend(kb_arcs);
-
+    //pool: &PgPool,
+    helper_tools: Vec<Arc<dyn Tool + Send + Sync>>,
+) -> anyhow::Result<Bots> {
     let bots = Bots {
         helper_bot: Arc::new(Bot::new(
             model_name.clone(),
@@ -599,11 +593,42 @@ async fn main() -> Result<(), anyhow::Error> {
         "hf.co/mixedbread-ai/mxbai-embed-large-v1".to_string(),
         &open_ai_compatable_endpoint_embedding,
     ));
+
+    //tools
+    let kb_arcs: Vec<Arc<dyn Tool + Send + Sync>> = vec![kb!("recipes", 3), kb!("gardening", 3)];
+    for kb_arc in kb_arcs.iter() {
+        match write_knowledge_base(kb_arc.name(), &pool).await {
+            Ok(result) => println!(
+                "Created knowledge base {} with index {}",
+                kb_arc.name(),
+                result
+            ),
+            Err(e) => println!("Failed to create knowledge base: {}", e),
+        }
+    }
+
+    //put server in scope to make sure it isn't "cleaned up"
+    let (devin, _server): (
+        Vec<Arc<dyn Tool + Send + Sync>>,
+        RunningService<RoleClient, ()>,
+    ) = mcp!(
+        "devin",
+        "Devin allows searching code repositories.  No auth required.  Both owner and repo must be provided to the function.",
+        "https://mcp.deepwiki.com/mcp",
+        "stream"
+    );
+
+    let mut helper_tools: Vec<Arc<dyn Tool + Send + Sync>> =
+        vec![Arc::new(AddTool), Arc::new(TimeTool)];
+    helper_tools.extend(kb_arcs);
+    helper_tools.extend(devin);
+
+    //bots
     let bots = Arc::new(
         get_bots(
             model_name.to_string(),
             open_ai_compatable_endpoint_chat,
-            &pool,
+            helper_tools,
         )
         .await?,
     );

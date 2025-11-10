@@ -29,7 +29,9 @@ export async function getSessions(jwt: string): Promise<SessionDB[]> {
   throw new Error(await response.text());
 }
 
-export async function getMostRecentSession(jwt: string): Promise<SessionDB> {
+export async function getMostRecentSession(
+  jwt: string,
+): Promise<SessionDB | undefined> {
   const response = await fetch("/api/session/recent", {
     headers: getHeaders(jwt),
   });
@@ -37,7 +39,7 @@ export async function getMostRecentSession(jwt: string): Promise<SessionDB> {
     const result = await response.json();
     return result;
   }
-  throw new Error(await response.text());
+  return;
 }
 
 export async function createSession(jwt: string): Promise<SessionDB> {
