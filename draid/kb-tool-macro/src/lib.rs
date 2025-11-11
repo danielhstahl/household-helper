@@ -101,3 +101,107 @@ pub fn kb(input: TokenStream) -> TokenStream {
     // 5. Return the resulting TokenStream
     TokenStream::from(expanded)
 }
+
+struct MCPMacroInput {
+    // Captures the string literal like for the Knowledge Base Name
+    name: LitStr,
+    // Captures the comma separator
+    _comma_1: Token![,],
+    // Captures the integer literal like 10
+    description: LitStr,
+    _comma_2: Token![,],
+    // For now, only use a url-type of MCP
+    url: LitStr,
+    _comma_3: Token![,],
+    mcp_type: LitStr,
+}
+// Implementation of the Parse trait to define how the input tokens are consumed.
+impl Parse for MCPMacroInput {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        Ok(MCPMacroInput {
+            name: input.parse()?,
+            _comma_1: input.parse()?,
+            description: input.parse()?,
+            _comma_2: input.parse()?,
+            url: input.parse()?,
+            _comma_3: input.parse()?,
+            mcp_type: input.parse()?,
+        })
+    }
+}
+
+#[proc_macro]
+pub fn mcp(input: TokenStream) -> TokenStream {
+    // 1. Parse the input tokens
+    let input = parse_macro_input!(input as MCPMacroInput);
+
+    let name_str = input.name.value(); //
+    let description_str = input.description.value();
+    let url_str = input.url.value();
+    let mcp_type_str = input.mcp_type.value();
+
+    // 2. Generate the dynamic identifier (struct name)
+    // format_ident! is crucial for safely constructing identifiers from runtime strings.
+    let struct_name = format_ident!("ModelContextProtocol{}", name_str);
+
+    // 3. Use quote! to generate the final code block (TokenStream)
+    let expanded = quote! {
+        {
+            // Generated struct definition
+            #[derive(Clone)]
+            pub struct #struct_name {
+                tool: McpTool,
+                server: ServerSink,
+            };
+
+            impl #struct_name {
+                pub fn new(tool: McpTool, server: ServerSink) -> Self {
+                    Self { tool, server }
+                }
+            }
+
+            // Generated impl block, replacing placeholders with parsed values
+            #[async_trait::async_trait]
+            impl Tool for #struct_name {
+                fn name(&self) -> &'static str {
+                    // Use the generated static string literal
+                    #name_str
+                }
+                fn description(&self) -> &'static str {
+                    #description_str
+                }
+                fn parameters(&self) -> Value {
+                    serde_json::to_value(&self.tool.input_schema).unwrap_or(serde_json::json!({}))
+                }
+                async fn invoke(&self, args: String) -> anyhow::Result<Value> {
+                    let args: Value = serde_json::from_str(&args)?;
+                    let arguments = match args {
+                        Value::Object(map) => Some(map),
+                        _ => None,
+                    };
+                    let call_result = self
+                        .server
+                        .call_tool(CallToolRequestParam {
+                            name: self.tool.name.clone(),
+                            arguments,
+                        })
+                        .await?;
+                    let json_value = serde_json::to_value(call_result)?;
+                    Ok(json_value)
+                }
+            }
+
+            let (tools, server) = get_server_and_tools(#mcp_type_str, #url_str).await?;
+            // Return the vector of tools for this mcp
+            (tools.into_iter().map(|tool|{
+                Arc::new(#struct_name::new(
+                    tool,
+                    server.peer().clone()
+                )) as _
+            }).collect(), server)
+        }
+    };
+
+    // 5. Return the resulting TokenStream
+    TokenStream::from(expanded)
+}
