@@ -26,6 +26,9 @@ echo | sudo apt install postgresql-15-pgvector
 sudo service postgresql start
 sudo -u postgres psql -c "ALTER USER postgres PASSWORD 'yourpassword';"
 sudo -u postgres psql -c "CREATE DATABASE draid;"
+
+# connect as user.  may need to exec to psql docker image first
+psql -U my_user -d draid
 ```
 
 #### Mac
