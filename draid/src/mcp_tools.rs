@@ -62,6 +62,7 @@ pub async fn get_tools_and_servers(
         .map(|tool_v| tool_v.into_iter())
         .flatten()
         .collect();
+    //servers is only returned so that it doesn't get cleaned up when this function completes
     Ok((tools, servers))
 }
 
