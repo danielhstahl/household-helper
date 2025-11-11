@@ -251,12 +251,15 @@ pub async fn chat_with_tools(
             //no tool call, just send results
             match tx.send(Message::Text(tokens)).await {
                 Ok(_) => {} // Success
-                Err(_) => {
+                Err(e) => {
                     info!(
                         tool_use = false,
                         endpoint = "query",
                         span_id,
-                        "Client disconnected (channel closed) during tool response stream."
+                        message = format!(
+                            "Client disconnected (channel closed) during tool response stream: {}",
+                            e.to_string()
+                        )
                     );
                     // This stops the function from processing the rest of the stream
                     return Ok(full_message_no_tools);
@@ -289,12 +292,15 @@ pub async fn chat_with_tools(
                     full_message_tools.push_str(&tokens);
                     match tx.send(Message::Text(tokens)).await {
                         Ok(_) => {} // Success
-                        Err(_) => {
+                        Err(e) => {
                             info!(
                                 tool_use = true,
                                 endpoint = "query",
                                 span_id,
-                                "Client disconnected (channel closed) during tool response stream."
+                                message = format!(
+                                    "Client disconnected (channel closed) during tool response stream: {}",
+                                    e.to_string()
+                                )
                             );
                             // This stops the function from processing the rest of the stream
                             return Ok(full_message_tools);
