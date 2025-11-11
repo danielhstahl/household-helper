@@ -5,8 +5,8 @@ use std::{ops::Deref, sync::Arc};
 
 #[async_trait::async_trait]
 pub trait Tool: Send + Sync {
-    fn name(&self) -> &'static str;
-    fn description(&self) -> &'static str;
+    fn name(&self) -> &String;
+    fn description(&self) -> &String;
     fn parameters(&self) -> Value;
     async fn invoke(&self, args: String) -> anyhow::Result<Value>;
 }
@@ -18,10 +18,10 @@ where
     // P must also satisfy other bounds you had on T, like Clone if needed
     // The inner dyn Tool must also satisfy Send + Sync for Arc to be safe
 {
-    fn name(&self) -> &'static str {
+    fn name(&self) -> &String {
         self.deref().name()
     }
-    fn description(&self) -> &'static str {
+    fn description(&self) -> &String {
         self.deref().description()
     }
     fn parameters(&self) -> Value {
@@ -46,7 +46,7 @@ impl std::fmt::Display for ToolError {
 }
 
 pub struct ToolRegistry {
-    pub map: std::collections::HashMap<&'static str, Arc<dyn Tool + Send + Sync>>,
+    pub map: std::collections::HashMap<String, Arc<dyn Tool + Send + Sync>>,
 }
 
 impl ToolRegistry {
@@ -56,20 +56,32 @@ impl ToolRegistry {
         }
     }
     pub fn register<T: Tool + 'static + Send + Sync>(&mut self, t: T) {
-        self.map.insert(t.name(), Arc::new(t));
+        self.map.insert(t.name().to_owned(), Arc::new(t));
     }
 }
 
 #[derive(Clone)]
-pub struct AddTool;
+pub struct AddTool {
+    name: String,
+    description: String,
+}
+
+impl AddTool {
+    pub fn new() -> Self {
+        Self {
+            name: "calculator".to_string(),
+            description: "Add some numbers".to_string(),
+        }
+    }
+}
 
 #[async_trait::async_trait]
 impl Tool for AddTool {
-    fn name(&self) -> &'static str {
-        "calculator"
+    fn name(&self) -> &String {
+        &self.name
     }
-    fn description(&self) -> &'static str {
-        "Add some numbers"
+    fn description(&self) -> &String {
+        &self.description
     }
     fn parameters(&self) -> Value {
         json!({
@@ -96,15 +108,27 @@ impl Tool for AddTool {
 }
 
 #[derive(Clone)]
-pub struct TimeTool;
+pub struct TimeTool {
+    name: String,
+    description: String,
+}
+
+impl TimeTool {
+    pub fn new() -> Self {
+        Self {
+            name: "time".to_string(),
+            description: "Get current time".to_string(),
+        }
+    }
+}
 
 #[async_trait::async_trait]
 impl Tool for TimeTool {
-    fn name(&self) -> &'static str {
-        "time"
+    fn name(&self) -> &String {
+        &self.name
     }
-    fn description(&self) -> &'static str {
-        "Get current time"
+    fn description(&self) -> &String {
+        &self.description
     }
     fn parameters(&self) -> Value {
         json!({

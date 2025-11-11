@@ -1,6 +1,8 @@
 mod auth;
+mod config;
 mod dbtracing;
 mod embedding;
+mod kb_tools;
 mod llm;
 mod mcp_tools;
 mod prompts;
@@ -11,14 +13,12 @@ mod tools;
 
 use auth::{JwtMiddleware, UserIdentification, WSMiddleware};
 use chrono::{DateTime, Utc};
+use config::Config;
 use dbtracing::{HistogramIncrement, SpanToolUse, create_logging, get_histogram, get_tool_use};
 use embedding::{EmbeddingClient, get_embeddings, ingest_content};
 use futures::future::{BoxFuture, FutureExt};
 use futures::{SinkExt, StreamExt};
-use kb_tool_macro::kb;
-use kb_tool_macro::mcp;
 use llm::{Bot, chat_with_tools};
-use mcp_tools::get_server_and_tools;
 use poem::error::InternalServerError;
 use poem::middleware::Tracing;
 use poem::web::websocket::{Message, WebSocket, WebSocketStream};
@@ -39,14 +39,7 @@ use psql_vectors::{
     KnowledgeBase, get_docs_with_similar_content, get_knowledge_base, get_knowledge_bases,
     write_knowledge_base,
 };
-use reqwest::Client as HttpClient;
-use rmcp::{
-    RoleClient,
-    model::{CallToolRequestParam, Tool as McpTool},
-    service::{RunningService, ServerSink},
-};
 use serde::{Deserialize, Serialize};
-use serde_json::{Value, json};
 use sqlx::PgPool;
 use std::sync::Arc;
 use std::{env, fmt};
@@ -576,6 +569,31 @@ async fn main() -> Result<(), anyhow::Error> {
     let address = env::var("ADDRESS").unwrap_or_else(|_e| "0.0.0.0".to_string());
     let actual_endpoint_for_swagger =
         env::var("HOSTNAME").unwrap_or_else(|_e| "http://localhost:3000".to_string());
+    let kb_endpoint = env::var("KNOWLEDGE_BASE_ENDPOINT")
+        .unwrap_or_else(|_e| "http://127.0.0.1:3000".to_string());
+
+    let default_raw_tool_config = r#"{
+        "kb": [
+            {
+                "name": "recipes",
+                "num_results": 3
+            },
+            {
+                "name": "gardening",
+                "num_results": 3
+            }
+        ],
+        "mcp": [
+            {
+                "name": "devin",
+                "description": "Devin allows searching code repositories.  No auth required.  Both owner and repo must be provided to the function.",
+                "url": "https://mcp.deepwiki.com/mcp",
+                "mcp_type": "stream"
+            }
+        ]
+    }"#;
+    let tool_config_raw =
+        env::var("TOOL_CONFIG").unwrap_or_else(|_e| default_raw_tool_config.to_string());
 
     //db setup
     let pool = PgPool::connect(&psql_url).await?;
@@ -594,9 +612,10 @@ async fn main() -> Result<(), anyhow::Error> {
     ));
 
     //tools
-    let kb_arcs: Vec<Arc<dyn Tool + Send + Sync>> = vec![kb!("recipes", 3), kb!("gardening", 3)];
+    let tool_config: Config = serde_json::from_str(&tool_config_raw)?;
+    let kb_arcs = kb_tools::get_tools(tool_config.kb, &kb_endpoint);
     for kb_arc in kb_arcs.iter() {
-        match write_knowledge_base(kb_arc.name(), &pool).await {
+        match write_knowledge_base(&kb_arc.name(), &pool).await {
             Ok(result) => println!(
                 "Created knowledge base {} with index {}",
                 kb_arc.name(),
@@ -606,21 +625,12 @@ async fn main() -> Result<(), anyhow::Error> {
         }
     }
 
-    //put server in scope to make sure it isn't "cleaned up"
-    let (devin, _server): (
-        Vec<Arc<dyn Tool + Send + Sync>>,
-        RunningService<RoleClient, ()>,
-    ) = mcp!(
-        "devin",
-        "Devin allows searching code repositories.  No auth required.  Both owner and repo must be provided to the function.",
-        "https://mcp.deepwiki.com/mcp",
-        "stream"
-    );
+    let (mcp_arcs, _servers) = mcp_tools::get_tools_and_servers(tool_config.mcp).await?;
 
     let mut helper_tools: Vec<Arc<dyn Tool + Send + Sync>> =
-        vec![Arc::new(AddTool), Arc::new(TimeTool)];
+        vec![Arc::new(AddTool::new()), Arc::new(TimeTool::new())];
     helper_tools.extend(kb_arcs);
-    helper_tools.extend(devin);
+    helper_tools.extend(mcp_arcs);
 
     //bots
     let bots = Arc::new(
