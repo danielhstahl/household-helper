@@ -111,7 +111,7 @@ impl Tool for MCPTool {
                 arguments,
             })
             .await?;
-        let json_value = serde_json::to_value(call_result)?;
+        let json_value = serde_json::to_value(call_result.content)?;
         Ok(json_value)
     }
 }
