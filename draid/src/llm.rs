@@ -249,22 +249,18 @@ pub async fn chat_with_tools(
         } else {
             full_message_no_tools.push_str(&tokens);
             //no tool call, just send results
-            match tx.send(Message::Text(tokens)).await {
-                Ok(_) => {} // Success
-                Err(e) => {
-                    info!(
-                        tool_use = false,
-                        endpoint = "query",
-                        span_id,
-                        message = format!(
-                            "Client disconnected (channel closed) during tool response stream: {}",
-                            e.to_string()
-                        )
-                    );
-                    // This stops the function from processing the rest of the stream
-                    return Ok(full_message_no_tools);
-                }
-            }
+            tx.feed(Message::Text(tokens)).await.map_err(|e| {
+                info!(
+                    tool_use = false,
+                    endpoint = "query",
+                    span_id,
+                    message = format!(
+                        "Client disconnected (channel closed) during tool response stream: {}",
+                        e.to_string()
+                    )
+                );
+                e
+            })?;
         }
     }
     match finish_reason {
@@ -290,22 +286,18 @@ pub async fn chat_with_tools(
                     info!(tool_use = true, endpoint = "query", span_id, "First token");
                 } else {
                     full_message_tools.push_str(&tokens);
-                    match tx.send(Message::Text(tokens)).await {
-                        Ok(_) => {} // Success
-                        Err(e) => {
-                            info!(
-                                tool_use = true,
-                                endpoint = "query",
-                                span_id,
-                                message = format!(
-                                    "Client disconnected (channel closed) during tool response stream: {}",
-                                    e.to_string()
-                                )
-                            );
-                            // This stops the function from processing the rest of the stream
-                            return Ok(full_message_tools);
-                        }
-                    }
+                    tx.feed(Message::Text(tokens)).await.map_err(|e|{
+                        info!(
+                            tool_use = true,
+                            endpoint = "query",
+                            span_id,
+                            message = format!(
+                                "Client disconnected (channel closed) during tool response stream: {}",
+                                e.to_string()
+                            )
+                        );
+                        e
+                    })?;
                 }
             }
             info!(
