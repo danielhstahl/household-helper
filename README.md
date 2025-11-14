@@ -6,9 +6,13 @@ The intent is to create a local/private "intelligence appliance".
 
 ## Technology
 
-* Server using Rocket and async-openai
+* Server using Poem and async-openai
 * PSQL for user/vector database
 * React with Material UI for the client
+
+## UI
+
+![App screenshot](./examples/screenshot.png)
 
 ## Development
 
