@@ -389,7 +389,9 @@ async fn tool_response<T: Clone>(
 
 #[cfg(test)]
 mod tests {
-    use super::contains_stop_word;
+    use super::*;
+    use crate::psql_memory::MessageType;
+    use async_openai::types::ChatCompletionRequestMessage;
 
     #[test]
     fn it_returns_true_if_contains_stop_word() {
@@ -400,5 +402,99 @@ mod tests {
     fn it_returns_false_if_does_not_contain_stop_word() {
         let result = contains_stop_word("hello");
         assert!(!result);
+    }
+
+    #[test]
+    fn it_constructs_messages_correctly() {
+        let req = CreateChatCompletionRequest::default();
+        let previous_messages = vec![
+            MessageResult {
+                message_type: MessageType::SystemMessage,
+                content: "System message".to_string(),
+                timestamp: chrono::Utc::now(),
+            },
+            MessageResult {
+                message_type: MessageType::HumanMessage,
+                content: "User message".to_string(),
+                timestamp: chrono::Utc::now(),
+            },
+            MessageResult {
+                message_type: MessageType::AIMessage,
+                content: "AI message".to_string(),
+                timestamp: chrono::Utc::now(),
+            },
+        ];
+        let new_message = "New user message";
+
+        let result = construct_messages(req, &previous_messages, new_message).unwrap();
+
+        assert_eq!(result.messages.len(), 4);
+
+        match &result.messages[0] {
+            ChatCompletionRequestMessage::System(msg) => match &msg.content {
+                async_openai::types::ChatCompletionRequestSystemMessageContent::Text(text) => {
+                    assert_eq!(text, "System message")
+                }
+                _ => panic!("Expected Text content"),
+            },
+            _ => panic!("Expected System message"),
+        }
+        match &result.messages[1] {
+            ChatCompletionRequestMessage::User(msg) => match &msg.content {
+                async_openai::types::ChatCompletionRequestUserMessageContent::Text(text) => {
+                    assert_eq!(text, "User message")
+                }
+                _ => panic!("Expected Text content"),
+            },
+            _ => panic!("Expected User message"),
+        }
+        match &result.messages[2] {
+            ChatCompletionRequestMessage::Assistant(msg) => match &msg.content {
+                Some(async_openai::types::ChatCompletionRequestAssistantMessageContent::Text(
+                    text,
+                )) => assert_eq!(text, "AI message"),
+                _ => panic!("Expected Text content"),
+            },
+            _ => panic!("Expected Assistant message"),
+        }
+        match &result.messages[3] {
+            ChatCompletionRequestMessage::User(msg) => match &msg.content {
+                async_openai::types::ChatCompletionRequestUserMessageContent::Text(text) => {
+                    assert_eq!(text, "New user message")
+                }
+                _ => panic!("Expected Text content"),
+            },
+            _ => panic!("Expected User message"),
+        }
+    }
+
+    #[test]
+    fn it_gets_req_correctly() {
+        let bot = Bot::new(
+            "model".to_string(),
+            "system prompt",
+            "http://localhost:11434",
+            Some(0.5),
+            Some(0.6),
+            Some(0.7),
+            None,
+        );
+
+        let result = get_req(&bot, &None).unwrap();
+
+        assert_eq!(result.model, "model");
+        assert_eq!(result.temperature, Some(0.5));
+        assert_eq!(result.presence_penalty, Some(0.6));
+        assert_eq!(result.top_p, Some(0.7));
+        assert_eq!(result.messages.len(), 1);
+        match &result.messages[0] {
+            ChatCompletionRequestMessage::System(msg) => match &msg.content {
+                async_openai::types::ChatCompletionRequestSystemMessageContent::Text(text) => {
+                    assert_eq!(text, "system prompt")
+                }
+                _ => panic!("Expected Text content"),
+            },
+            _ => panic!("Expected System message"),
+        }
     }
 }
