@@ -12,11 +12,9 @@ const Chat = ({ onSubmit, selectedAgent }: ChatProps) => {
   const pressEnter = (e: KeyboardEvent<HTMLDivElement>) => {
     if (e.key == "Enter" && !e.shiftKey) {
       e.preventDefault();
-      //@ts-expect-error target.value exists in reality, even though it isn't on KeyboardEvent
-      onSubmit(selectedAgent, e.target.value);
-
-      //@ts-expect-error target.value exists in reality, even though it isn't on KeyboardEvent
-      e.target.value = "";
+      const target = e.target as HTMLInputElement;
+      onSubmit(selectedAgent, target.value);
+      target.value = "";
     }
   };
   return (
