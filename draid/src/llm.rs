@@ -15,8 +15,9 @@ use async_openai::{
     },
 };
 use futures::future::join_all;
-use futures::{SinkExt, StreamExt, future};
+use futures::{SinkExt, StreamExt};
 use poem::web::websocket::{Message, WebSocketStream};
+use serde::Serialize;
 use serde_json::Value;
 use std::sync::Arc;
 use tokio::task;
@@ -152,13 +153,14 @@ fn contains_stop_word(token: &str) -> bool {
     token.contains("</think>")
 }
 
+/*
 fn get_end_of_thinking(item: &Result<CreateChatCompletionStreamResponse, OpenAIError>) -> bool {
     match item {
         Ok(item) => contains_stop_word(&get_final_tokens_from_stream(item)),
         Err(_e) => false,
     }
 }
-
+*/
 fn construct_tool_call(
     stream_chunk: CreateChatCompletionStreamResponse,
 ) -> std::collections::HashMap<(u32, u32), ChatCompletionMessageToolCall> {
@@ -202,27 +204,31 @@ fn construct_tool_call(
                 }
             })
         });
-    /*match tool_results.is_empty() {
-        true => None,
-        false => Some(tool_results),
-    }*/
     tool_results
 }
-/*
-pub struct ChatStreamState {
-    //finish_reason: FinishReason,
-    message: Option<String>,
-    tool_calls: Option<std::collections::HashMap<(u32, u32), ChatCompletionMessageToolCall>>,
-}*/
 
 pub enum ChatStreamResult {
     Message(String),
     ToolCalls(std::collections::HashMap<(u32, u32), ChatCompletionMessageToolCall>),
 }
 
+#[derive(Serialize)]
+enum TokenCategory {
+    Message,
+    ChainOfThought,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WebSocketToken {
+    token_type: TokenCategory,
+    tokens: String,
+}
+
 async fn process_chat_stream(
     tx: &mut WebSocketStream,
     mut stream: ChatCompletionResponseStream,
+    span_id: &String,
 ) -> anyhow::Result<ChatStreamResult> {
     // chain of thought
     while let Some(result) = stream.next().await {
@@ -234,19 +240,24 @@ async fn process_chat_stream(
             break;
         }
 
-        // Process normal text
-        tx.feed(Message::Text(tokens)).await.map_err(|e| {
-            info!(
-                tool_use = true,
-                endpoint = "query",
-                span_id,
-                message = format!(
-                    "Client disconnected (channel closed) during tool response stream: {}",
-                    e.to_string()
-                )
-            );
-            e
-        })?;
+        let ws_token = WebSocketToken {
+            token_type: TokenCategory::ChainOfThought,
+            tokens,
+        };
+        tx.send(Message::Text(serde_json::to_string(&ws_token)?))
+            .await
+            .map_err(|e| {
+                info!(
+                    tool_use = true,
+                    endpoint = "query",
+                    span_id,
+                    message = format!(
+                        "Client disconnected (channel closed) during tool response stream: {}",
+                        e.to_string()
+                    )
+                );
+                e
+            })?;
     }
     let mut full_message_no_tools = String::new();
     // response
@@ -262,7 +273,11 @@ async fn process_chat_stream(
         match finish_reason {
             None => {
                 full_message_no_tools.push_str(&tokens);
-                tx.feed(Message::Text(tokens)).await.map_err(|e| {
+                let ws_token = WebSocketToken {
+                    token_type: TokenCategory::Message,
+                    tokens,
+                };
+                tx.send(Message::Text(serde_json::to_string(&ws_token)?)).await.map_err(|e| {
                     info!(
                         tool_use = true,
                         endpoint = "query",
@@ -300,8 +315,6 @@ pub async fn chat_with_tools(
     );
     //create storage for tool calls
     let mut registry = ToolRegistry::new();
-    let mut tool_results: std::collections::HashMap<(u32, u32), ChatCompletionMessageToolCall> =
-        std::collections::HashMap::new();
     let req = construct_messages(get_req(&bot, &bot.tools)?, previous_messages, new_message)?;
 
     match &bot.tools {
@@ -315,10 +328,8 @@ pub async fn chat_with_tools(
     };
 
     let stream = bot.llm.chat().create_stream(req).await?;
-
-    let stream_result = process_chat_stream(tx, stream).await?;
-
-    match stream_result {
+    //let stream_result = process_chat_stream(tx, stream, &span_id).await?;
+    match process_chat_stream(tx, stream, &span_id).await? {
         ChatStreamResult::ToolCalls(tool_calls) => {
             info!(
                 tool_use = true,
@@ -330,9 +341,9 @@ pub async fn chat_with_tools(
             let req_no_tools =
                 construct_messages(get_req(&bot, &None)?, previous_messages, new_message)?;
             let stream =
-                tool_response(&bot.llm, registry, req_no_tools, tool_results, &span_id).await?;
+                tool_response(&bot.llm, registry, req_no_tools, tool_calls, &span_id).await?;
 
-            let stream_result = process_chat_stream(tx, stream).await?;
+            let stream_result = process_chat_stream(tx, stream, &span_id).await?;
             info!(
                 tool_use = true,
                 endpoint = "query",

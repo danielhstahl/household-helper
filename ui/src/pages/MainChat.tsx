@@ -29,6 +29,11 @@ interface OutletContext {
   agentSelectionRef: React.Ref<HTMLDivElement>;
 }
 
+interface ChatToken {
+  tokenType: string;
+  tokens: string;
+}
+
 const MainChat = () => {
   const { agent, sessionId } = useParams();
   const { sessions, messages: historicalMessages } = useLoaderData();
@@ -41,6 +46,7 @@ const MainChat = () => {
   const [{ messages, latestText }, setMessages] = useState<MessagesAndText>(
     initMessageState(historicalMessages),
   );
+  const [cot, setCot] = useState<string>("");
   useEffect(() => {
     setMessages((state) => ({
       latestText: state.latestText,
@@ -63,11 +69,17 @@ const MainChat = () => {
     }));
     setIsWaiting(true);
   };
-  const onNew = (nextText: string) =>
-    setMessages((state) => ({
-      latestText: state.latestText + nextText,
-      messages: state.messages,
-    }));
+  const onNew = (nextText: ChatToken) => {
+    if (nextText.tokenType === "ChainOfThought") {
+      setCot((state) => state + nextText.tokens);
+    } else {
+      setCot("");
+      setMessages((state) => ({
+        latestText: state.latestText + nextText.tokens,
+        messages: state.messages,
+      }));
+    }
+  };
   const onDone = () => {
     setMessages((state) => ({
       latestText: "",
@@ -90,7 +102,6 @@ const MainChat = () => {
       .catch(() => navigate("/login"))
       .finally(onDone);
   };
-
   return (
     <Grid container spacing={2}>
       <Grid size={{ xs: 12, md: 3 }}>
@@ -108,6 +119,7 @@ const MainChat = () => {
         <Output
           loading={areMessagesInitialLoading}
           messages={messages}
+          latestCot={cot}
           latestText={latestText}
           isWaiting={isWaiting}
         />
