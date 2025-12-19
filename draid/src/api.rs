@@ -27,7 +27,7 @@ use crate::psql_vectors::{
 };
 use poem::error::InternalServerError;
 
-pub fn handle_chat_session(
+fn handle_chat_session(
     bot_ref: &Arc<Bot>,
     session_id: Uuid,
     user_id: Uuid,

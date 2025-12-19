@@ -159,6 +159,132 @@ fn get_end_of_thinking(item: &Result<CreateChatCompletionStreamResponse, OpenAIE
     }
 }
 
+fn construct_tool_call(
+    stream_chunk: CreateChatCompletionStreamResponse,
+) -> std::collections::HashMap<(u32, u32), ChatCompletionMessageToolCall> {
+    let mut tool_results: std::collections::HashMap<(u32, u32), ChatCompletionMessageToolCall> =
+        std::collections::HashMap::new();
+    stream_chunk
+        .choices
+        .into_iter()
+        .filter_map(|chat_choice| match chat_choice.delta.tool_calls {
+            Some(calls) => Some((chat_choice.index, calls)),
+            None => None,
+        })
+        .for_each(|(chat_choice_index, tools)| {
+            tools.into_iter().for_each(|tool_call_chunk| {
+                // If tool_results.entry(key) exists already, id will be null.
+                // But insert_with won't be called in that case
+                // So there should never be an ID of "123"
+                let id = tool_call_chunk.id.unwrap_or_else(|| "123".to_string());
+                let key = (chat_choice_index, tool_call_chunk.index);
+                let tool_call =
+                    tool_results
+                        .entry(key)
+                        .or_insert_with(|| ChatCompletionMessageToolCall {
+                            id: id,
+                            r#type: ChatCompletionToolType::Function,
+                            function: FunctionCall {
+                                name: tool_call_chunk
+                                    .function
+                                    .as_ref()
+                                    .and_then(|f| f.name.clone())
+                                    .unwrap_or_default(),
+                                arguments: "".to_string(),
+                            },
+                        });
+                if let Some(arguments) = tool_call_chunk
+                    .function
+                    .as_ref()
+                    .and_then(|f| f.arguments.as_ref())
+                {
+                    tool_call.function.arguments.push_str(arguments);
+                }
+            })
+        });
+    /*match tool_results.is_empty() {
+        true => None,
+        false => Some(tool_results),
+    }*/
+    tool_results
+}
+/*
+pub struct ChatStreamState {
+    //finish_reason: FinishReason,
+    message: Option<String>,
+    tool_calls: Option<std::collections::HashMap<(u32, u32), ChatCompletionMessageToolCall>>,
+}*/
+
+pub enum ChatStreamResult {
+    Message(String),
+    ToolCalls(std::collections::HashMap<(u32, u32), ChatCompletionMessageToolCall>),
+}
+
+async fn process_chat_stream(
+    tx: &mut WebSocketStream,
+    mut stream: ChatCompletionResponseStream,
+) -> anyhow::Result<ChatStreamResult> {
+    // chain of thought
+    while let Some(result) = stream.next().await {
+        let result = result?;
+        let tokens = get_final_tokens_from_stream(&result);
+
+        if contains_stop_word(&tokens) {
+            // Break out of this loop to switch processing modes.
+            break;
+        }
+
+        // Process normal text
+        tx.feed(Message::Text(tokens)).await.map_err(|e| {
+            info!(
+                tool_use = true,
+                endpoint = "query",
+                span_id,
+                message = format!(
+                    "Client disconnected (channel closed) during tool response stream: {}",
+                    e.to_string()
+                )
+            );
+            e
+        })?;
+    }
+    let mut full_message_no_tools = String::new();
+    // response
+    while let Some(result) = stream.next().await {
+        let result = result?;
+        let tokens = get_final_tokens_from_stream(&result);
+
+        let finish_reason = result
+            .choices
+            .iter()
+            .filter_map(|choice| choice.finish_reason)
+            .next();
+        match finish_reason {
+            None => {
+                full_message_no_tools.push_str(&tokens);
+                tx.feed(Message::Text(tokens)).await.map_err(|e| {
+                    info!(
+                        tool_use = true,
+                        endpoint = "query",
+                        span_id,
+                        message = format!(
+                            "Client disconnected (channel closed) during tool response stream: {}",
+                            e.to_string()
+                        )
+                    );
+                    e
+                })?;
+            }
+            Some(FinishReason::ToolCalls) => {
+                return Ok(ChatStreamResult::ToolCalls(construct_tool_call(result)));
+            }
+            _ => return Ok(ChatStreamResult::Message(full_message_no_tools)),
+        }
+    }
+    //shouldn't get here, but if it does just return the message
+    Ok(ChatStreamResult::Message(full_message_no_tools))
+}
+
 pub async fn chat_with_tools(
     bot: &Bot,
     tx: &mut WebSocketStream,
@@ -188,127 +314,47 @@ pub async fn chat_with_tools(
         None => (),
     };
 
-    let mut finish_reason: Option<FinishReason> = None;
-    let mut stream = bot
-        .llm
-        .chat()
-        .create_stream(req)
-        .await?
-        .skip_while(|item| future::ready(!get_end_of_thinking(&item)));
-    let mut full_message_no_tools = String::new();
-    while let Some(result) = stream.next().await {
-        let result = result?;
-        let tokens = get_final_tokens_from_stream(&result);
+    let stream = bot.llm.chat().create_stream(req).await?;
 
-        if tokens.trim().is_empty() {
-            finish_reason = result
-                .choices
-                .iter()
-                .filter_map(|choice| choice.finish_reason)
-                .next();
+    let stream_result = process_chat_stream(tx, stream).await?;
 
-            result
-                .choices
-                .into_iter()
-                .filter_map(|chat_choice| match chat_choice.delta.tool_calls {
-                    Some(calls) => Some((chat_choice.index, calls)),
-                    None => None,
-                })
-                .for_each(|(chat_choice_index, tools)| {
-                    tools.into_iter().for_each(|tool_call_chunk| {
-                        // If tool_results.entry(key) exists already, id will be null.
-                        // But insert_with won't be called in that case
-                        // So there should never be an ID of "123"
-                        let id = tool_call_chunk.id.unwrap_or_else(|| "123".to_string());
-                        let key = (chat_choice_index, tool_call_chunk.index);
-                        let tool_call = tool_results.entry(key).or_insert_with(|| {
-                            ChatCompletionMessageToolCall {
-                                id: id,
-                                r#type: ChatCompletionToolType::Function,
-                                function: FunctionCall {
-                                    name: tool_call_chunk
-                                        .function
-                                        .as_ref()
-                                        .and_then(|f| f.name.clone())
-                                        .unwrap_or_default(),
-                                    arguments: "".to_string(),
-                                },
-                            }
-                        });
-                        if let Some(arguments) = tool_call_chunk
-                            .function
-                            .as_ref()
-                            .and_then(|f| f.arguments.as_ref())
-                        {
-                            tool_call.function.arguments.push_str(arguments);
-                        }
-                    })
-                });
-        } else if contains_stop_word(&tokens) {
-            info!(tool_use = false, endpoint = "query", span_id, "First token");
-        } else {
-            full_message_no_tools.push_str(&tokens);
-            //no tool call, just send results
-            tx.feed(Message::Text(tokens)).await.map_err(|e| {
-                info!(
-                    tool_use = false,
-                    endpoint = "query",
-                    span_id,
-                    message = format!(
-                        "Client disconnected (channel closed) during tool response stream: {}",
-                        e.to_string()
-                    )
-                );
-                e
-            })?;
-        }
-    }
-    match finish_reason {
-        Some(FinishReason::ToolCalls) => {
+    match stream_result {
+        ChatStreamResult::ToolCalls(tool_calls) => {
             info!(
                 tool_use = true,
                 endpoint = "query",
                 span_id,
                 "Finished constructing tool calls"
             );
-            let mut full_message_tools = String::new();
             //no tools since we don't want to call the tools a second time
             let req_no_tools =
                 construct_messages(get_req(&bot, &None)?, previous_messages, new_message)?;
-            let mut stream =
-                tool_response(&bot.llm, registry, req_no_tools, tool_results, &span_id)
-                    .await?
-                    .skip_while(|item| future::ready(!get_end_of_thinking(&item)));
-            while let Some(result) = stream.next().await {
-                let result = result?;
-                let tokens = get_final_tokens_from_stream(&result);
-                if contains_stop_word(&tokens) {
-                    info!(tool_use = true, endpoint = "query", span_id, "First token");
-                } else {
-                    full_message_tools.push_str(&tokens);
-                    tx.feed(Message::Text(tokens)).await.map_err(|e|{
-                        info!(
-                            tool_use = true,
-                            endpoint = "query",
-                            span_id,
-                            message = format!(
-                                "Client disconnected (channel closed) during tool response stream: {}",
-                                e.to_string()
-                            )
-                        );
-                        e
-                    })?;
-                }
-            }
+            let stream =
+                tool_response(&bot.llm, registry, req_no_tools, tool_results, &span_id).await?;
+
+            let stream_result = process_chat_stream(tx, stream).await?;
             info!(
                 tool_use = true,
                 endpoint = "query",
                 span_id,
                 "Completed response"
             );
-            Ok(full_message_tools)
+            Ok(match stream_result {
+                ChatStreamResult::Message(full_message_with_tools) => {
+                    info!(
+                        tool_use = true,
+                        endpoint = "query",
+                        span_id,
+                        "Completed response"
+                    );
+                    Ok(full_message_with_tools)
+                }
+                _ => Err(OpenAIError::StreamError(
+                    "Message required from tool call result".to_string(),
+                )),
+            }?)
         }
-        _ => {
+        ChatStreamResult::Message(full_message_no_tools) => {
             info!(
                 tool_use = false,
                 endpoint = "query",
