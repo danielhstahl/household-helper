@@ -14,6 +14,10 @@ export interface StatusResponse {
   status: string;
 }
 
+export interface ChatToken {
+  tokenType: string;
+  tokens: string;
+}
 const getHeaders = (jwt: string) => ({
   "Content-Type": "application/json",
   Authorization: `Bearer ${jwt}`,
@@ -22,7 +26,7 @@ const getHeaders = (jwt: string) => ({
 async function fetchWithAuth<T>(
   url: string,
   jwt: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
 ): Promise<T> {
   const response = await fetch(url, {
     ...options,
@@ -42,7 +46,7 @@ export async function getSessions(jwt: string): Promise<SessionDB[]> {
 }
 
 export async function getMostRecentSession(
-  jwt: string
+  jwt: string,
 ): Promise<SessionDB | undefined> {
   const response = await fetch("/api/session/recent", {
     headers: getHeaders(jwt),
@@ -59,7 +63,7 @@ export async function createSession(jwt: string): Promise<SessionDB> {
 
 export async function deleteSession(
   sessionId: string,
-  jwt: string
+  jwt: string,
 ): Promise<StatusResponse> {
   return fetchWithAuth<StatusResponse>(`/api/session/${sessionId}`, jwt, {
     method: "DELETE",
@@ -68,7 +72,7 @@ export async function deleteSession(
 
 export async function getMessages(
   sessionId: string,
-  jwt: string
+  jwt: string,
 ): Promise<Message[]> {
   return fetchWithAuth<Message[]>(`/api/messages/${sessionId}`, jwt);
 }
@@ -85,7 +89,7 @@ export async function createUser(
   username: string,
   password: string,
   roles: RoleType[],
-  jwt: string
+  jwt: string,
 ): Promise<StatusResponse> {
   return fetchWithAuth<StatusResponse>("/api/user", jwt, {
     method: "POST",
@@ -98,7 +102,7 @@ export async function updateUser(
   username: string,
   password: string | undefined,
   roles: RoleType[],
-  jwt: string
+  jwt: string,
 ): Promise<StatusResponse> {
   const payload = password
     ? { username, password, roles }
@@ -111,7 +115,7 @@ export async function updateUser(
 
 export async function deleteUser(
   id: number,
-  jwt: string
+  jwt: string,
 ): Promise<StatusResponse> {
   return fetchWithAuth<StatusResponse>(`/api/user/${id}`, jwt, {
     method: "DELETE",
@@ -121,7 +125,7 @@ export async function deleteUser(
 export async function getToken(formData: FormData): Promise<Token> {
   //https://github.com/microsoft/TypeScript/issues/30584#issuecomment-1865354582
   const data = new URLSearchParams(
-    formData as unknown as Record<string, string>
+    formData as unknown as Record<string, string>,
   );
   const response = await fetch("/api/login", {
     method: "POST",
@@ -138,7 +142,7 @@ export async function getQueryLatency(jwt: string): Promise<QueryLatency[]> {
 }
 
 export async function getIngestionLatency(
-  jwt: string
+  jwt: string,
 ): Promise<QueryLatency[]> {
   return fetchWithAuth<QueryLatency[]>("/api/telemetry/latency/ingest", jwt);
 }
@@ -154,7 +158,7 @@ export async function getKnowledgeBases(jwt: string): Promise<KnowledgeBase> {
 export async function uploadFileToKnowledgeBase(
   kbName: string,
   formData: FormData,
-  jwt: string
+  jwt: string,
 ): Promise<StatusResponse> {
   const response = await fetch(`/api/knowledge_base/${kbName}/ingest`, {
     method: "POST",
@@ -172,7 +176,7 @@ export async function invokeAgent(
   query: string,
   jwt: string,
   sessionId: string,
-  onMessage: (message: string) => void
+  onMessage: (message: ChatToken) => void,
 ): Promise<void> {
   const url = new URL(
     `/ws/${selectedAgent}?${new URLSearchParams({
@@ -180,7 +184,7 @@ export async function invokeAgent(
       token: jwt,
     })} `,
     //see vite.config.ts
-    import.meta.env.DEV ? "http://localhost:3000" : window.location.href
+    import.meta.env.DEV ? "http://localhost:3000" : window.location.href,
   );
   //handles https and wss too since both end in s
   url.protocol = url.protocol.replace("http", "ws");
@@ -189,7 +193,7 @@ export async function invokeAgent(
     ws.send(query);
   };
   ws.onmessage = (event) => {
-    onMessage(event.data);
+    onMessage(JSON.parse(event.data));
   };
   await new Promise<void>((res, rej) => {
     ws.onclose = () => {

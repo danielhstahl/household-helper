@@ -1,6 +1,6 @@
 # Setup
 
-In [draid-binary](./draid-binary):
+In the current directory:
 * `cargo install sqlx-cli --no-default-features --features native-tls,postgres`
 * `cargo sqlx migrate add users --source migrations`
 * `cargo sqlx migrate add sessions --source migrations`

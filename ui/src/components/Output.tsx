@@ -17,6 +17,7 @@ interface OutputProps {
   messages: Message[];
   isWaiting: boolean;
   latestText: string;
+  latestCot: string;
   loading: boolean;
 }
 interface FormattedTextProps {
@@ -34,7 +35,13 @@ const FormattedText = memo(({ text }: FormattedTextProps) => {
   );
 });
 
-const Output = ({ messages, isWaiting, latestText, loading }: OutputProps) => {
+const Output = ({
+  messages,
+  isWaiting,
+  latestText,
+  latestCot,
+  loading,
+}: OutputProps) => {
   const theme = useTheme();
   return (
     <Grid
@@ -79,6 +86,23 @@ const Output = ({ messages, isWaiting, latestText, loading }: OutputProps) => {
               <FormattedText text={content} />
             </Box>
           ))}
+          {latestCot !== "" && (
+            <Box
+              style={{
+                alignSelf: "flex-start",
+                maxWidth: "70%",
+                borderRadius: 16,
+                fontStyle: "italic",
+                backgroundColor: theme.palette.text.disabled,
+                color: theme.palette.text.primary,
+                padding: theme.spacing(1, 2),
+                margin: theme.spacing(1),
+                wordBreak: "break-word",
+              }}
+            >
+              <FormattedText text={latestCot} />
+            </Box>
+          )}
           {latestText !== "" && (
             <Box
               style={{

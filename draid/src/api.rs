@@ -8,7 +8,7 @@ use poem::{
 use poem_openapi::{OpenApi, payload::Json};
 use sqlx::PgPool;
 use std::sync::Arc;
-use tracing::{Instrument, Level, span};
+use tracing::{Instrument, Level, info, span};
 use uuid::Uuid;
 
 use crate::auth::{UserIdentification, create_token};
@@ -27,7 +27,7 @@ use crate::psql_vectors::{
 };
 use poem::error::InternalServerError;
 
-pub fn handle_chat_session(
+fn handle_chat_session(
     bot_ref: &Arc<Bot>,
     session_id: Uuid,
     user_id: Uuid,
@@ -49,7 +49,7 @@ pub fn handle_chat_session(
                     .map_err(InternalServerError)?;
                 let span_id = Uuid::new_v4().to_string();
                 //chat_with_tools produces each token in the stream to the websocket
-                let full_message = chat_with_tools(&bot, &mut socket, &messages, &prompt, span_id)
+                let full_message = chat_with_tools(&bot, &mut socket, &messages, &prompt, &span_id)
                     .instrument(span!(
                         Level::INFO,
                         "chat_with_tools",
@@ -57,7 +57,16 @@ pub fn handle_chat_session(
                         tool_use = false
                     ))
                     .await
-                    .map_err(|e| InternalServerError(LLMError { msg: e.to_string() }))?;
+                    .map_err(|e| {
+                        let e_str = e.to_string();
+                        info!(
+                            tool_use = false,
+                            endpoint = "query",
+                            span_id,
+                            message = &e_str
+                        );
+                        InternalServerError(LLMError { msg: e_str })
+                    })?;
                 write_ai_message(full_message, &psql_memory)
                     .await
                     .map_err(InternalServerError)?;
