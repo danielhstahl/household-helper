@@ -18,6 +18,7 @@ describe("Output", () => {
         messages={messages}
         isWaiting={false}
         latestText=""
+        latestCot=""
         loading={false}
       />,
     );
@@ -37,6 +38,7 @@ describe("Output", () => {
         messages={messages}
         isWaiting={false}
         latestText=""
+        latestCot=""
         loading={true}
       />,
     );
@@ -56,6 +58,7 @@ describe("Output", () => {
         messages={messages}
         isWaiting={true}
         latestText=""
+        latestCot=""
         loading={false}
       />,
     );
@@ -75,6 +78,27 @@ describe("Output", () => {
         messages={messages}
         isWaiting={false}
         latestText="goodbye"
+        latestCot=""
+        loading={false}
+      />,
+    );
+    await expect.element(screen.getByText("goodbye")).toBeInTheDocument();
+  });
+  it("shows cot if latestCot", async () => {
+    const messages = [
+      {
+        message_type: MessageTypeEnum.human,
+        id: 1,
+        content: "hello",
+        timestamp: "sometime",
+      },
+    ];
+    const screen = render(
+      <Output
+        messages={messages}
+        isWaiting={false}
+        latestText=""
+        latestCot="goodbye"
         loading={false}
       />,
     );

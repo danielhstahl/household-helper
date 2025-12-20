@@ -334,6 +334,16 @@ pub async fn delete_session<'a>(
 ) -> sqlx::Result<()> {
     sqlx::query!(
         r#"
+        DELETE FROM messages WHERE session_id=$1
+        AND username_id=$2
+        "#,
+        &session_id,
+        &user_id
+    )
+    .execute(pool)
+    .await?;
+    sqlx::query!(
+        r#"
         DELETE FROM sessions WHERE id=$1
         AND username_id=$2
         "#,

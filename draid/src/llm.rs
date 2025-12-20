@@ -228,7 +228,6 @@ pub struct WebSocketToken {
 async fn process_chat_stream(
     tx: &mut WebSocketStream,
     mut stream: ChatCompletionResponseStream,
-    span_id: &String,
 ) -> anyhow::Result<ChatStreamResult> {
     // chain of thought
     while let Some(result) = stream.next().await {
@@ -245,22 +244,11 @@ async fn process_chat_stream(
             tokens,
         };
         tx.send(Message::Text(serde_json::to_string(&ws_token)?))
-            .await
-            .map_err(|e| {
-                info!(
-                    tool_use = true,
-                    endpoint = "query",
-                    span_id,
-                    message = format!(
-                        "Client disconnected (channel closed) during tool response stream: {}",
-                        e.to_string()
-                    )
-                );
-                e
-            })?;
+            .await?;
     }
     let mut full_message_no_tools = String::new();
-    // response
+    let mut tool_call_result: Option<ChatStreamResult> = None;
+    // real response
     while let Some(result) = stream.next().await {
         let result = result?;
         let tokens = get_final_tokens_from_stream(&result);
@@ -270,6 +258,13 @@ async fn process_chat_stream(
             .iter()
             .filter_map(|choice| choice.finish_reason)
             .next();
+        let has_tool_calls = result
+            .choices
+            .iter()
+            .any(|choice| choice.delta.tool_calls.is_some());
+        if has_tool_calls {
+            tool_call_result = Some(ChatStreamResult::ToolCalls(construct_tool_call(result)));
+        }
         match finish_reason {
             None => {
                 full_message_no_tools.push_str(&tokens);
@@ -277,21 +272,16 @@ async fn process_chat_stream(
                     token_type: TokenCategory::Message,
                     tokens,
                 };
-                tx.send(Message::Text(serde_json::to_string(&ws_token)?)).await.map_err(|e| {
-                    info!(
-                        tool_use = true,
-                        endpoint = "query",
-                        span_id,
-                        message = format!(
-                            "Client disconnected (channel closed) during tool response stream: {}",
-                            e.to_string()
-                        )
-                    );
-                    e
-                })?;
+                tx.send(Message::Text(serde_json::to_string(&ws_token)?))
+                    .await?;
             }
             Some(FinishReason::ToolCalls) => {
-                return Ok(ChatStreamResult::ToolCalls(construct_tool_call(result)));
+                return Ok(match tool_call_result {
+                    Some(tool_calls) => Ok(tool_calls),
+                    None => Err(OpenAIError::StreamError(
+                        "Finish reason is ToolCalls, but no tools to call!".to_string(),
+                    )),
+                }?);
             }
             _ => return Ok(ChatStreamResult::Message(full_message_no_tools)),
         }
@@ -305,7 +295,7 @@ pub async fn chat_with_tools(
     tx: &mut WebSocketStream,
     previous_messages: &[MessageResult],
     new_message: &str,
-    span_id: String,
+    span_id: &String,
 ) -> anyhow::Result<String> {
     info!(
         tool_use = false,
@@ -328,8 +318,7 @@ pub async fn chat_with_tools(
     };
 
     let stream = bot.llm.chat().create_stream(req).await?;
-    //let stream_result = process_chat_stream(tx, stream, &span_id).await?;
-    match process_chat_stream(tx, stream, &span_id).await? {
+    match process_chat_stream(tx, stream).await? {
         ChatStreamResult::ToolCalls(tool_calls) => {
             info!(
                 tool_use = true,
@@ -343,13 +332,7 @@ pub async fn chat_with_tools(
             let stream =
                 tool_response(&bot.llm, registry, req_no_tools, tool_calls, &span_id).await?;
 
-            let stream_result = process_chat_stream(tx, stream, &span_id).await?;
-            info!(
-                tool_use = true,
-                endpoint = "query",
-                span_id,
-                "Completed response"
-            );
+            let stream_result = process_chat_stream(tx, stream).await?;
             Ok(match stream_result {
                 ChatStreamResult::Message(full_message_with_tools) => {
                     info!(
