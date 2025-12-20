@@ -14,6 +14,10 @@ export interface StatusResponse {
   status: string;
 }
 
+export interface ChatToken {
+  tokenType: string;
+  tokens: string;
+}
 const getHeaders = (jwt: string) => ({
   "Content-Type": "application/json",
   Authorization: `Bearer ${jwt}`,
@@ -172,7 +176,7 @@ export async function invokeAgent(
   query: string,
   jwt: string,
   sessionId: string,
-  onMessage: (message: string) => void,
+  onMessage: (message: ChatToken) => void,
 ): Promise<void> {
   const url = new URL(
     `/ws/${selectedAgent}?${new URLSearchParams({

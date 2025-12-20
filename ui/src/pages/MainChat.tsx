@@ -4,7 +4,7 @@ import AgentSelection from "../components/AgentSelection.tsx";
 import Output from "../components/Output.tsx";
 import { MessageTypeEnum, type Message } from "../services/models.tsx";
 import { type AgentSelections } from "../state/selectAgent.tsx";
-import { invokeAgent } from "../services/api.tsx";
+import { invokeAgent, type ChatToken } from "../services/api.tsx";
 import { getLoggedInJwt } from "../state/localState.tsx";
 import {
   useNavigation,
@@ -27,11 +27,6 @@ const initMessageState = (messages: Message[]) => ({
 
 interface OutletContext {
   agentSelectionRef: React.Ref<HTMLDivElement>;
-}
-
-interface ChatToken {
-  tokenType: string;
-  tokens: string;
 }
 
 const MainChat = () => {
