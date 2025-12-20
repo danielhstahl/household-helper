@@ -153,14 +153,6 @@ fn contains_stop_word(token: &str) -> bool {
     token.contains("</think>")
 }
 
-/*
-fn get_end_of_thinking(item: &Result<CreateChatCompletionStreamResponse, OpenAIError>) -> bool {
-    match item {
-        Ok(item) => contains_stop_word(&get_final_tokens_from_stream(item)),
-        Err(_e) => false,
-    }
-}
-*/
 fn construct_tool_call(
     stream_chunk: CreateChatCompletionStreamResponse,
 ) -> std::collections::HashMap<(u32, u32), ChatCompletionMessageToolCall> {
