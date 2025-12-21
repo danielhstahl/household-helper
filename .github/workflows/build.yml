@@ -22,8 +22,19 @@ jobs:
         run: npm run build
 
       - name: package
-        run: tar czvf draid.tar.gz -C ui dist -C ../examples init.sql install.sh nginx.app.conf nginx.service
+        run: tar czvf draid.tar.gz -C ui dist -C ../examples init.sql nginx.app.conf nginx.service
 
+      - name: upload ui
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload ${{ github.event.release.tag_name }} minidsp-ui.tar.gz
+
+      - name: upload install_script
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload ${{ github.event.release.tag_name }} examples/install.sh
   build_ui_container:
     runs-on: ubuntu-latest
     permissions:
