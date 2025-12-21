@@ -12,14 +12,15 @@ services:
       KNOWLEDGE_BASE_ENDPOINT: "http://127.0.0.1:8000"
       HOSTNAME: "yourfinalhostname, used for swagger"
       TOOL_CONFIG: '{"kb":[{"name":"recipes","num_results":3},{"name":"gardening","num_results":3}],"mcp":[{"name":"devin","description":"Devin allows searching code repositories.  No auth required.  Both owner and repo must be provided to the function.","url":"https://mcp.deepwiki.com/mcp","mcp_type":"stream"}]}'
-
-  ui:
-    image: ghcr.io/danielhstahl/householdhelper-ui:v0.4.1
-    environment:
-      BACKEND_SERVICE: app:8000
-    # for exposing outside the container network
     ports:
-      - "8002:8000"
+      - "8000:8000"
+  #ui:
+  #  image: ghcr.io/danielhstahl/householdhelper-ui:v0.4.1
+  #  environment:
+  #    BACKEND_SERVICE: app:8000
+  # for exposing outside the container network
+  #  ports:
+  #    - "8002:8000"
 
   psqldb:
     image: pgvector/pgvector:0.8.0-pg17-trixie
@@ -28,7 +29,8 @@ services:
       POSTGRES_PASSWORD: [yourpsqlpassword]
       POSTGRES_USER: [yourpsqluser]
     volumes:
-      - "/volume1/docker/postgres:/var/lib/postgresql/data/"
-
+      - "HOME/draid/psqlstorage:/var/lib/postgresql/data/"
+      # assumes init.sql in HOME/draid
+      - "HOME/draid:/docker-entrypoint-initdb.d/"
 volumes:
   psqldb:
