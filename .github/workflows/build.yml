@@ -3,6 +3,27 @@ on:
     types: [published]
 
 jobs:
+  build_ui:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # release changes require contents write
+    env:
+      NODE_OPTIONS: "--max_old_space_size=4096"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: install deps
+        run: npm ci
+        working-directory: ui
+
+      - name: compile
+        working-directory: ui
+        # vite sets node_env=production automatically when building
+        run: npm run build
+
+      - name: package
+        run: tar czvf draid.tar.gz -C ui dist -C ../examples init.sql install.sh nginx.app.conf nginx.service
+
   build_ui_container:
     runs-on: ubuntu-latest
     permissions:
