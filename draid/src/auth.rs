@@ -156,7 +156,12 @@ impl<E: Endpoint> Endpoint for WSMiddlewareImpl<E> {
             &DecodingKey::from_secret(jwt_secret),
             &Validation::new(Algorithm::HS256),
         )
-        .map_err(InternalServerError)?;
+        .map_err(|e| {
+            // THIS WILL TELL YOU IF IT IS A CLOCK ISSUE OR CRYPTO ISSUE
+            eprintln!("WS Auth Error: JWT Decode failed: {:?}", e);
+            InternalServerError(e)
+        })?;
+        //.map_err(InternalServerError)?;
         let calling_user = get_user(&token_data.claims.sub, pool)
             .await
             .map_err(InternalServerError)?;
