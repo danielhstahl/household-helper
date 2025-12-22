@@ -184,7 +184,7 @@ export async function invokeAgent(
       token: jwt,
     })} `,
     //see vite.config.ts
-    import.meta.env.DEV ? "http://localhost:3000" : window.location.href,
+    window.location.href,
   );
   //handles https and wss too since both end in s
   url.protocol = url.protocol.replace("http", "ws");
