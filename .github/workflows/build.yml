@@ -22,7 +22,7 @@ jobs:
         run: npm run build
 
       - name: package
-        run: tar czvf draid.tar.gz -C ui dist -C ../examples init.sql nginx.app.conf nginx.service
+        run: tar czvf draid.tar.gz -C ui dist -C ../examples init.sql nginx.app.conf nginx.service -C ../docker/docker-compose.yml
 
       - name: upload ui
         env:
