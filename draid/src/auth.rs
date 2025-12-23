@@ -6,7 +6,6 @@ use poem::{Endpoint, Middleware, Request, Result};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use std::fmt;
-use tracing::error;
 use uuid::Uuid;
 // Used for integration with custom middleware
 use poem_grants::authorities::AttachAuthorities;
@@ -141,6 +140,7 @@ impl<E: Endpoint> Endpoint for WSMiddlewareImpl<E> {
     type Output = E::Output;
 
     async fn call(&self, mut req: Request) -> Result<Self::Output> {
+        println!("inside call to ws middleware");
         let jwt_secret = req.data::<Vec<u8>>().ok_or_else(|| {
             InternalServerError(AuthError {
                 msg: "JWT Secret does not exist".to_string(),
@@ -158,11 +158,9 @@ impl<E: Endpoint> Endpoint for WSMiddlewareImpl<E> {
             &Validation::new(Algorithm::HS256),
         )
         .map_err(|e| {
-            // THIS WILL TELL YOU IF IT IS A CLOCK ISSUE OR CRYPTO ISSUE
-            error!("JWT Decode failed on ARM: {:?}", e);
+            println!("got to error on token data {}", e);
             InternalServerError(e)
         })?;
-        //.map_err(InternalServerError)?;
         let calling_user = get_user(&token_data.claims.sub, pool)
             .await
             .map_err(InternalServerError)?;
