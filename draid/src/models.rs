@@ -10,11 +10,6 @@ use std::fmt;
 use std::sync::Arc;
 use uuid::Uuid;
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct User {
-    pub username: String,
-}
-
 #[derive(Debug, Serialize, Object)]
 pub struct AuthResponse {
     pub access_token: String,
@@ -58,7 +53,7 @@ pub fn get_bots(
             None,       //no tools
         )),
     };
-   bots
+    bots
 }
 
 #[derive(Debug)]
@@ -94,13 +89,6 @@ pub struct StatusResponse {
     pub status: ResponseStatus,
 }
 
-// 1. Define the Error Payload
-#[derive(Debug, Serialize, Object)]
-pub struct ApiError {
-    pub code: u16,
-    pub message: String,
-}
-
 #[derive(ApiResponse)]
 pub enum SuccessResponse {
     // Status 200: Success
@@ -133,11 +121,6 @@ pub enum MessageResponse {
     // Status 200: Success
     #[oai(status = 200)]
     SuccessMultiple(Json<Vec<MessageResult>>),
-}
-
-#[derive(Deserialize, Object)]
-pub struct Prompt {
-    pub text: String,
 }
 
 #[derive(Deserialize)] // No deny_unknown_fields; let token slide, it's inert here

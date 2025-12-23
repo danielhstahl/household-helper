@@ -1,26 +1,21 @@
 services:
   app:
-    image: ghcr.io/danielhstahl/householdhelper-draid:v0.4.1
+    image: ghcr.io/danielhstahl/householdhelper-draid:RELEASE_TAG
     container_name: app
     environment:
       INIT_ADMIN_PASSWORD: [yourpassword]
       OPEN_AI_COMPATABLE_ENDPOINT: http://[yourllmip]:8100/ai/llm
+      OPEN_AI_COMPATABLE_ENDPOINT_CHAT: http://[yourllmip]:8100/ai/llm
+      OPEN_AI_COMPATABLE_ENDPOINT_EMBEDDING: http://[yourllmip]:8100/ai/embedding
       JWT_SECRET: [yourjwtsecret]
       PSQL_DATABASE_URL: "postgresql://[yourpsqluser]:[yourpsqlpassword]@psqldb:5432/draid"
       PORT: 8000
       ADDRESS: 0.0.0.0
       KNOWLEDGE_BASE_ENDPOINT: "http://127.0.0.1:8000"
-      HOSTNAME: "yourfinalhostname, used for swagger"
+      HOSTNAME: "https://HOSTNAME"
       TOOL_CONFIG: '{"kb":[{"name":"recipes","num_results":3},{"name":"gardening","num_results":3}],"mcp":[{"name":"devin","description":"Devin allows searching code repositories.  No auth required.  Both owner and repo must be provided to the function.","url":"https://mcp.deepwiki.com/mcp","mcp_type":"stream"}]}'
     ports:
       - "8000:8000"
-  #ui:
-  #  image: ghcr.io/danielhstahl/householdhelper-ui:v0.4.1
-  #  environment:
-  #    BACKEND_SERVICE: app:8000
-  # for exposing outside the container network
-  #  ports:
-  #    - "8002:8000"
 
   psqldb:
     image: pgvector/pgvector:0.8.0-pg17-trixie

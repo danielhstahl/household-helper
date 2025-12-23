@@ -55,6 +55,9 @@ psql -d postgres
 sudo docker exec -it [imghash] bash
 psql -U [username]
 psql -c "CREATE DATABASE draid;"
+## may need this as well
+psql -U [username] -d postgres -c "CREATE DATABASE [username];"
+psql -U [username] -d postgres -c "CREATE EXTENSION vector;"
 ```
 
 ### Recommended dev command
@@ -88,9 +91,7 @@ If you are creating a self-signed certificate for local hosting:
 
 `export LOCAL_IP=[yourlocalip]`
 
-`openssl req -x509 -newkey rsa:4096 -sha256 -days 3650 -nodes \
-  -keyout $DOMAIN_NAME.key -out $DOMAIN_NAME.crt -subj "/CN=$DOMAIN_NAME.local" \
-  -addext "subjectAltName=DNS:*.$DOMAIN_NAME.local,IP:$LOCAL_IP"`
+`openssl req -x509 -newkey rsa:4096 -sha256 -days 3650 -nodes -keyout $DOMAIN_NAME.key -out $DOMAIN_NAME.crt -subj "/CN=$DOMAIN_NAME.local" -addext "subjectAltName=DNS:*.$DOMAIN_NAME.local,IP:$LOCAL_IP"`
 
 ### OLLAMA on Mac
 

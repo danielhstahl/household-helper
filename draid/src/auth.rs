@@ -6,7 +6,6 @@ use poem::{Endpoint, Middleware, Request, Result};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use std::fmt;
-use tracing::error;
 use uuid::Uuid;
 // Used for integration with custom middleware
 use poem_grants::authorities::AttachAuthorities;
@@ -157,12 +156,7 @@ impl<E: Endpoint> Endpoint for WSMiddlewareImpl<E> {
             &DecodingKey::from_secret(jwt_secret),
             &Validation::new(Algorithm::HS256),
         )
-        .map_err(|e| {
-            // THIS WILL TELL YOU IF IT IS A CLOCK ISSUE OR CRYPTO ISSUE
-            error!("JWT Decode failed on ARM: {:?}", e);
-            InternalServerError(e)
-        })?;
-        //.map_err(InternalServerError)?;
+        .map_err(InternalServerError)?;
         let calling_user = get_user(&token_data.claims.sub, pool)
             .await
             .map_err(InternalServerError)?;
@@ -172,7 +166,6 @@ impl<E: Endpoint> Endpoint for WSMiddlewareImpl<E> {
         });
         // Attach permissions to request for `poem-grants`
         req.attach(calling_user.roles);
-
         // call the next endpoint.
         self.ep.call(req).await
     }

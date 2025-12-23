@@ -11,4 +11,5 @@ wheels/
 .venv
 
 docker/actual-docker-compose.yml
+docker/actual-docker-compose-rpi.yml
 .DS_Store
