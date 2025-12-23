@@ -146,12 +146,15 @@ impl<E: Endpoint> Endpoint for WSMiddlewareImpl<E> {
                 msg: "JWT Secret does not exist".to_string(),
             })
         })?;
+        println!("got jwt secret");
         let pool = req.data::<PgPool>().ok_or_else(|| {
             InternalServerError(AuthError {
                 msg: "Could not get database connection".to_string(),
             })
         })?;
+        println!("got db pool");
         let token = req.params::<Token>()?;
+        println!("got token, and it is {}", token.token);
         let token_data = decode::<Claims>(
             &token.token,
             &DecodingKey::from_secret(jwt_secret),
@@ -161,16 +164,18 @@ impl<E: Endpoint> Endpoint for WSMiddlewareImpl<E> {
             println!("got to error on token data {}", e);
             InternalServerError(e)
         })?;
+        println!("got past token");
         let calling_user = get_user(&token_data.claims.sub, pool)
             .await
             .map_err(InternalServerError)?;
+        println!("get the user! {}", calling_user.username);
         req.extensions_mut().insert(UserIdentification {
             username: calling_user.username,
             id: calling_user.id,
         });
         // Attach permissions to request for `poem-grants`
         req.attach(calling_user.roles);
-
+        println!("end of middleware");
         // call the next endpoint.
         self.ep.call(req).await
     }
