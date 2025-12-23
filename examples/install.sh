@@ -20,18 +20,20 @@ mkdir -p $HOME/draid/psqlstorage
 sudo mkdir -p /usr/bin/draid
 
 tar -xzvf ${ui_tar_name} # extracts in current dir
+sudo rm -rf /usr/bin/draid/dist
 sudo mv dist /usr/bin/draid/
 rm ${ui_tar_name}
 
 sed -i -e "s/HOSTNAME/${DOMAIN}/g" docker-compose.yml
 init_admin_password=$(uuid)
-sed -i -e "s/[yourpassword]/${init_admin_password}/g" docker-compose.yml
+sed -i -e "s/\[yourpassword\]/${init_admin_password}/g" docker-compose.yml
 jwt_secret=$(uuid)
-sed -i -e "s/[yourjwtsecret]/${jwt_secret}/g" docker-compose.yml
+sed -i -e "s/\[yourjwtsecret\]/${jwt_secret}/g" docker-compose.yml
 psql_password=$(uuid)
-sed -i -e "s/[yourpsqlpassword]/${psql_password}/g" docker-compose.yml
-sed -i -e "s/[yourpsqluser]/${PSQL_USER}/g" docker-compose.yml
-sed -i -e "s/[yourllmip]/${LLM_IP}/g" docker-compose.yml
+sed -i -e "s/\[yourpsqlpassword\]/${psql_password}/g" docker-compose.yml
+sed -i -e "s/\[yourpsqluser\]/${PSQL_USER}/g" docker-compose.yml
+sed -i -e "s/\[yourllmip\]/${LLM_IP}/g" docker-compose.yml
+sed -i -e "s/RELEASE_TAG/${RELEASE_TAG}/g" docker-compose.yml
 sed -i -e "s@HOME@${HOME}@g" docker-compose.yml
 
 sed -i -e "s/HOSTNAME/${DOMAIN}/g" nginx.app.conf
@@ -40,9 +42,9 @@ sed -i -e "s@HOME@${HOME}@g" nginx.service
 
 GENERATE_SSL="${GENERATE_SSL:-false}"
 if [ ${GENERATE_SSL} == "true" ]; then
-    openssl req -x509 -newkey rsa:4096 -sha256 -days 3650 -nodes -keyout device.key -out device.crt -subj "/CN=$DOMAIN" -addext "subjectAltName=DNS:*.$DOMAIN"
-    sudo mv device.key $HOME/draid/ssl/
-    sudo mv device.crt $HOME/draid/ssl/
+    openssl req -x509 -newkey rsa:4096 -sha256 -days 3650 -nodes -keyout device.key -out device.crt -subj "/CN=$DOMAIN" -addext "subjectAltName=DNS:$DOMAIN,DNS:*.$DOMAIN"
+    mv device.key $HOME/draid/ssl/
+    mv device.crt $HOME/draid/ssl/
 fi
 
 sudo mv nginx.service /lib/systemd/system/draid-nginx.service
