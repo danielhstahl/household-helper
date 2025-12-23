@@ -140,42 +140,32 @@ impl<E: Endpoint> Endpoint for WSMiddlewareImpl<E> {
     type Output = E::Output;
 
     async fn call(&self, mut req: Request) -> Result<Self::Output> {
-        println!("inside call to ws middleware");
         let jwt_secret = req.data::<Vec<u8>>().ok_or_else(|| {
             InternalServerError(AuthError {
                 msg: "JWT Secret does not exist".to_string(),
             })
         })?;
-        println!("got jwt secret");
         let pool = req.data::<PgPool>().ok_or_else(|| {
             InternalServerError(AuthError {
                 msg: "Could not get database connection".to_string(),
             })
         })?;
-        println!("got db pool");
         let token = req.params::<Token>()?;
-        println!("got token, and it is {}", token.token);
         let token_data = decode::<Claims>(
             &token.token,
             &DecodingKey::from_secret(jwt_secret),
             &Validation::new(Algorithm::HS256),
         )
-        .map_err(|e| {
-            println!("got to error on token data {}", e);
-            InternalServerError(e)
-        })?;
-        println!("got past token");
+        .map_err(InternalServerError)?;
         let calling_user = get_user(&token_data.claims.sub, pool)
             .await
             .map_err(InternalServerError)?;
-        println!("get the user! {}", calling_user.username);
         req.extensions_mut().insert(UserIdentification {
             username: calling_user.username,
             id: calling_user.id,
         });
         // Attach permissions to request for `poem-grants`
         req.attach(calling_user.roles);
-        println!("end of middleware");
         // call the next endpoint.
         self.ep.call(req).await
     }
