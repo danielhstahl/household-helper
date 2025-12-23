@@ -6,6 +6,7 @@ use poem::{Endpoint, Middleware, Request, Result};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use std::fmt;
+use tracing::error;
 use uuid::Uuid;
 // Used for integration with custom middleware
 use poem_grants::authorities::AttachAuthorities;
@@ -158,7 +159,7 @@ impl<E: Endpoint> Endpoint for WSMiddlewareImpl<E> {
         )
         .map_err(|e| {
             // THIS WILL TELL YOU IF IT IS A CLOCK ISSUE OR CRYPTO ISSUE
-            eprintln!("WS Auth Error: JWT Decode failed: {:?}", e);
+            error!("JWT Decode failed on ARM: {:?}", e);
             InternalServerError(e)
         })?;
         //.map_err(InternalServerError)?;
