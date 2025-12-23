@@ -19,7 +19,7 @@ mkdir -p $HOME/draid/nginx
 mkdir -p $HOME/draid/psqlstorage
 sudo mkdir -p /usr/bin/draid
 
-tar -xzvf ${ui_tar_name} .
+tar -xzvf ${ui_tar_name} # extracts in current dir
 sudo mv dist /usr/bin/draid/
 rm ${ui_tar_name}
 
@@ -46,12 +46,12 @@ if [ ${GENERATE_SSL} == "true" ]; then
 fi
 
 sudo mv nginx.service /lib/systemd/system/draid-nginx.service
-sudo mv nginx.app.conf $HOME/draid/nginx/nginx.conf
+mv nginx.app.conf $HOME/draid/nginx/nginx.conf
+mv init.sql $HOME/draid
 
 sudo systemctl daemon-reload
 sudo systemctl enable draid-nginx
 sudo systemctl restart draid-nginx
-
 
 curl -sSL https://get.docker.com | sh
 # requires restart to take effect
