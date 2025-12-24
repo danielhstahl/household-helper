@@ -20,6 +20,7 @@ describe("Output", () => {
         latestText=""
         latestCot=""
         loading={false}
+        err={null}
       />,
     );
     await expect.element(screen.getByText(/hello/i)).toBeInTheDocument();
@@ -40,6 +41,7 @@ describe("Output", () => {
         latestText=""
         latestCot=""
         loading={true}
+        err={null}
       />,
     );
     await expect.element(screen.getByRole("progressbar")).toBeInTheDocument();
@@ -60,6 +62,7 @@ describe("Output", () => {
         latestText=""
         latestCot=""
         loading={false}
+        err={null}
       />,
     );
     await expect.element(screen.getByRole("progressbar")).toBeInTheDocument();
@@ -80,6 +83,7 @@ describe("Output", () => {
         latestText="goodbye"
         latestCot=""
         loading={false}
+        err={null}
       />,
     );
     await expect.element(screen.getByText("goodbye")).toBeInTheDocument();
@@ -100,8 +104,30 @@ describe("Output", () => {
         latestText=""
         latestCot="goodbye"
         loading={false}
+        err={null}
       />,
     );
     await expect.element(screen.getByText("goodbye")).toBeInTheDocument();
+  });
+  it("shows error if has error", async () => {
+    const messages = [
+      {
+        message_type: MessageTypeEnum.human,
+        id: 1,
+        content: "hello",
+        timestamp: "sometime",
+      },
+    ];
+    const screen = render(
+      <Output
+        messages={messages}
+        isWaiting={false}
+        latestText=""
+        latestCot="goodbye"
+        loading={false}
+        err={"an error"}
+      />,
+    );
+    await expect.element(screen.getByText("an error")).toBeInTheDocument();
   });
 });

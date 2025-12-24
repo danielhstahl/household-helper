@@ -14,7 +14,6 @@ import {
 } from "react-router";
 import Grid from "@mui/material/Grid";
 import SessionSelection from "../components/SessionSelection";
-import { useNavigate } from "react-router";
 
 interface MessagesAndText {
   messages: Message[];
@@ -33,7 +32,7 @@ const MainChat = () => {
   const { agent, sessionId } = useParams();
   const { sessions, messages: historicalMessages } = useLoaderData();
   const navigation = useNavigation();
-  const navigate = useNavigate();
+  const [err, setError] = useState<string | null>(null);
   const { agentSelectionRef } = useOutletContext() as OutletContext;
   const areMessagesInitialLoading = navigation.state === "loading";
   const [isWaiting, setIsWaiting] = useState(false);
@@ -75,7 +74,8 @@ const MainChat = () => {
       }));
     }
   };
-  const onDone = () => {
+
+  const completeMessageProcessing = () => {
     setMessages((state) => ({
       latestText: "",
       messages: [
@@ -88,13 +88,21 @@ const MainChat = () => {
         },
       ],
     }));
+  };
+  const onDone = () => {
     setIsWaiting(false);
   };
   const onSubmit = (selectedAgent: AgentSelections, value: string) => {
     const jwt = getLoggedInJwt();
     onStart(value);
+    setError(null);
     invokeAgent(selectedAgent, value, jwt as string, sessionId as string, onNew)
-      .catch(() => navigate("/login"))
+      .then(completeMessageProcessing)
+      .catch(() => {
+        setError(
+          "Websocket error.  You either do not have permission to use this assistant or your session has expired.",
+        );
+      })
       .finally(onDone);
   };
   return (
@@ -117,6 +125,7 @@ const MainChat = () => {
           latestCot={cot}
           latestText={latestText}
           isWaiting={isWaiting}
+          err={err}
         />
         <Chat onSubmit={onSubmit} selectedAgent={agent as AgentSelections} />
       </Grid>

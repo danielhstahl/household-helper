@@ -4,6 +4,7 @@ import Box from "@mui/material/Box";
 import { useTheme } from "@mui/material";
 import LinearProgress from "@mui/material/LinearProgress";
 import CircularProgress from "@mui/material/CircularProgress";
+import Alert from "@mui/material/Alert";
 import ReactMarkdown from "react-markdown";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
@@ -19,6 +20,7 @@ interface OutputProps {
   latestText: string;
   latestCot: string;
   loading: boolean;
+  err: string | null;
 }
 interface FormattedTextProps {
   text: string;
@@ -41,6 +43,7 @@ const Output = ({
   latestText,
   latestCot,
   loading,
+  err,
 }: OutputProps) => {
   const theme = useTheme();
   return (
@@ -119,6 +122,7 @@ const Output = ({
               <FormattedText text={latestText} />
             </Box>
           )}
+          {err && <Alert severity="error">{err}</Alert>}
           {isWaiting && <LinearProgress />}
         </Paper>
       </Grid>
