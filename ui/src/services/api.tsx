@@ -183,7 +183,6 @@ export async function invokeAgent(
       session_id: sessionId,
       token: jwt,
     })} `,
-    //see vite.config.ts
     window.location.href,
   );
   //handles https and wss too since both end in s
