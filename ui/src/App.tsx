@@ -4,6 +4,7 @@ import Toolbar from "@mui/material/Toolbar";
 import CssBaseline from "@mui/material/CssBaseline";
 import Container from "@mui/material/Container";
 import { Outlet } from "react-router";
+import useMediaQuery from "@mui/material/useMediaQuery";
 
 const theme = createTheme({
   colorSchemes: {
@@ -13,7 +14,11 @@ const theme = createTheme({
 function App() {
   return (
     <ThemeProvider theme={theme} defaultMode="light">
-      <Container maxWidth={false} style={{ minHeight: "100%" }}>
+      <Container
+        maxWidth={false}
+        disableGutters={useMediaQuery(theme.breakpoints.down("sm"))}
+        style={{ minHeight: "100%" }}
+      >
         {/*Toolbar only here to push down below app bar*/}
         <Toolbar />
         <CssBaseline />
