@@ -19,6 +19,7 @@ mkdir -p $HOME/draid
 mkdir -p $HOME/draid/ssl
 mkdir -p $HOME/draid/nginx
 mkdir -p $HOME/draid/psqlstorage
+mkdir -p $HOME/draid/docker
 sudo mkdir -p /usr/bin/draid
 
 
@@ -54,6 +55,7 @@ if [ ${INSTALL_TYPE} == "all" ] || [ ${INSTALL_TYPE} == "server" ]; then
     sudo mv nginx.service /lib/systemd/system/draid-nginx.service
     mv nginx.app.conf $HOME/draid/nginx/nginx.conf
     mv init.sql $HOME/draid
+    mv docker-compose.yml $HOME/draid/docker
 
     sudo systemctl daemon-reload
     sudo systemctl enable draid-nginx
@@ -66,8 +68,11 @@ if [ ${INSTALL_TYPE} == "all" ] || [ ${INSTALL_TYPE} == "server" ]; then
     sudo systemctl enable docker
 
     # assumes a docker-compose.yml is in the same folder
+    cd $HOME/draid/docker
     docker compose up -d
+    cd $HOME
 else
+    rm docker-compose.yml
     rm nginx.app.conf
     rm nginx.service
     rm init.sql
