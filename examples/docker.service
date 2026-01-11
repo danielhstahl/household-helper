@@ -1,0 +1,15 @@
+[Unit]
+Description=draid docker service
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# see install.sh
+WorkingDirectory=HOME/draid/docker
+ExecStart=/usr/bin/docker compose -f docker-compose.yml up --detach
+ExecStop=/usr/bin/docker compose -f docker-compose.yml stop
+
+[Install]
+WantedBy=multi-user.target
