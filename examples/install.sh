@@ -32,6 +32,12 @@ fi
 
 # regenerates admin password
 if [ ${INSTALL_TYPE} == "all" ] || [ ${INSTALL_TYPE} == "server" ]; then
+    curl -sSL https://get.docker.com | sh
+    # requires computer restart to take effect
+    sudo usermod -aG docker ${USER}
+    sudo apt-get install docker-compose-plugin
+    sudo systemctl enable docker
+
     sed -i -e "s/HOSTNAME/${DOMAIN}/g" docker-compose.yml
     init_admin_password=$(uuid)
     sed -i -e "s/\[yourpassword\]/${init_admin_password}/g" docker-compose.yml
@@ -46,6 +52,7 @@ if [ ${INSTALL_TYPE} == "all" ] || [ ${INSTALL_TYPE} == "server" ]; then
     sed -i -e "s/HOSTNAME/${DOMAIN}/g" nginx.app.conf
     sed -i -e "s@HOME@${HOME}@g" nginx.app.conf
     sed -i -e "s@HOME@${HOME}@g" nginx.service
+    sed -i -e "s@HOME@${HOME}@g" docker.service
     GENERATE_SSL="${GENERATE_SSL:-false}"
     if [ ${GENERATE_SSL} == "true" ]; then
         openssl req -x509 -newkey rsa:4096 -sha256 -days 3650 -nodes -keyout device.key -out device.crt -subj "/CN=$DOMAIN" -addext "subjectAltName=DNS:$DOMAIN,DNS:*.$DOMAIN"
@@ -53,23 +60,16 @@ if [ ${INSTALL_TYPE} == "all" ] || [ ${INSTALL_TYPE} == "server" ]; then
         mv device.crt $HOME/draid/ssl/
     fi
     sudo mv nginx.service /lib/systemd/system/draid-nginx.service
+    sudo mv docker.service /lib/systemd/system/draid-docker.service
     mv nginx.app.conf $HOME/draid/nginx/nginx.conf
     mv init.sql $HOME/draid
     mv docker-compose.yml $HOME/draid/docker
 
     sudo systemctl daemon-reload
     sudo systemctl enable draid-nginx
+    sudo systemctl enable draid-docker
     sudo systemctl restart draid-nginx
-
-    curl -sSL https://get.docker.com | sh
-    # requires computer restart to take effect
-    sudo usermod -aG docker ${USER}
-    sudo apt-get install docker-compose-plugin
-    sudo systemctl enable docker
-
-    # assumes a docker-compose.yml is in the same folder
-    cd $HOME/draid/docker
-    docker compose up -d
+    sudo systemctl restart draid-docker
     cd $HOME
 else
     rm docker-compose.yml
