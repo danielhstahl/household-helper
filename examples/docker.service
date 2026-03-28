@@ -7,7 +7,7 @@ Requires=docker.service
 Type=oneshot
 RemainAfterExit=yes
 # see install.sh
-WorkingDirectory=HOME/draid/docker
+WorkingDirectory=%h/draid/docker
 ExecStart=/usr/bin/docker compose -f docker-compose.yml up --detach
 ExecStop=/usr/bin/docker compose -f docker-compose.yml stop
 
