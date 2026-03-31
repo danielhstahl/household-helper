@@ -18,10 +18,12 @@ import SessionSelection from "../components/SessionSelection";
 interface MessagesAndText {
   messages: Message[];
   latestText: string;
+  reasoning: string;
 }
 const initMessageState = (messages: Message[]) => ({
   messages,
   latestText: "",
+  reasoning: "",
 });
 
 interface OutletContext {
@@ -37,13 +39,13 @@ const MainChat = () => {
   const areMessagesInitialLoading = navigation.state === "loading";
   const [isWaiting, setIsWaiting] = useState(false);
 
-  const [{ messages, latestText }, setMessages] = useState<MessagesAndText>(
-    initMessageState(historicalMessages),
-  );
-  const [cot, setCot] = useState<string>("");
+  const [{ messages, latestText, reasoning }, setMessages] =
+    useState<MessagesAndText>(initMessageState(historicalMessages));
+  //const [cot, setCot] = useState<string>("");
   useEffect(() => {
     setMessages((state) => ({
       latestText: state.latestText,
+      reasoning: state.reasoning,
       messages: historicalMessages,
     }));
   }, [historicalMessages]);
@@ -51,10 +53,12 @@ const MainChat = () => {
   const onStart = (value: string) => {
     setMessages((state) => ({
       latestText: state.latestText,
+      reasoning: state.reasoning,
       messages: [
         ...state.messages,
         {
           message_type: MessageTypeEnum.human,
+          reasoning: "", //na for human messages
           content: value,
           id: state.messages.length,
           timestamp: Date.now().toString(),
@@ -65,11 +69,17 @@ const MainChat = () => {
   };
   const onNew = (nextText: ChatToken) => {
     if (nextText.tokenType === "ChainOfThought") {
-      setCot((state) => state + nextText.tokens);
+      //setCot((state) => state + nextText.tokens);
+      setMessages((state) => ({
+        latestText: state.latestText,
+        reasoning: state.reasoning + nextText.tokens,
+        messages: state.messages,
+      }));
     } else {
-      setCot("");
+      //setCot("");
       setMessages((state) => ({
         latestText: state.latestText + nextText.tokens,
+        reasoning: state.reasoning,
         messages: state.messages,
       }));
     }
@@ -78,10 +88,12 @@ const MainChat = () => {
   const completeMessageProcessing = () => {
     setMessages((state) => ({
       latestText: "",
+      reasoning: "",
       messages: [
         ...state.messages,
         {
           message_type: MessageTypeEnum.ai,
+          reasoning: state.reasoning,
           content: state.latestText,
           id: state.messages.length,
           timestamp: Date.now().toString(),
@@ -122,7 +134,7 @@ const MainChat = () => {
         <Output
           loading={areMessagesInitialLoading}
           messages={messages}
-          latestCot={cot}
+          latestCot={reasoning}
           latestText={latestText}
           isWaiting={isWaiting}
           err={err}

@@ -10,6 +10,7 @@ describe("Output", () => {
         message_type: MessageTypeEnum.human,
         id: 1,
         content: "hello",
+        reasoning: "",
         timestamp: "sometime",
       },
     ];
@@ -31,6 +32,7 @@ describe("Output", () => {
         message_type: MessageTypeEnum.human,
         id: 1,
         content: "hello",
+        reasoning: "",
         timestamp: "sometime",
       },
     ];
@@ -53,6 +55,7 @@ describe("Output", () => {
         id: 1,
         content: "hello",
         timestamp: "sometime",
+        reasoning: "",
       },
     ];
     const screen = render(
@@ -74,6 +77,7 @@ describe("Output", () => {
         id: 1,
         content: "hello",
         timestamp: "sometime",
+        reasoning: "",
       },
     ];
     const screen = render(
@@ -95,6 +99,7 @@ describe("Output", () => {
         id: 1,
         content: "hello",
         timestamp: "sometime",
+        reasoning: "",
       },
     ];
     const screen = render(
@@ -116,6 +121,7 @@ describe("Output", () => {
         id: 1,
         content: "hello",
         timestamp: "sometime",
+        reasoning: "",
       },
     ];
     const screen = render(

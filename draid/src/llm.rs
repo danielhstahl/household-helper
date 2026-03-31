@@ -199,15 +199,20 @@ fn construct_tool_call(
     tool_results
 }
 
-pub enum ChatStreamResult {
-    Message(String),
-    ToolCalls(std::collections::HashMap<(u32, u32), ChatCompletionMessageToolCall>),
-}
-
 #[derive(Serialize)]
 enum TokenCategory {
     Message,
     ChainOfThought,
+}
+
+pub struct FullMessage {
+    pub message: String,
+    pub reasoning: String,
+}
+
+pub enum ChatStreamResult {
+    Message(FullMessage),
+    ToolCalls(std::collections::HashMap<(u32, u32), ChatCompletionMessageToolCall>),
 }
 
 #[derive(Serialize)]
@@ -221,6 +226,7 @@ async fn process_chat_stream(
     tx: &mut WebSocketStream,
     mut stream: ChatCompletionResponseStream,
 ) -> anyhow::Result<ChatStreamResult> {
+    let mut chain_of_thought = String::new();
     // chain of thought
     while let Some(result) = stream.next().await {
         let result = result?;
@@ -230,7 +236,7 @@ async fn process_chat_stream(
             // Break out of this loop to switch processing modes.
             break;
         }
-
+        chain_of_thought.push_str(&tokens);
         let ws_token = WebSocketToken {
             token_type: TokenCategory::ChainOfThought,
             tokens,
@@ -275,11 +281,19 @@ async fn process_chat_stream(
                     )),
                 }?);
             }
-            _ => return Ok(ChatStreamResult::Message(full_message_no_tools)),
+            _ => {
+                return Ok(ChatStreamResult::Message(FullMessage {
+                    message: full_message_no_tools,
+                    reasoning: chain_of_thought,
+                }));
+            }
         }
     }
     //shouldn't get here, but if it does just return the message
-    Ok(ChatStreamResult::Message(full_message_no_tools))
+    Ok(ChatStreamResult::Message(FullMessage {
+        message: full_message_no_tools,
+        reasoning: chain_of_thought,
+    }))
 }
 
 pub async fn chat_with_tools(
@@ -288,7 +302,7 @@ pub async fn chat_with_tools(
     previous_messages: &[MessageResult],
     new_message: &str,
     span_id: &String,
-) -> anyhow::Result<String> {
+) -> anyhow::Result<FullMessage> {
     info!(
         tool_use = false,
         endpoint = "query",
@@ -442,16 +456,19 @@ mod tests {
         let previous_messages = vec![
             MessageResult {
                 message_type: MessageType::SystemMessage,
+                reasoning: "reasoning".to_string(),
                 content: "System message".to_string(),
                 timestamp: chrono::Utc::now(),
             },
             MessageResult {
                 message_type: MessageType::HumanMessage,
+                reasoning: "".to_string(),
                 content: "User message".to_string(),
                 timestamp: chrono::Utc::now(),
             },
             MessageResult {
                 message_type: MessageType::AIMessage,
+                reasoning: "reasoning".to_string(),
                 content: "AI message".to_string(),
                 timestamp: chrono::Utc::now(),
             },
