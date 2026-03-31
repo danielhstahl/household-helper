@@ -36,7 +36,7 @@ describe("loadSession", () => {
       params: { agent: "helper" },
       context: {},
       unstable_pattern: "",
-      unstable_url: new URL(""),
+      unstable_url: new URL("http://127.0.0.1"),
     });
     expect(result.headers.get("Location")).toEqual("/login");
     server.stop();
@@ -56,7 +56,7 @@ describe("loadSession", () => {
       params: { agent: "helper" },
       context: {},
       unstable_pattern: "",
-      unstable_url: new URL(""),
+      unstable_url: new URL("http://127.0.0.1"),
     });
     expect(result.headers.get("Location")).toEqual("/helper/session123");
     server.stop();
@@ -79,7 +79,7 @@ describe("loadSession", () => {
       params: { agent: "helper" },
       context: {},
       unstable_pattern: "",
-      unstable_url: new URL(""),
+      unstable_url: new URL("http://127.0.0.1"),
     });
     expect(result.headers.get("Location")).toEqual("/helper/session123");
     server.stop();
@@ -113,7 +113,7 @@ describe("loadSessionsAndMessages", () => {
       params: { agent: "helper" },
       context: {},
       unstable_pattern: "",
-      unstable_url: new URL(""),
+      unstable_url: new URL("http://127.0.0.1"),
     });
     expect(result instanceof Response).toBeTruthy();
     if (result instanceof Response) {
@@ -157,7 +157,7 @@ describe("loadSessionsAndMessages", () => {
       params: { sessionId: "session123" },
       context: {},
       unstable_pattern: "",
-      unstable_url: new URL(""),
+      unstable_url: new URL("http://127.0.0.1"),
     });
     expect(result).toEqual({
       sessions: [

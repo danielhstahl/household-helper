@@ -25,7 +25,7 @@ describe("sessionAction", () => {
       params: { agent: "helper" },
       context: {},
       unstable_pattern: "",
-      unstable_url: new URL(""),
+      unstable_url: new URL("http://127.0.0.1"),
     });
     expect(result instanceof Response);
     if (result instanceof Response) {
@@ -49,7 +49,7 @@ describe("sessionAction", () => {
       params: { agent: "helper" },
       context: {},
       unstable_pattern: "",
-      unstable_url: new URL(""),
+      unstable_url: new URL("http://127.0.0.1"),
     });
 
     expect(result instanceof Response);
@@ -73,7 +73,7 @@ describe("sessionAction", () => {
       params: { agent: "helper" },
       context: {},
       unstable_pattern: "",
-      unstable_url: new URL(""),
+      unstable_url: new URL("http://127.0.0.1"),
     });
     expect(result).toEqual({ status: "success" });
     server.stop();
@@ -103,7 +103,7 @@ describe("loginAction", () => {
       params: {},
       context: {},
       unstable_pattern: "",
-      unstable_url: new URL(""),
+      unstable_url: new URL("http://127.0.0.1"),
     });
     expect(getLoggedInJwt()).toEqual("helloworld");
     expect(result instanceof Response).toBeTruthy();
@@ -127,7 +127,7 @@ describe("loginAction", () => {
       params: {},
       context: {},
       unstable_pattern: "",
-      unstable_url: new URL(""),
+      unstable_url: new URL("http://127.0.0.1"),
     });
     expect(getLoggedInJwt()).toEqual(null);
     if (result instanceof Response) {
@@ -169,7 +169,7 @@ describe("userAction", () => {
       params: { agent: "helper" },
       context: {},
       unstable_pattern: "",
-      unstable_url: new URL(""),
+      unstable_url: new URL("http://127.0.0.1"),
     });
 
     expect(result instanceof Response);
@@ -205,7 +205,7 @@ describe("userAction", () => {
       params: {},
       context: {},
       unstable_pattern: "",
-      unstable_url: new URL(""),
+      unstable_url: new URL("http://127.0.0.1"),
     });
     expect(result).toEqual({
       id: 2,
@@ -243,7 +243,7 @@ describe("userAction", () => {
       params: {},
       context: {},
       unstable_pattern: "",
-      unstable_url: new URL(""),
+      unstable_url: new URL("http://127.0.0.1"),
     });
     expect(result).toEqual({
       id: 2,
@@ -275,7 +275,7 @@ describe("userAction", () => {
       params: {},
       context: {},
       unstable_pattern: "",
-      unstable_url: new URL(""),
+      unstable_url: new URL("http://127.0.0.1"),
     });
     expect(result).toEqual({ status: "success" });
     server.stop();
