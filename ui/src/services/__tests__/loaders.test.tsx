@@ -35,6 +35,8 @@ describe("loadSession", () => {
       request: new Request("/dummyurl", { method: "GET" }),
       params: { agent: "helper" },
       context: {},
+      unstable_pattern: "",
+      unstable_url: new URL(""),
     });
     expect(result.headers.get("Location")).toEqual("/login");
     server.stop();
@@ -53,6 +55,8 @@ describe("loadSession", () => {
       request: new Request("/dummyurl", { method: "GET" }),
       params: { agent: "helper" },
       context: {},
+      unstable_pattern: "",
+      unstable_url: new URL(""),
     });
     expect(result.headers.get("Location")).toEqual("/helper/session123");
     server.stop();
@@ -74,6 +78,8 @@ describe("loadSession", () => {
       request: new Request("/dummyurl", { method: "GET" }),
       params: { agent: "helper" },
       context: {},
+      unstable_pattern: "",
+      unstable_url: new URL(""),
     });
     expect(result.headers.get("Location")).toEqual("/helper/session123");
     server.stop();
@@ -106,6 +112,8 @@ describe("loadSessionsAndMessages", () => {
       request: new Request("/dummyurl", { method: "GET" }),
       params: { agent: "helper" },
       context: {},
+      unstable_pattern: "",
+      unstable_url: new URL(""),
     });
     expect(result instanceof Response).toBeTruthy();
     if (result instanceof Response) {
@@ -148,6 +156,8 @@ describe("loadSessionsAndMessages", () => {
       request: new Request("/dummyurl", { method: "GET" }),
       params: { sessionId: "session123" },
       context: {},
+      unstable_pattern: "",
+      unstable_url: new URL(""),
     });
     expect(result).toEqual({
       sessions: [

@@ -48,6 +48,29 @@ describe("Output", () => {
     );
     await expect.element(screen.getByRole("progressbar")).toBeInTheDocument();
   });
+  it("shows cot if only cot", async () => {
+    const messages = [
+      {
+        message_type: MessageTypeEnum.human,
+        id: 1,
+        content: "",
+        reasoning: "thinking",
+        timestamp: "sometime",
+      },
+    ];
+    const screen = render(
+      <Output
+        messages={messages}
+        isWaiting={false}
+        latestText=""
+        latestCot=""
+        loading={true}
+        err={null}
+      />,
+    );
+    await expect.element(screen.getByText(/thinking/i)).toBeInTheDocument();
+    //await expect.element(screen.getByRole("progressbar")).toBeInTheDocument();
+  });
   it("shows loading if isWaiting", async () => {
     const messages = [
       {
