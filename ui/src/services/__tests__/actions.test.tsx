@@ -24,6 +24,8 @@ describe("sessionAction", () => {
       request: new Request("/dummyurl", { method: "POST" }),
       params: { agent: "helper" },
       context: {},
+      unstable_pattern: "",
+      unstable_url: new URL("http://127.0.0.1"),
     });
     expect(result instanceof Response);
     if (result instanceof Response) {
@@ -46,6 +48,8 @@ describe("sessionAction", () => {
       request: new Request("/dummyurl", { method: "POST" }),
       params: { agent: "helper" },
       context: {},
+      unstable_pattern: "",
+      unstable_url: new URL("http://127.0.0.1"),
     });
 
     expect(result instanceof Response);
@@ -68,6 +72,8 @@ describe("sessionAction", () => {
       request: new Request("/dummyurl", { method: "DELETE" }),
       params: { agent: "helper" },
       context: {},
+      unstable_pattern: "",
+      unstable_url: new URL("http://127.0.0.1"),
     });
     expect(result).toEqual({ status: "success" });
     server.stop();
@@ -96,6 +102,8 @@ describe("loginAction", () => {
       request: new Request("/login", { method: "POST", body: formData }),
       params: {},
       context: {},
+      unstable_pattern: "",
+      unstable_url: new URL("http://127.0.0.1"),
     });
     expect(getLoggedInJwt()).toEqual("helloworld");
     expect(result instanceof Response).toBeTruthy();
@@ -118,6 +126,8 @@ describe("loginAction", () => {
       request: new Request("/login", { method: "POST", body: formData }),
       params: {},
       context: {},
+      unstable_pattern: "",
+      unstable_url: new URL("http://127.0.0.1"),
     });
     expect(getLoggedInJwt()).toEqual(null);
     if (result instanceof Response) {
@@ -158,6 +168,8 @@ describe("userAction", () => {
       request: new Request("/dummyurl", { method: "POST", body: formData }),
       params: { agent: "helper" },
       context: {},
+      unstable_pattern: "",
+      unstable_url: new URL("http://127.0.0.1"),
     });
 
     expect(result instanceof Response);
@@ -192,6 +204,8 @@ describe("userAction", () => {
       request: new Request("/dummyurl", { method: "POST", body: formData }),
       params: {},
       context: {},
+      unstable_pattern: "",
+      unstable_url: new URL("http://127.0.0.1"),
     });
     expect(result).toEqual({
       id: 2,
@@ -228,6 +242,8 @@ describe("userAction", () => {
       request: new Request("/dummyurl", { method: "PATCH", body: formData }),
       params: {},
       context: {},
+      unstable_pattern: "",
+      unstable_url: new URL("http://127.0.0.1"),
     });
     expect(result).toEqual({
       id: 2,
@@ -258,6 +274,8 @@ describe("userAction", () => {
       request: new Request("/dummyurl", { method: "DELETE", body: formData }),
       params: {},
       context: {},
+      unstable_pattern: "",
+      unstable_url: new URL("http://127.0.0.1"),
     });
     expect(result).toEqual({ status: "success" });
     server.stop();

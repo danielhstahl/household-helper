@@ -45,6 +45,7 @@ export type MessageType =
 export interface Message {
   message_type: MessageType;
   content: string;
+  reasoning: string;
   timestamp: string;
 }
 

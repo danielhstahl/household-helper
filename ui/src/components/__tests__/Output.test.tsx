@@ -10,6 +10,7 @@ describe("Output", () => {
         message_type: MessageTypeEnum.human,
         id: 1,
         content: "hello",
+        reasoning: "",
         timestamp: "sometime",
       },
     ];
@@ -31,6 +32,7 @@ describe("Output", () => {
         message_type: MessageTypeEnum.human,
         id: 1,
         content: "hello",
+        reasoning: "",
         timestamp: "sometime",
       },
     ];
@@ -46,6 +48,29 @@ describe("Output", () => {
     );
     await expect.element(screen.getByRole("progressbar")).toBeInTheDocument();
   });
+  it("shows cot if only cot", async () => {
+    const messages = [
+      {
+        message_type: MessageTypeEnum.human,
+        id: 1,
+        content: "",
+        reasoning: "thinking",
+        timestamp: "sometime",
+      },
+    ];
+    const screen = render(
+      <Output
+        messages={messages}
+        isWaiting={false}
+        latestText=""
+        latestCot=""
+        loading={true}
+        err={null}
+      />,
+    );
+    await expect.element(screen.getByText(/thinking/i)).toBeInTheDocument();
+    //await expect.element(screen.getByRole("progressbar")).toBeInTheDocument();
+  });
   it("shows loading if isWaiting", async () => {
     const messages = [
       {
@@ -53,6 +78,7 @@ describe("Output", () => {
         id: 1,
         content: "hello",
         timestamp: "sometime",
+        reasoning: "",
       },
     ];
     const screen = render(
@@ -74,6 +100,7 @@ describe("Output", () => {
         id: 1,
         content: "hello",
         timestamp: "sometime",
+        reasoning: "",
       },
     ];
     const screen = render(
@@ -95,6 +122,7 @@ describe("Output", () => {
         id: 1,
         content: "hello",
         timestamp: "sometime",
+        reasoning: "",
       },
     ];
     const screen = render(
@@ -116,6 +144,7 @@ describe("Output", () => {
         id: 1,
         content: "hello",
         timestamp: "sometime",
+        reasoning: "",
       },
     ];
     const screen = render(

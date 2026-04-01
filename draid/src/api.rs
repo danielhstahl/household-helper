@@ -67,7 +67,7 @@ fn handle_chat_session(
                         );
                         InternalServerError(LLMError { msg: e_str })
                     })?;
-                write_ai_message(full_message, &psql_memory)
+                write_ai_message(full_message.message, full_message.reasoning, &psql_memory)
                     .await
                     .map_err(InternalServerError)?;
                 socket

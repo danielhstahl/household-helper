@@ -17,12 +17,14 @@ pub enum MessageType {
 #[derive(sqlx::FromRow, Object)]
 pub struct MessageResult {
     pub content: String,
+    pub reasoning: String,
     pub message_type: MessageType,
     pub timestamp: chrono::DateTime<chrono::Utc>,
 }
 
 pub struct Message {
     pub content: String,
+    pub reasoning: String,
     pub message_type: MessageType,
 }
 
@@ -52,6 +54,7 @@ impl PsqlMemory {
             MessageResult,
             r#"
             SELECT content as "content: String",
+            reasoning as "reasoning: String",
             message_type as "message_type: MessageType",
             message_ts as "timestamp"
             FROM messages WHERE session_id = $1
@@ -69,10 +72,11 @@ impl PsqlMemory {
     pub async fn add_message(&self, message: Message) -> sqlx::Result<()> {
         sqlx::query!(
             r#"
-            INSERT INTO messages (id, content, message_type, session_id, username_id, message_ts)
-            VALUES(gen_random_uuid(), $1, $2, $3, $4, NOW())
+            INSERT INTO messages (id, content, reasoning, message_type, session_id, username_id, message_ts)
+            VALUES(gen_random_uuid(), $1, $2, $3, $4, $5, NOW())
             "#,
             &message.content,
+            &message.reasoning,
             message.message_type as MessageType,
             &self.session_id,
             &self.username_id
@@ -86,14 +90,20 @@ impl PsqlMemory {
 pub async fn write_human_message(new_message: String, memory: &PsqlMemory) -> sqlx::Result<()> {
     let message = Message {
         content: new_message,
+        reasoning: "".to_string(),
         message_type: MessageType::HumanMessage,
     };
     memory.add_message(message).await
 }
 
-pub async fn write_ai_message(new_message: String, memory: &PsqlMemory) -> sqlx::Result<()> {
+pub async fn write_ai_message(
+    new_message: String,
+    new_reasoning: String,
+    memory: &PsqlMemory,
+) -> sqlx::Result<()> {
     let message = Message {
         content: new_message,
+        reasoning: new_reasoning,
         message_type: MessageType::AIMessage,
     };
     memory.add_message(message).await

@@ -4,7 +4,6 @@ services:
     container_name: app
     environment:
       INIT_ADMIN_PASSWORD: [yourpassword]
-      OPEN_AI_COMPATABLE_ENDPOINT: http://[yourllmip]:8100/ai/llm
       OPEN_AI_COMPATABLE_ENDPOINT_CHAT: http://[yourllmip]:8100/ai/llm
       OPEN_AI_COMPATABLE_ENDPOINT_EMBEDDING: http://[yourllmip]:8100/ai/embedding
       JWT_SECRET: [yourjwtsecret]

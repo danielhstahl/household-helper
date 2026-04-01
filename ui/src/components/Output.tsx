@@ -1,7 +1,7 @@
 import Grid from "@mui/material/Grid";
 import Paper from "@mui/material/Paper";
 import Box from "@mui/material/Box";
-import { useTheme } from "@mui/material";
+import { IconButton, useTheme } from "@mui/material";
 import LinearProgress from "@mui/material/LinearProgress";
 import CircularProgress from "@mui/material/CircularProgress";
 import Alert from "@mui/material/Alert";
@@ -11,8 +11,10 @@ import rehypeKatex from "rehype-katex";
 import rehypeHighlight from "rehype-highlight";
 import "katex/dist/katex.min.css";
 import remarkGfm from "remark-gfm"; // For GitHub-flavored Markdown (tables, strikethrough, etc.)
-import { memo } from "react";
+import { memo, useState } from "react";
 import { MessageTypeEnum, type Message } from "../services/models";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import KeyboardArrowRightIcon from "@mui/icons-material/KeyboardArrowRight";
 import { parseText } from "../services/utils";
 interface OutputProps {
   messages: Message[];
@@ -24,16 +26,38 @@ interface OutputProps {
 }
 interface FormattedTextProps {
   text: string;
+  reasoning: string;
 }
 
-const FormattedText = memo(({ text }: FormattedTextProps) => {
+const FormattedText = memo(({ text, reasoning }: FormattedTextProps) => {
+  const [showReasoning, setShowReasoning] = useState(false);
+  const showButton = reasoning !== "" && text !== "";
+  const deriveShowReasoning =
+    showReasoning || (text === "" && reasoning !== "");
   return (
-    <ReactMarkdown
-      remarkPlugins={[remarkGfm, remarkMath]}
-      rehypePlugins={[rehypeKatex, [rehypeHighlight, { detect: false }]]}
-    >
-      {parseText(text)}
-    </ReactMarkdown>
+    <>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm, remarkMath]}
+        rehypePlugins={[rehypeKatex, [rehypeHighlight, { detect: false }]]}
+      >
+        {parseText(text)}
+      </ReactMarkdown>
+      {showButton && (
+        <IconButton onClick={() => setShowReasoning((v) => !v)}>
+          {showReasoning ? <ExpandMoreIcon /> : <KeyboardArrowRightIcon />}
+        </IconButton>
+      )}
+      {deriveShowReasoning && (
+        <div style={{ fontStyle: "italic" }}>
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm, remarkMath]}
+            rehypePlugins={[rehypeKatex, [rehypeHighlight, { detect: false }]]}
+          >
+            {parseText(reasoning)}
+          </ReactMarkdown>
+        </div>
+      )}
+    </>
   );
 });
 
@@ -63,7 +87,7 @@ const Output = ({
           }}
         >
           {loading && <CircularProgress />}
-          {messages.map(({ message_type, content }, id) => (
+          {messages.map(({ message_type, content, reasoning }, id) => (
             <Box
               key={id}
               style={{
@@ -76,7 +100,7 @@ const Output = ({
                 backgroundColor:
                   message_type === MessageTypeEnum.human
                     ? theme.palette.primary.main
-                    : theme.palette.text.disabled, //theme.palette.grey[300],
+                    : theme.palette.text.disabled,
                 color:
                   message_type === MessageTypeEnum.human
                     ? theme.palette.primary.contrastText
@@ -86,27 +110,10 @@ const Output = ({
                 wordBreak: "break-word",
               }}
             >
-              <FormattedText text={content} />
+              <FormattedText text={content} reasoning={reasoning} />
             </Box>
           ))}
-          {latestCot !== "" && (
-            <Box
-              style={{
-                alignSelf: "flex-start",
-                maxWidth: "70%",
-                borderRadius: 16,
-                fontStyle: "italic",
-                backgroundColor: theme.palette.text.disabled,
-                color: theme.palette.text.primary,
-                padding: theme.spacing(1, 2),
-                margin: theme.spacing(1),
-                wordBreak: "break-word",
-              }}
-            >
-              <FormattedText text={latestCot} />
-            </Box>
-          )}
-          {latestText !== "" && (
+          {(latestText !== "" || latestCot !== "") && (
             <Box
               style={{
                 alignSelf: "flex-start",
@@ -119,7 +126,7 @@ const Output = ({
                 wordBreak: "break-word",
               }}
             >
-              <FormattedText text={latestText} />
+              <FormattedText text={latestText} reasoning={latestCot} />
             </Box>
           )}
           {err && <Alert severity="error">{err}</Alert>}
