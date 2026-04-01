@@ -149,8 +149,13 @@ fn get_final_tokens_from_stream(stream: &CreateChatCompletionStreamResponse) -> 
         .join("")
 }
 
+const START_WORD: &'static str = "<think>";
+const STOP_WORD: &'static str = "</think>";
+fn start_thinking(token: &str) -> bool {
+    token.starts_with(START_WORD)
+}
 fn contains_stop_word(token: &str) -> bool {
-    token.contains("</think>")
+    token.ends_with(STOP_WORD)
 }
 
 fn construct_tool_call(
@@ -227,15 +232,8 @@ async fn process_chat_stream(
     mut stream: ChatCompletionResponseStream,
 ) -> anyhow::Result<ChatStreamResult> {
     let mut chain_of_thought = String::new();
-    // chain of thought
-    while let Some(result) = stream.next().await {
-        let result = result?;
-        let tokens = get_final_tokens_from_stream(&result);
 
-        if contains_stop_word(&tokens) {
-            // Break out of this loop to switch processing modes.
-            break;
-        }
+    let mut handle_tokens = async |tokens: String| -> anyhow::Result<()> {
         chain_of_thought.push_str(&tokens);
         let ws_token = WebSocketToken {
             token_type: TokenCategory::ChainOfThought,
@@ -243,6 +241,22 @@ async fn process_chat_stream(
         };
         tx.send(Message::Text(serde_json::to_string(&ws_token)?))
             .await?;
+        Ok(())
+    };
+    // chain of thought
+    while let Some(result) = stream.next().await {
+        let result = result?;
+        let tokens = get_final_tokens_from_stream(&result);
+        if start_thinking(&tokens) {
+            let partial_tokens = tokens.replace(START_WORD, "");
+            handle_tokens(partial_tokens).await?;
+        } else if contains_stop_word(&tokens) {
+            let partial_tokens = tokens.replace(STOP_WORD, "");
+            handle_tokens(partial_tokens).await?;
+            break;
+        } else {
+            handle_tokens(tokens).await?;
+        }
     }
     let mut full_message_no_tools = String::new();
     let mut tool_call_result: Option<ChatStreamResult> = None;
