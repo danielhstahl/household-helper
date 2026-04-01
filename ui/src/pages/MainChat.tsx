@@ -41,7 +41,6 @@ const MainChat = () => {
 
   const [{ messages, latestText, reasoning }, setMessages] =
     useState<MessagesAndText>(initMessageState(historicalMessages));
-  //const [cot, setCot] = useState<string>("");
   useEffect(() => {
     setMessages((state) => ({
       latestText: state.latestText,
@@ -69,14 +68,12 @@ const MainChat = () => {
   };
   const onNew = (nextText: ChatToken) => {
     if (nextText.tokenType === "ChainOfThought") {
-      //setCot((state) => state + nextText.tokens);
       setMessages((state) => ({
         latestText: state.latestText,
         reasoning: state.reasoning + nextText.tokens,
         messages: state.messages,
       }));
     } else {
-      //setCot("");
       setMessages((state) => ({
         latestText: state.latestText + nextText.tokens,
         reasoning: state.reasoning,
