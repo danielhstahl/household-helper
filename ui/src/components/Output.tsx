@@ -113,24 +113,7 @@ const Output = ({
               <FormattedText text={content} reasoning={reasoning} />
             </Box>
           ))}
-          {latestCot !== "" && (
-            <Box
-              style={{
-                alignSelf: "flex-start",
-                maxWidth: "70%",
-                borderRadius: 16,
-                //fontStyle: "italic",
-                backgroundColor: theme.palette.text.disabled,
-                color: theme.palette.text.primary,
-                padding: theme.spacing(1, 2),
-                margin: theme.spacing(1),
-                wordBreak: "break-word",
-              }}
-            >
-              <FormattedText text="" reasoning={latestCot} />
-            </Box>
-          )}
-          {latestText !== "" && (
+          {(latestText !== "" || latestCot !== "") && (
             <Box
               style={{
                 alignSelf: "flex-start",
@@ -143,7 +126,7 @@ const Output = ({
                 wordBreak: "break-word",
               }}
             >
-              <FormattedText text={latestText} reasoning="" />
+              <FormattedText text={latestText} reasoning={latestCot} />
             </Box>
           )}
           {err && <Alert severity="error">{err}</Alert>}
