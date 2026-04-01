@@ -75,6 +75,7 @@ There are two Docker images, one for the UI (static files), and one for the API 
 * ROCKET_ADDRESS (eg, 0.0.0.0)
 * JWT_SECRET (a secret string for authentication)
 
+Note that you can also host the static files without using Docker, see [install.sh](./examples/install.sh) for a script to set up these static files behind nginx without a second UI docker container.
 
 In the UI docker:
 * BACKEND_SERVICE.  Needs to be [ip/dns]:[port] of your app docker.
