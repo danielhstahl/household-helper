@@ -66,11 +66,10 @@ Change directory to [draid](./draid), and run
 
 `INIT_ADMIN_PASSWORD=[yourinitpassword] PSQL_DATABASE_URL=postgresql://postgres:[yourpassword]@localhost:5432 JWT_SECRET=[yourjwtsecret] cargo run`
 
-
 ## Deploy
 
 There are two Docker images, one for the UI (static files), and one for the API (draid).  The UI Docker includes an nginx config that needs to point to the address of the API Docker.  These images are built and available at `ghcr.io/danielhstahl/householdhelper-ui:${tag}`, `ghcr.io/danielhstahl/householdhelper-draid:${tag}`.  The following environmental variables need to be defined on the draid Docker:
-* OPEN_AI_COMPATABLE_ENDPOINT (defaults to "http://localhost:11434")
+* OPEN_AI_COMPATABLE_ENDPOINT_CHAT (defaults to "http://localhost:11434")
 * ROCKET_DATABASES (eg, '{draid={url="postgresql://[yourpsqluser]:[yourpsqlpassword]@psqldb:5432/draid"}}')
 * ROCKET_PORT (eg 8000)
 * ROCKET_ADDRESS (eg, 0.0.0.0)
