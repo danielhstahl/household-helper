@@ -30,27 +30,28 @@ pub fn get_bots(
     model_name: String,
     open_ai_compatable_endpoint: String,
     helper_tools: Vec<Arc<dyn Tool + Send + Sync>>,
+    temperature: Option<f32>,
+    presence_penalty: Option<f32>,
+    top_p: Option<f32>,
 ) -> Bots {
     let bots = Bots {
         helper_bot: Arc::new(Bot::new(
             model_name.clone(),
             HELPER_PROMPT,
             &open_ai_compatable_endpoint,
-            //recommended for qwen, see eg https://huggingface.co/Qwen/Qwen3-4B-GGUF#best-practices
-            Some(0.6),  //temperature
-            Some(1.5),  //presence penalty
-            Some(0.95), //top_p
+            temperature,
+            presence_penalty,
+            top_p,
             Some(helper_tools),
         )),
         tutor_bot: Arc::new(Bot::new(
             model_name,
             TUTOR_PROMPT,
             &open_ai_compatable_endpoint,
-            //recommended for qwen, see eg https://huggingface.co/Qwen/Qwen3-4B-GGUF#best-practices
-            Some(0.6),  //temperature
-            Some(1.5),  //presence penalty
-            Some(0.95), //top_p
-            None,       //no tools
+            temperature,
+            presence_penalty,
+            top_p,
+            None, //no tools
         )),
     };
     bots
