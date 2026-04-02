@@ -11,6 +11,11 @@ services:
       PORT: 8000
       ADDRESS: 0.0.0.0
       KNOWLEDGE_BASE_ENDPOINT: "http://127.0.0.1:8000"
+      # temperature=1.0, top_p=0.95, top_k=20, min_p=0.0, presence_penalty=1.5, repetition_penalty=1.0
+      # https://unsloth.ai/docs/models/qwen3.5#thinking-mode
+      MODEL_TEMPERATURE: 1.0
+      MODEL_PRESENCE_PENALTY: 1.5
+      MODEL_TOP_P: 0.95
       HOSTNAME: "https://HOSTNAME"
       TOOL_CONFIG: '{"kb":[{"name":"recipes","num_results":3},{"name":"gardening","num_results":3}],"mcp":[{"name":"devin","description":"Devin allows searching code repositories.  No auth required.  Both owner and repo must be provided to the function.","url":"https://mcp.deepwiki.com/mcp","mcp_type":"stream"}]}'
     ports:

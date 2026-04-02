@@ -47,6 +47,18 @@ async fn main() -> Result<(), anyhow::Error> {
     let kb_endpoint = env::var("KNOWLEDGE_BASE_ENDPOINT")
         .unwrap_or_else(|_e| "http://127.0.0.1:3000".to_string());
 
+    let temperature = env::var("MODEL_TEMPERATURE")
+        .ok()
+        .and_then(|s| s.parse::<f32>().ok());
+
+    let presence_penalty = env::var("MODEL_PRESENCE_PENALTY")
+        .ok()
+        .and_then(|s| s.parse::<f32>().ok());
+
+    let top_p = env::var("MODEL_TOP_P")
+        .ok()
+        .and_then(|s| s.parse::<f32>().ok());
+
     let default_raw_tool_config = r#"{
         "kb": [
             {
@@ -108,13 +120,14 @@ async fn main() -> Result<(), anyhow::Error> {
     helper_tools.extend(mcp_arcs);
 
     //bots
-    let bots = Arc::new(
-        get_bots(
-            model_name.to_string(),
-            open_ai_compatable_endpoint_chat,
-            helper_tools,
-        )
-    );
+    let bots = Arc::new(get_bots(
+        model_name.to_string(),
+        open_ai_compatable_endpoint_chat,
+        helper_tools,
+        temperature,
+        presence_penalty,
+        top_p,
+    ));
 
     //logging setup
     //this is a future, can be awaited but then blocks everything
