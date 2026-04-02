@@ -38,7 +38,7 @@ if [ ${INSTALL_TYPE} == "all" ] || [ ${INSTALL_TYPE} == "server" ]; then
     sudo apt-get install docker-compose-plugin
     sudo systemctl enable docker
 
-    sed -i -e "s/HOSTNAME/${DOMAIN}/g" docker-compose.yml
+    sed -i -e "s/\/\/HOSTNAME/\/\/${DOMAIN}/g" docker-compose.yml
     init_admin_password=$(uuid)
     sed -i -e "s/\[yourpassword\]/${init_admin_password}/g" docker-compose.yml
     jwt_secret=$(uuid)
