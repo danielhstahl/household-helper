@@ -49,13 +49,16 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let temperature = env::var("MODEL_TEMPERATURE")
         .ok()
-        .map(|s| s.parse::<f32>().unwrap_or_else(|_e| 1.0));
+        .and_then(|s| s.parse::<f32>().ok());
+
     let presence_penalty = env::var("MODEL_PRESENCE_PENALTY")
         .ok()
-        .map(|s| s.parse::<f32>().unwrap_or_else(|_e| 1.5));
+        .and_then(|s| s.parse::<f32>().ok());
+
     let top_p = env::var("MODEL_TOP_P")
         .ok()
-        .map(|s| s.parse::<f32>().unwrap_or_else(|_e| 0.95));
+        .and_then(|s| s.parse::<f32>().ok());
+
     let default_raw_tool_config = r#"{
         "kb": [
             {
